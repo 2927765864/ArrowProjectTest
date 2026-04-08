@@ -23,7 +23,7 @@ let lastShootTime = 0;
 const MAX_FEATHERS = 4;
 let recallTimers = [];
 const currentVelocity = new THREE.Vector3();
-const ARENA_HEIGHT = 32;
+const ARENA_HEIGHT = 48;
 const ARENA_WIDTH = ARENA_HEIGHT * 9 / 16;
 const visibleGroundBounds = {
     minX: -ARENA_WIDTH * 0.5,
@@ -69,7 +69,7 @@ function init() {
     const wrapper = document.getElementById('game-wrapper');
     Globals.camera = createOrthographicCamera(wrapper.clientWidth / wrapper.clientHeight);
     
-    const camDist = 30;
+    const camDist = 60;
     const angleX = THREE.MathUtils.degToRad(55);
     const angleY = THREE.MathUtils.degToRad(0);
     Globals.baseCamPos.set(
@@ -141,12 +141,12 @@ function init() {
     dirLight.position.set(10, 20, 10);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.set(2048, 2048);
-    dirLight.shadow.camera.left = -14;
-    dirLight.shadow.camera.right = 14;
-    dirLight.shadow.camera.top = 18;
-    dirLight.shadow.camera.bottom = -18;
+    dirLight.shadow.camera.left = -22;
+    dirLight.shadow.camera.right = 22;
+    dirLight.shadow.camera.top = 28;
+    dirLight.shadow.camera.bottom = -28;
     dirLight.shadow.camera.near = 1;
-    dirLight.shadow.camera.far = 48;
+    dirLight.shadow.camera.far = 120;
     dirLight.shadow.bias = -0.00015;
     dirLight.shadow.normalBias = 0.02;
     dirLight.shadow.camera.updateProjectionMatrix();
@@ -217,16 +217,18 @@ function setupAudioUnlock() {
 }
 
 function createOrthographicCamera(aspect) {
-    const halfHeight = ARENA_HEIGHT * 0.5;
-    const halfWidth = halfHeight * aspect;
-    return new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 0.1, 100);
+    const targetWidth = ARENA_WIDTH * 1.05; 
+    const halfWidth = targetWidth * 0.5;
+    const halfHeight = halfWidth / aspect;
+    return new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 0.1, 200);
 }
 
 function updateOrthographicFrustum() {
     const wrapper = document.getElementById('game-wrapper');
     const aspect = wrapper.clientWidth / wrapper.clientHeight;
-    const halfHeight = ARENA_HEIGHT * 0.5;
-    const halfWidth = halfHeight * aspect;
+    const targetWidth = ARENA_WIDTH * 1.05; 
+    const halfWidth = targetWidth * 0.5;
+    const halfHeight = halfWidth / aspect;
     Globals.camera.left = -halfWidth;
     Globals.camera.right = halfWidth;
     Globals.camera.top = halfHeight;
