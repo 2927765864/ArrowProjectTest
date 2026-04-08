@@ -37,6 +37,7 @@ let boundaryGroup = null;
 let arenaFloor = null;
 let solidFloorMat = null;
 let checkerboardFloorMat = null;
+let obstacleGroup = null;
 
 function createRenderer() {
     return new THREE.WebGLRenderer({ antialias: true });
@@ -200,6 +201,7 @@ function init() {
     Globals.scene.add(Globals.player.mesh);
     Globals.scene.add(Globals.player.moveIndicator);
     updateCameraFollow();
+    setupObstacles();
     
     initInput(wrapper);
     setupControlPanel();
@@ -215,6 +217,47 @@ function init() {
             queueEnemySpawn();
         }
     }, 1500);
+}
+
+function setupObstacles() {
+    if (obstacleGroup) {
+        Globals.scene.remove(obstacleGroup);
+        obstacleGroup.traverse((child) => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+        obstacleGroup = null;
+    }
+    Globals.obstacles = [];
+    if (CONFIG.sceneMode !== 'obstacles') return;
+
+    obstacleGroup = new THREE.Group();
+    Globals.scene.add(obstacleGroup);
+
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7, metalness: 0.1 });
+    const createBox = (x, z, w, d) => {
+        const h = 2.0; // Box height
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
+        mesh.position.set(x, h / 2, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        obstacleGroup.add(mesh);
+        
+        Globals.obstacles.push({
+            minX: x - w / 2,
+            maxX: x + w / 2,
+            minZ: z - d / 2,
+            maxZ: z + d / 2
+        });
+    };
+
+    // Generate a maze-like or tight corner layout
+    createBox(-6, -6, 4, 2);
+    createBox(6, -6, 4, 2);
+    createBox(0, 0, 8, 2);
+    createBox(-8, 6, 2, 6);
+    createBox(8, 6, 2, 6);
+    createBox(0, 10, 2, 4);
 }
 
 export function clearSceneEntities() {
@@ -355,6 +398,7 @@ export function refreshBoundaryVisual() {
     updateOrthographicFrustum();
     updateBoundaryVisual();
     updateCameraFollow();
+    setupObstacles();
 }
 
 function getSpawnPositionInView() {
@@ -489,6 +533,38 @@ function updatePlayerMovement(delta) {
     }
     
     if (currentVelocity.lengthSq() > 0) {
+        const nextX = Globals.player.mesh.position.x + currentVelocity.x * delta;
+        const nextZ = Globals.player.mesh.position.z + currentVelocity.z * delta;
+        const playerRadius = 0.5 * CONFIG.playerScale; // Approximate collision radius
+        
+        let hitX = false;
+        let hitZ = false;
+
+        // AABB Collision with obstacles
+        if (Globals.obstacles && Globals.obstacles.length > 0) {
+            for (const obs of Globals.obstacles) {
+                // Check X movement
+                if (nextX + playerRadius > obs.minX && nextX - playerRadius < obs.maxX &&
+                    Globals.player.mesh.position.z + playerRadius > obs.minZ && Globals.player.mesh.position.z - playerRadius < obs.maxZ) {
+                    hitX = true;
+                }
+                // Check Z movement
+                if (Globals.player.mesh.position.x + playerRadius > obs.minX && Globals.player.mesh.position.x - playerRadius < obs.maxX &&
+                    nextZ + playerRadius > obs.minZ && nextZ - playerRadius < obs.maxZ) {
+                    hitZ = true;
+                }
+            }
+        }
+
+        if (hitX) currentVelocity.x = 0;
+        if (hitZ) currentVelocity.z = 0;
+
+        if ((hitX || hitZ) && Globals.clock.getElapsedTime() - (Globals.player.lastBumpTime || 0) > 0.5) {
+            Globals.player.lastBumpTime = Globals.clock.getElapsedTime();
+            showFloatingText(Globals.player.mesh.position, '接触障碍', 'interrupt');
+            triggerShake(0.15, 0.1); // Small bump shake
+        }
+
         Globals.player.mesh.position.addScaledVector(currentVelocity, delta);
     }
 

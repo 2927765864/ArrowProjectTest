@@ -13,7 +13,7 @@ export const DEFAULT_CONFIG = {
     specialTetherGapLength: 0.5,
     specialTetherThickness: 0.13,
     specialTetherSegmentCount: 10,
-    sceneMode: 'endless',
+    sceneMode: 'obstacles', // endless, empty, obstacles
     floorStyle: 'solid', // solid, checkerboard
     maxMoveSpeed: 10,
     cameraViewScale: 1.0,

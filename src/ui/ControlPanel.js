@@ -50,22 +50,33 @@ export function setupControlPanel() {
     if (CONFIG.sceneMode === 'empty') {
         valScm.innerText = '空旷';
         btnScm.innerText = '切换为无尽';
+    } else if (CONFIG.sceneMode === 'obstacles') {
+        valScm.innerText = '障碍测试';
+        btnScm.innerText = '切换为空旷';
     } else {
         valScm.innerText = '无尽';
-        btnScm.innerText = '切换为空旷';
+        btnScm.innerText = '切换为障碍测试';
     }
     
     btnScm.addEventListener('click', () => {
         Globals.audioManager?.playUIClick();
         if (CONFIG.sceneMode === 'endless') {
+            CONFIG.sceneMode = 'obstacles';
+            valScm.innerText = '障碍测试';
+            btnScm.innerText = '切换为空旷';
+            clearSceneEntities();
+            refreshBoundaryVisual();
+        } else if (CONFIG.sceneMode === 'obstacles') {
             CONFIG.sceneMode = 'empty';
             valScm.innerText = '空旷';
             btnScm.innerText = '切换为无尽';
             clearSceneEntities();
+            refreshBoundaryVisual();
         } else {
             CONFIG.sceneMode = 'endless';
             valScm.innerText = '无尽';
-            btnScm.innerText = '切换为空旷';
+            btnScm.innerText = '切换为障碍测试';
+            refreshBoundaryVisual();
         }
     });
 

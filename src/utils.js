@@ -17,6 +17,7 @@ export const Globals = {
     slashEffects: [],
     spawnEffects: [],
     interruptEffects: [],
+    obstacles: [],
     targetIndicator: null,
     particleManager: null,
     uiLayer: null,
