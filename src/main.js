@@ -535,7 +535,10 @@ function updatePlayerMovement(delta) {
     if (currentVelocity.lengthSq() > 0) {
         const nextX = Globals.player.mesh.position.x + currentVelocity.x * delta;
         const nextZ = Globals.player.mesh.position.z + currentVelocity.z * delta;
-        const playerRadius = 0.5 * CONFIG.playerScale; // Approximate collision radius
+        
+        // Use a much smaller radius that represents the character's physical torso/head (roughly 0.22)
+        // rather than the visual blue dashed indicator ring on the ground (which is 0.45).
+        const playerRadius = 0.2 * CONFIG.playerScale; 
         
         let hitX = false;
         let hitZ = false;
