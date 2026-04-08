@@ -35,7 +35,8 @@ export function refreshInputLayout() {
 
 function handlePointerDown(event) {
     if (activePointerId !== null) return;
-    if (event.pointerType === 'mouse') return;
+    // Allow mouse events for testing purposes
+    // if (event.pointerType === 'mouse') return;
     event.preventDefault();
 
     const rect = wrapperEl.getBoundingClientRect();
