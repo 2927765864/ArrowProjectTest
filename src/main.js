@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { CONFIG } from './config.js';
-import { Globals, updateShake, getClosestEnemy, showFloatingText } from './utils.js';
+import { Globals, updateShake, triggerShake, getClosestEnemy, showFloatingText } from './utils.js';
 import { keys, joystick, initInput, refreshInputLayout } from './Input.js';
 import { InterruptBurstEffect } from './effects/InterruptBurstEffect.js';
 import { TargetIndicator } from './effects/TargetIndicator.js';
