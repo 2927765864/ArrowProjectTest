@@ -3,7 +3,7 @@ export const SpeedChart = {
     ctx: null,
     history: [],
     maxPoints: 100,
-    maxObservedSpeed: 10,
+    fixedMaxSpeed: 15, // 定死最大值为 15 (可以包容普通移动速度的上限)
     width: 180,
     height: 80,
 
@@ -29,8 +29,8 @@ export const SpeedChart = {
             this.history.shift();
         }
 
-        // Dynamically adjust scale
-        this.maxObservedSpeed = Math.max(10, ...this.history) * 1.1; 
+        // Removed dynamic scaling
+        // this.maxObservedSpeed = Math.max(10, ...this.history) * 1.1; 
 
         this.draw();
     },
@@ -43,20 +43,32 @@ export const SpeedChart = {
         // Clear canvas
         ctx.clearRect(0, 0, w, h);
 
-        // Draw grid lines (horizontal)
+        // Draw grid lines (horizontal) at fixed intervals
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.moveTo(0, h / 2);
-        ctx.lineTo(w, h / 2);
+        // line at 5 speed
+        let y5 = h - (5 / this.fixedMaxSpeed) * h;
+        ctx.moveTo(0, y5);
+        ctx.lineTo(w, y5);
+        // line at 10 speed
+        let y10 = h - (10 / this.fixedMaxSpeed) * h;
+        ctx.moveTo(0, y10);
+        ctx.lineTo(w, y10);
         ctx.stroke();
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('10', 2, y10 - 2);
+        ctx.fillText('5', 2, y5 - 2);
 
         // Draw path
         ctx.beginPath();
         for (let i = 0; i < this.history.length; i++) {
             const val = this.history[i];
             const x = (i / (this.maxPoints - 1)) * w;
-            const y = h - (val / this.maxObservedSpeed) * h;
+            const y = h - (Math.min(val, this.fixedMaxSpeed) / this.fixedMaxSpeed) * h;
             
             if (i === 0) {
                 ctx.moveTo(x, y);
