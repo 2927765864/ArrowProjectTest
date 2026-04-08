@@ -111,6 +111,19 @@ export function setupControlPanel() {
     bindSlider('inp-tns', 'val-tns', 'turnSpeed');
     bindSlider('inp-mva', 'val-mva', 'moveAcceleration');
     bindSlider('inp-mvf', 'val-mvf', 'moveFriction');
+    bindSlider('inp-mms', 'val-mms', 'maxMoveSpeed');
+
+    const inpCvs = document.getElementById('inp-cvs');
+    if (CONFIG.cameraViewScale !== undefined) {
+        inpCvs.value = CONFIG.cameraViewScale;
+        document.getElementById('val-cvs').innerText = CONFIG.cameraViewScale.toFixed(1);
+    }
+    inpCvs.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        CONFIG.cameraViewScale = val;
+        document.getElementById('val-cvs').innerText = val.toFixed(1);
+        refreshBoundaryVisual();
+    });
 
     const inpBst = document.getElementById('inp-bst');
     if (CONFIG.bloomStrength !== undefined) {

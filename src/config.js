@@ -14,6 +14,8 @@ export const DEFAULT_CONFIG = {
     specialTetherThickness: 0.13,
     specialTetherSegmentCount: 10,
     sceneMode: 'endless',
+    maxMoveSpeed: 10,
+    cameraViewScale: 1.0,
     turnSpeed: 18,
     moveAcceleration: 25,
     moveFriction: 12,

@@ -219,7 +219,7 @@ function setupAudioUnlock() {
 }
 
 function createOrthographicCamera(aspect) {
-    const targetWidth = ARENA_WIDTH * 1.05; 
+    const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
     const halfWidth = targetWidth * 0.5;
     const halfHeight = halfWidth / aspect;
     return new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 0.1, 200);
@@ -228,7 +228,7 @@ function createOrthographicCamera(aspect) {
 function updateOrthographicFrustum() {
     const wrapper = document.getElementById('game-wrapper');
     const aspect = wrapper.clientWidth / wrapper.clientHeight;
-    const targetWidth = ARENA_WIDTH * 1.05; 
+    const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
     const halfWidth = targetWidth * 0.5;
     const halfHeight = halfWidth / aspect;
     Globals.camera.left = -halfWidth;
@@ -323,6 +323,7 @@ function updateBoundaryVisual() {
 }
 
 export function refreshBoundaryVisual() {
+    updateOrthographicFrustum();
     updateBoundaryVisual();
     updateCameraFollow();
 }
@@ -442,8 +443,8 @@ function updatePlayerMovement(delta) {
         inputVelocity.normalize(); 
         Globals.player.lastMoveDirection = inputVelocity.clone();
         
-        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, inputVelocity.x * 10, delta * CONFIG.moveAcceleration);
-        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, inputVelocity.z * 10, delta * CONFIG.moveAcceleration);
+        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, inputVelocity.x * CONFIG.maxMoveSpeed, delta * CONFIG.moveAcceleration);
+        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, inputVelocity.z * CONFIG.maxMoveSpeed, delta * CONFIG.moveAcceleration);
         
         isMoving = true;
     } else {
