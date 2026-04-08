@@ -7,7 +7,8 @@ let activePointerId = null;
 let wrapperEl = null;
 let joystickEl = null;
 let knobEl = null;
-let joystickRadius = 48;
+let joystickVisualRadius = 48; // 视觉上摇杆能推到的最远边缘
+let joystickLogicalRadius = 28; // 实际逻辑上推到满速 (1.0) 所需的滑动距离
 let origin = { x: 0, y: 0 };
 let idleTimeoutId = null;
 
@@ -84,13 +85,20 @@ function updateJoystick(localX, localY) {
     const dx = localX - origin.x;
     const dy = localY - origin.y;
     const distance = Math.hypot(dx, dy);
-    const clampedDistance = Math.min(distance, joystickRadius);
+    
+    // 视觉上 Knob 能够到达的物理边缘
+    const visualDistance = Math.min(distance, joystickVisualRadius);
     const angle = Math.atan2(dy, dx);
-    const knobX = Math.cos(angle) * clampedDistance;
-    const knobY = Math.sin(angle) * clampedDistance;
+    const knobX = Math.cos(angle) * visualDistance;
+    const knobY = Math.sin(angle) * visualDistance;
 
-    joystick.x = distance === 0 ? 0 : knobX / joystickRadius;
-    joystick.y = distance === 0 ? 0 : knobY / joystickRadius;
+    // 逻辑上的输出向量 (缩短推满速所需的滑动距离)
+    // distance >= joystickLogicalRadius 时，速度就已经是 1.0 了
+    const logicIntensity = distance === 0 ? 0 : Math.min(distance / joystickLogicalRadius, 1.0);
+    
+    joystick.x = Math.cos(angle) * logicIntensity;
+    joystick.y = Math.sin(angle) * logicIntensity;
+    
     knobEl.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
 }
 
