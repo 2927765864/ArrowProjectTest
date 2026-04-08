@@ -14,6 +14,7 @@ export const DEFAULT_CONFIG = {
     specialTetherThickness: 0.13,
     specialTetherSegmentCount: 10,
     sceneMode: 'endless',
+    floorStyle: 'solid', // solid, checkerboard
     maxMoveSpeed: 10,
     cameraViewScale: 1.0,
     turnSpeed: 18,

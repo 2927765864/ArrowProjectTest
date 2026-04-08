@@ -69,6 +69,31 @@ export function setupControlPanel() {
         }
     });
 
+    const btnFlm = document.getElementById('btn-flm');
+    const valFlm = document.getElementById('val-flm');
+    
+    if (CONFIG.floorStyle === 'checkerboard') {
+        valFlm.innerText = '黑白格子';
+        btnFlm.innerText = '切换为纯色';
+    } else {
+        valFlm.innerText = '纯色';
+        btnFlm.innerText = '切换为格子';
+    }
+    
+    btnFlm.addEventListener('click', () => {
+        Globals.audioManager?.playUIClick();
+        if (CONFIG.floorStyle === 'checkerboard') {
+            CONFIG.floorStyle = 'solid';
+            valFlm.innerText = '纯色';
+            btnFlm.innerText = '切换为格子';
+        } else {
+            CONFIG.floorStyle = 'checkerboard';
+            valFlm.innerText = '黑白格子';
+            btnFlm.innerText = '切换为纯色';
+        }
+        refreshBoundaryVisual();
+    });
+
     const bindSlider = (inputId, valId, configKey, isFloat = false) => {
         const input = document.getElementById(inputId);
         const valDisplay = document.getElementById(valId);

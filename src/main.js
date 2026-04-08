@@ -35,6 +35,8 @@ const visibleGroundBounds = {
 const pendingEnemySpawns = [];
 let boundaryGroup = null;
 let arenaFloor = null;
+let solidFloorMat = null;
+let checkerboardFloorMat = null;
 
 function createRenderer() {
     return new THREE.WebGLRenderer({ antialias: true });
@@ -160,9 +162,30 @@ function init() {
     backdropPlane.position.y = -0.02;
     Globals.scene.add(backdropPlane);
 
+    solidFloorMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.95, metalness: 0.02 });
+    
+    // Create a generated checkerboard texture
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#cccccc';
+    ctx.fillRect(0, 0, 512, 512);
+    ctx.fillStyle = '#555555';
+    ctx.fillRect(0, 0, 256, 256);
+    ctx.fillRect(256, 256, 256, 256);
+    
+    const checkerTexture = new THREE.CanvasTexture(canvas);
+    checkerTexture.wrapS = THREE.RepeatWrapping;
+    checkerTexture.wrapT = THREE.RepeatWrapping;
+    // Repeat density: adjust so squares look proportional to the arena size
+    checkerTexture.repeat.set(ARENA_WIDTH / 4, ARENA_HEIGHT / 4);
+    checkerTexture.colorSpace = THREE.SRGBColorSpace;
+    
+    checkerboardFloorMat = new THREE.MeshStandardMaterial({ map: checkerTexture, roughness: 0.8, metalness: 0.1 });
+
     const arenaFloorGeo = new THREE.PlaneGeometry(1, 1);
-    const arenaFloorMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.95, metalness: 0.02 });
-    arenaFloor = new THREE.Mesh(arenaFloorGeo, arenaFloorMat);
+    arenaFloor = new THREE.Mesh(arenaFloorGeo, CONFIG.floorStyle === 'checkerboard' ? checkerboardFloorMat : solidFloorMat);
     arenaFloor.rotation.x = -Math.PI / 2;
     arenaFloor.position.y = 0;
     arenaFloor.receiveShadow = true;
@@ -274,6 +297,12 @@ function updateBoundaryVisual() {
         arenaFloor.geometry.dispose();
         arenaFloor.geometry = new THREE.PlaneGeometry(horizontalLength, verticalLength);
         arenaFloor.position.set((minX + maxX) * 0.5, 0, (minZ + maxZ) * 0.5);
+        
+        if (CONFIG.floorStyle === 'checkerboard' && checkerboardFloorMat && checkerboardFloorMat.map) {
+            checkerboardFloorMat.map.repeat.set(horizontalLength / 4, verticalLength / 4);
+            checkerboardFloorMat.map.needsUpdate = true;
+        }
+        arenaFloor.material = CONFIG.floorStyle === 'checkerboard' ? checkerboardFloorMat : solidFloorMat;
     }
 
     if (boundaryGroup) {
