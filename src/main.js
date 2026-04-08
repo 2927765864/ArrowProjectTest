@@ -562,12 +562,6 @@ function updatePlayerMovement(delta) {
         if (hitX) currentVelocity.x = 0;
         if (hitZ) currentVelocity.z = 0;
 
-        if ((hitX || hitZ) && Globals.clock.getElapsedTime() - (Globals.player.lastBumpTime || 0) > 0.5) {
-            Globals.player.lastBumpTime = Globals.clock.getElapsedTime();
-            showFloatingText(Globals.player.mesh.position, '接触障碍', 'interrupt');
-            triggerShake(0.15, 0.1); // Small bump shake
-        }
-
         Globals.player.mesh.position.addScaledVector(currentVelocity, delta);
     }
 
