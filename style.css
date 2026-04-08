@@ -30,7 +30,7 @@ body {
 
 #player-hud {
     position: absolute;
-    display: flex;
+    display: none; /* 隐藏玩家头上的羽毛球UI */
     flex-direction: column; 
     gap: calc(4px * var(--hud-scale)); 
     pointer-events: none;
