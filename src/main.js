@@ -17,6 +17,7 @@ import { PlayerCharacter } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { Feather } from './entities/Feather.js';
 import { setupControlPanel } from './ui/ControlPanel.js';
+import { SpeedChart } from './ui/SpeedChart.js';
 
 let isMoving = false;
 let lastShootTime = 0;
@@ -179,6 +180,7 @@ function init() {
     
     initInput(wrapper);
     setupControlPanel();
+    SpeedChart.init();
     setupAudioUnlock();
     
     window.addEventListener('resize', onWindowResize);
@@ -542,6 +544,7 @@ function animate() {
     updateCameraFollow();
     updateShake(delta);
     Globals.player.updateAnimation(delta, time, isMoving, currentVelocity);
+    SpeedChart.update(currentVelocity.length());
     updatePlayerHUD(); 
     updatePendingEnemySpawns(delta);
     
