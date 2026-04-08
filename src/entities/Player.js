@@ -5,91 +5,77 @@ import { Globals } from '../utils.js';
 export class PlayerCharacter {
     constructor() {
         this.mesh = new THREE.Group();
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0xcca47c, roughness: 0.9, flatShading: true });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: 0x00aaff, roughness: 0.9, flatShading: true }); 
-        const pantsMat = new THREE.MeshStandardMaterial({ color: 0x3d3db8, roughness: 0.9, flatShading: true }); 
-        const shoeMat = new THREE.MeshStandardMaterial({ color: 0x6e6e6e, roughness: 0.9, flatShading: true }); 
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0xffe0bd, roughness: 0.6 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: 0x44aaff, roughness: 0.8 }); 
+        const limbMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 }); 
         
         this.bodyGroup = new THREE.Group();
-        this.bodyGroup.position.y = 0.6; 
+        this.bodyGroup.position.y = 0.25; 
         this.mesh.add(this.bodyGroup);
         
-        // Torso (Shirt)
-        const torsoGeo = new THREE.BoxGeometry(0.4, 0.6, 0.2);
+        // Torso
+        const torsoGeo = new THREE.CapsuleGeometry(0.12, 0.12, 4, 16);
         const torso = new THREE.Mesh(torsoGeo, shirtMat);
-        torso.position.y = 0.3;
+        torso.position.y = 0.08;
         torso.castShadow = true;
         this.bodyGroup.add(torso);
         
         // Head
         this.headGroup = new THREE.Group();
-        this.headGroup.position.y = 0.8; 
-        const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+        this.headGroup.position.y = 0.30; 
+        const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
         const head = new THREE.Mesh(headGeo, skinMat);
         head.castShadow = true;
-        
-        // Hair (Dark brown block on top/back)
-        const hairMat = new THREE.MeshStandardMaterial({ color: 0x4a2a18, roughness: 0.9, flatShading: true });
-        const hairGeo = new THREE.BoxGeometry(0.42, 0.1, 0.42);
-        const hairTop = new THREE.Mesh(hairGeo, hairMat);
-        hairTop.position.y = 0.16;
-        
         this.headGroup.add(head);
-        this.headGroup.add(hairTop);
+
+        // Eyes
+        const eyeGeo = new THREE.SphereGeometry(0.025, 16, 16);
+        const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeL.position.set(0.08, 0.05, 0.2);
+        const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+        eyeR.position.set(-0.08, 0.05, 0.2);
+        this.headGroup.add(eyeL);
+        this.headGroup.add(eyeR);
+        
         this.bodyGroup.add(this.headGroup);
         
-        // Arms (Skin with short sleeve)
-        const armGroupL = new THREE.Group();
-        const sleeveGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
-        const sleeveL = new THREE.Mesh(sleeveGeo, shirtMat);
-        sleeveL.position.y = 0.1;
-        const lowerArmGeo = new THREE.BoxGeometry(0.2, 0.4, 0.2);
-        const lowerArmL = new THREE.Mesh(lowerArmGeo, skinMat);
-        lowerArmL.position.y = -0.2;
-        armGroupL.add(sleeveL);
-        armGroupL.add(lowerArmL);
+        // Arms
+        const armGeo = new THREE.CapsuleGeometry(0.04, 0.12, 4, 16);
         
-        this.leftArm = armGroupL;
-        this.leftArm.position.set(0.3, 0.5, 0); 
+        this.leftArm = new THREE.Group();
+        const armMeshL = new THREE.Mesh(armGeo, skinMat);
+        armMeshL.position.y = -0.06; 
+        armMeshL.castShadow = true;
+        this.leftArm.add(armMeshL);
+        this.leftArm.position.set(0.18, 0.18, 0); 
         this.bodyGroup.add(this.leftArm);
         
-        const armGroupR = new THREE.Group();
-        const sleeveR = new THREE.Mesh(sleeveGeo, shirtMat);
-        sleeveR.position.y = 0.1;
-        const lowerArmR = new THREE.Mesh(lowerArmGeo, skinMat);
-        lowerArmR.position.y = -0.2;
-        armGroupR.add(sleeveR);
-        armGroupR.add(lowerArmR);
-        
-        this.rightArm = armGroupR;
-        this.rightArm.position.set(-0.3, 0.5, 0); 
+        this.rightArm = new THREE.Group();
+        const armMeshR = new THREE.Mesh(armGeo, skinMat);
+        armMeshR.position.y = -0.06;
+        armMeshR.castShadow = true;
+        this.rightArm.add(armMeshR);
+        this.rightArm.position.set(-0.18, 0.18, 0); 
         this.bodyGroup.add(this.rightArm);
         
-        // Legs (Pants + Shoes)
-        const legGroupL = new THREE.Group();
-        const pantGeo = new THREE.BoxGeometry(0.2, 0.45, 0.2);
-        const pantL = new THREE.Mesh(pantGeo, pantsMat);
-        pantL.position.y = -0.125;
-        const shoeGeo = new THREE.BoxGeometry(0.2, 0.15, 0.2);
-        const shoeL = new THREE.Mesh(shoeGeo, shoeMat);
-        shoeL.position.y = -0.425;
-        legGroupL.add(pantL);
-        legGroupL.add(shoeL);
+        // Legs
+        const legGeo = new THREE.CapsuleGeometry(0.05, 0.12, 4, 16);
         
-        this.leftLeg = legGroupL;
-        this.leftLeg.position.set(0.1, 0.6, 0); 
+        this.leftLeg = new THREE.Group();
+        const legMeshL = new THREE.Mesh(legGeo, limbMat);
+        legMeshL.position.y = -0.08;
+        legMeshL.castShadow = true;
+        this.leftLeg.add(legMeshL);
+        this.leftLeg.position.set(0.07, 0.15, 0); 
         this.mesh.add(this.leftLeg);
         
-        const legGroupR = new THREE.Group();
-        const pantR = new THREE.Mesh(pantGeo, pantsMat);
-        pantR.position.y = -0.125;
-        const shoeR = new THREE.Mesh(shoeGeo, shoeMat);
-        shoeR.position.y = -0.425;
-        legGroupR.add(pantR);
-        legGroupR.add(shoeR);
-        
-        this.rightLeg = legGroupR;
-        this.rightLeg.position.set(-0.1, 0.6, 0); 
+        this.rightLeg = new THREE.Group();
+        const legMeshR = new THREE.Mesh(legGeo, limbMat);
+        legMeshR.position.y = -0.08;
+        legMeshR.castShadow = true;
+        this.rightLeg.add(legMeshR);
+        this.rightLeg.position.set(-0.07, 0.15, 0); 
         this.mesh.add(this.rightLeg);
 
         const indicatorGlowMat = new THREE.MeshBasicMaterial({
@@ -218,7 +204,7 @@ export class PlayerCharacter {
             
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0.15, delta * 15); 
             
-            this.bodyGroup.position.y = 0.6 + Math.abs(Math.sin(this.walkPhase)) * 0.1 * (speedMagnitude / 10);
+            this.bodyGroup.position.y = 0.25 + Math.abs(Math.sin(this.walkPhase)) * 0.1 * (speedMagnitude / 10);
             this.leftArm.rotation.x = -legSwing * 0.8; 
             this.leftArm.rotation.z = 0.1;
             if (this.isAttacking) { 
@@ -245,7 +231,7 @@ export class PlayerCharacter {
             
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
             
-            this.bodyGroup.position.y = 0.6 + Math.sin(time * idleSpeed) * 0.03;
+            this.bodyGroup.position.y = 0.25 + Math.sin(time * idleSpeed) * 0.03;
             this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 10);
             this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed) * 0.02;
             if (this.isAttacking) { 
