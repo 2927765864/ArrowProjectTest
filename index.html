@@ -25,136 +25,167 @@
             <div class="panel-row" style="margin-bottom: 10px;">
                 <button id="btn-save-cfg" style="width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">将当前参数设置为默认参数</button>
             </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>回收震动 (轻)</span><span id="val-sr">0.10</span></div>
-                <input type="range" id="inp-sr" min="0" max="0.5" step="0.05" value="0.10">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>死亡震动 (中)</span><span id="val-si">0.40</span></div>
-                <input type="range" id="inp-si" min="0" max="1.5" step="0.05" value="0.40">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>终结震动 (强)</span><span id="val-sf">0.80</span></div>
-                <input type="range" id="inp-sf" min="0" max="2.0" step="0.1" value="0.80">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>震动时长 (秒)</span><span id="val-sd">0.15</span></div>
-                <input type="range" id="inp-sd" min="0" max="1.0" step="0.05" value="0.15">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>血渍持续时间 (秒)</span><span id="val-bl">5.0</span></div>
-                <input type="range" id="inp-bl" min="1" max="20" step="1" value="5">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>音效开关</span><span id="val-aen">开</span></div>
-                <input type="checkbox" id="inp-aen" checked>
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>音效音量</span><span id="val-avl">0.42</span></div>
-                <input type="range" id="inp-avl" min="0" max="1" step="0.01" value="0.42">
-            </div>
-            <div class="panel-row">
-                <hr style="border: 0; border-top: 1px solid #444; margin: 4px 0;">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>辉光强度</span><span id="val-bst">0.30</span></div>
-                <input type="range" id="inp-bst" min="0" max="3" step="0.05" value="0.3">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>辉光阈值</span><span id="val-bth">0.25</span></div>
-                <input type="range" id="inp-bth" min="0" max="1" step="0.05" value="0.25">
-            </div>
-            <div class="panel-row">
-                <hr style="border: 0; border-top: 1px solid #444; margin: 4px 0;">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>转向速度</span><span id="val-tns">18</span></div>
-                <input type="range" id="inp-tns" min="5" max="60" step="1" value="18">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>移动加速</span><span id="val-mva">25</span></div>
-                <input type="range" id="inp-mva" min="5" max="80" step="1" value="25">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>移动摩擦</span><span id="val-mvf">12</span></div>
-                <input type="range" id="inp-mvf" min="5" max="50" step="1" value="12">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>场景模式</span><span id="val-scm">无尽</span></div>
-                <button id="btn-scm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为空旷</button>
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>发射间隔 (秒)</span><span id="val-cd">0.35</span></div>
-                <input type="range" id="inp-cd" min="0.1" max="1.5" step="0.05" value="0.35">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>射出飞行速度</span><span id="val-ds">40</span></div>
-                <input type="range" id="inp-ds" min="10" max="60" step="1" value="40">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>回收逐一间隔 (毫秒)</span><span id="val-ri">100</span></div>
-                <input type="range" id="inp-ri" min="0" max="500" step="10" value="100">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>前三根回收速度</span><span id="val-rs">70</span></div>
-                <input type="range" id="inp-rs" min="10" max="100" step="1" value="70">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>第四根回收前摇 (毫秒)</span><span id="val-frd">300</span></div>
-                <input type="range" id="inp-frd" min="0" max="1000" step="10" value="300">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>第四根回收速度</span><span id="val-frs">20</span></div>
-                <input type="range" id="inp-frs" min="5" max="80" step="1" value="20">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>连线段长</span><span id="val-tdl">0.30</span></div>
-                <input type="range" id="inp-tdl" min="0.1" max="2.0" step="0.05" value="0.3">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>连线间隔</span><span id="val-tgl">0.40</span></div>
-                <input type="range" id="inp-tgl" min="0.1" max="3.5" step="0.05" value="0.4">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>连线粗细</span><span id="val-ttk">0.03</span></div>
-                <input type="range" id="inp-ttk" min="0.01" max="0.3" step="0.01" value="0.03">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>连线段数</span><span id="val-tsc">8</span></div>
-                <input type="range" id="inp-tsc" min="3" max="16" step="1" value="8">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>特殊段长</span><span id="val-stdl">0.30</span></div>
-                <input type="range" id="inp-stdl" min="0.1" max="2.5" step="0.05" value="0.3">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>特殊间隔</span><span id="val-stgl">0.50</span></div>
-                <input type="range" id="inp-stgl" min="0.1" max="4.0" step="0.05" value="0.5">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>特殊粗细</span><span id="val-sttk">0.13</span></div>
-                <input type="range" id="inp-sttk" min="0.04" max="0.35" step="0.01" value="0.13">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>特殊段数</span><span id="val-stsc">10</span></div>
-                <input type="range" id="inp-stsc" min="4" max="18" step="1" value="10">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>玩家尺寸倍率</span><span id="val-ps">2.5</span></div>
-                <input type="range" id="inp-ps" min="0.3" max="5.0" step="0.1" value="2.5">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>敌人尺寸倍率</span><span id="val-es">2.0</span></div>
-                <input type="range" id="inp-es" min="0.3" max="5.0" step="0.1" value="2.0">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>伤害数字倍率</span><span id="val-dsz">0.6</span></div>
-                <input type="range" id="inp-dsz" min="0.1" max="3.0" step="0.1" value="0.6">
-            </div>
-            <div class="panel-row">
-                <div class="panel-row-header"><span>羽毛 UI 倍率</span><span id="val-hsz">1.0</span></div>
-                <input type="range" id="inp-hsz" min="0.3" max="3.0" step="0.1" value="1.0">
-            </div>
+
+            <details class="panel-group" open>
+                <summary>🎮 游戏与模式</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>场景模式</span><span id="val-scm">无尽</span></div>
+                    <button id="btn-scm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为空旷</button>
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🏃 角色与移动</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>转向速度</span><span id="val-tns">18</span></div>
+                    <input type="range" id="inp-tns" min="5" max="60" step="1" value="18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动加速</span><span id="val-mva">25</span></div>
+                    <input type="range" id="inp-mva" min="5" max="80" step="1" value="25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动摩擦</span><span id="val-mvf">12</span></div>
+                    <input type="range" id="inp-mvf" min="5" max="50" step="1" value="12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>玩家尺寸倍率</span><span id="val-ps">2.5</span></div>
+                    <input type="range" id="inp-ps" min="0.3" max="5.0" step="0.1" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>敌人尺寸倍率</span><span id="val-es">2.0</span></div>
+                    <input type="range" id="inp-es" min="0.3" max="5.0" step="0.1" value="2.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>⚔️ 攻击与回收</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>发射间隔 (秒)</span><span id="val-cd">0.35</span></div>
+                    <input type="range" id="inp-cd" min="0.1" max="1.5" step="0.05" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>射出飞行速度</span><span id="val-ds">40</span></div>
+                    <input type="range" id="inp-ds" min="10" max="60" step="1" value="40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>回收逐一间隔 (毫秒)</span><span id="val-ri">100</span></div>
+                    <input type="range" id="inp-ri" min="0" max="500" step="10" value="100">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>前三根回收速度</span><span id="val-rs">70</span></div>
+                    <input type="range" id="inp-rs" min="10" max="100" step="1" value="70">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>第四根回收前摇 (毫秒)</span><span id="val-frd">300</span></div>
+                    <input type="range" id="inp-frd" min="0" max="1000" step="10" value="300">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>第四根回收速度</span><span id="val-frs">20</span></div>
+                    <input type="range" id="inp-frs" min="5" max="80" step="1" value="20">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>⚡️ 连线特效</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线段长<span id="val-tdl">0.30</span></div>
+                    <input type="range" id="inp-tdl" min="0.1" max="2.0" step="0.05" value="0.3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线间隔<span id="val-tgl">0.40</span></div>
+                    <input type="range" id="inp-tgl" min="0.1" max="3.5" step="0.05" value="0.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线粗细<span id="val-ttk">0.03</span></div>
+                    <input type="range" id="inp-ttk" min="0.01" max="0.3" step="0.01" value="0.03">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线段数<span id="val-tsc">8</span></div>
+                    <input type="range" id="inp-tsc" min="3" max="16" step="1" value="8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线段长<span id="val-stdl">0.30</span></div>
+                    <input type="range" id="inp-stdl" min="0.1" max="2.5" step="0.05" value="0.3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线间隔<span id="val-stgl">0.50</span></div>
+                    <input type="range" id="inp-stgl" min="0.1" max="4.0" step="0.05" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线粗细<span id="val-sttk">0.13</span></div>
+                    <input type="range" id="inp-sttk" min="0.04" max="0.35" step="0.01" value="0.13">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线段数<span id="val-stsc">10</span></div>
+                    <input type="range" id="inp-stsc" min="4" max="18" step="1" value="10">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>📳 震动设置</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>回收震动 (轻)</span><span id="val-sr">0.10</span></div>
+                    <input type="range" id="inp-sr" min="0" max="0.5" step="0.05" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>死亡震动 (中)</span><span id="val-si">0.40</span></div>
+                    <input type="range" id="inp-si" min="0" max="1.5" step="0.05" value="0.40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>终结震动 (强)</span><span id="val-sf">0.80</span></div>
+                    <input type="range" id="inp-sf" min="0" max="2.0" step="0.1" value="0.80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>震动时长 (秒)</span><span id="val-sd">0.15</span></div>
+                    <input type="range" id="inp-sd" min="0" max="1.0" step="0.05" value="0.15">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>✨ 视觉后期与音效</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>辉光强度</span><span id="val-bst">0.30</span></div>
+                    <input type="range" id="inp-bst" min="0" max="3" step="0.05" value="0.3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>辉光阈值</span><span id="val-bth">0.25</span></div>
+                    <input type="range" id="inp-bth" min="0" max="1" step="0.05" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>血渍持续时间 (秒)</span><span id="val-bl">5.0</span></div>
+                    <input type="range" id="inp-bl" min="1" max="20" step="1" value="5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>音效开关</span><span id="val-aen">开</span></div>
+                    <input type="checkbox" id="inp-aen" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>音效音量</span><span id="val-avl">0.42</span></div>
+                    <input type="range" id="inp-avl" min="0" max="1" step="0.01" value="0.42">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🖥 UI 与界面</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>伤害数字倍率</span><span id="val-dsz">0.6</span></div>
+                    <input type="range" id="inp-dsz" min="0.1" max="3.0" step="0.1" value="0.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>羽毛 UI 倍率</span><span id="val-hsz">1.0</span></div>
+                    <input type="range" id="inp-hsz" min="0.3" max="3.0" step="0.1" value="1.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>📊 数据图表 (预留)</summary>
+                <div class="panel-row" style="padding: 15px 5px; text-align: center; color: #888; font-style: italic;">
+                    此面板预留给后续参数分析、二维数据图表或性能曲线图。
+                    <div id="chart-container" style="min-height: 80px; margin-top: 10px; border: 1px dashed #555; border-radius: 4px; display: flex; align-items: center; justify-content: center;">[图表容器]</div>
+                </div>
+            </details>
+
         </div>
     </div>
 
