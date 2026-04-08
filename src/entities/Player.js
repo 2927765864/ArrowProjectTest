@@ -38,6 +38,23 @@ export class PlayerCharacter {
         this.headGroup.add(eyeL);
         this.headGroup.add(eyeR);
         
+        // Hat (Red Baseball Cap)
+        const hatMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7 });
+        
+        const hatDomeGeo = new THREE.SphereGeometry(0.225, 32, 16, 0, Math.PI * 2, 0, Math.PI / 1.8);
+        const hatDome = new THREE.Mesh(hatDomeGeo, hatMat);
+        hatDome.position.y = 0.03;
+        hatDome.castShadow = true;
+        this.headGroup.add(hatDome);
+
+        const brimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 32);
+        const hatBrim = new THREE.Mesh(brimGeo, hatMat);
+        hatBrim.scale.z = 0.65; 
+        hatBrim.position.set(0, 0.03, 0.22);
+        hatBrim.rotation.x = -0.12; 
+        hatBrim.castShadow = true;
+        this.headGroup.add(hatBrim);
+
         this.bodyGroup.add(this.headGroup);
         
         // Arms
