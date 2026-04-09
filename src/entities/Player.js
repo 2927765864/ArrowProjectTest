@@ -21,39 +21,52 @@ export class PlayerCharacter {
         torso.castShadow = true;
         this.bodyGroup.add(torso);
         
-        // Head
+        // Head (Cartoon Cat)
         this.headGroup = new THREE.Group();
         this.headGroup.position.y = 0.30; 
-        const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
+        
+        // Base Cat Head (wider, slightly squashed)
+        const headGeo = new THREE.SphereGeometry(0.24, 32, 32);
         const head = new THREE.Mesh(headGeo, skinMat);
+        head.scale.set(1.25, 0.95, 1.1);
         head.castShadow = true;
         this.headGroup.add(head);
 
-        // Eyes
-        const eyeGeo = new THREE.SphereGeometry(0.025, 16, 16);
+        // Cat Ears
+        const earGeo = new THREE.ConeGeometry(0.09, 0.22, 4);
+        
+        const earL = new THREE.Mesh(earGeo, skinMat);
+        earL.position.set(0.18, 0.20, 0);
+        earL.rotation.z = -0.25;
+        earL.rotation.x = -0.08;
+        earL.castShadow = true;
+        this.headGroup.add(earL);
+
+        const earR = new THREE.Mesh(earGeo, skinMat);
+        earR.position.set(-0.18, 0.20, 0);
+        earR.rotation.z = 0.25;
+        earR.rotation.x = -0.08;
+        earR.castShadow = true;
+        this.headGroup.add(earR);
+
+        // Cat Eyes (vertical slits)
+        const eyeGeo = new THREE.CapsuleGeometry(0.02, 0.05, 4, 8);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeL.position.set(0.08, 0.05, 0.2);
+        eyeL.position.set(0.12, 0.04, 0.24);
+        eyeL.rotation.z = -0.08;
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeR.position.set(-0.08, 0.05, 0.2);
+        eyeR.position.set(-0.12, 0.04, 0.24);
+        eyeR.rotation.z = 0.08;
         this.headGroup.add(eyeL);
         this.headGroup.add(eyeR);
-        
-        // Hat (Red Baseball Cap)
-        const hatMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        
-        const hatDomeGeo = new THREE.SphereGeometry(0.225, 32, 16, 0, Math.PI * 2, 0, Math.PI / 1.8);
-        const hatDome = new THREE.Mesh(hatDomeGeo, hatMat);
-        hatDome.position.y = 0.03;
-        hatDome.castShadow = true;
-        this.headGroup.add(hatDome);
 
-        const brimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 32);
-        const hatBrim = new THREE.Mesh(brimGeo, hatMat);
-        hatBrim.scale.z = 0.65; 
-        hatBrim.position.set(0, 0.03, 0.22);
-        hatBrim.rotation.x = -0.12; 
-        hatBrim.castShadow = true;
-        this.headGroup.add(hatBrim);
+        // Cat Nose
+        const noseGeo = new THREE.ConeGeometry(0.025, 0.035, 3);
+        const nose = new THREE.Mesh(noseGeo, eyeMat);
+        nose.position.set(0, -0.02, 0.26);
+        nose.rotation.x = Math.PI / 2;
+        nose.rotation.y = Math.PI;
+        this.headGroup.add(nose);
 
         this.bodyGroup.add(this.headGroup);
         
