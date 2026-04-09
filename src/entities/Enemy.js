@@ -32,10 +32,10 @@ export class Enemy {
         
         const hornGeo = new THREE.ConeGeometry(0.08, 0.25, 4);
         const leftHorn = new THREE.Mesh(hornGeo, hornMat); 
-        leftHorn.position.set(0.25, 0.35, 0.1); leftHorn.rotation.z = -0.5; leftHorn.rotation.x = -0.2; addEdgeOutline(leftHorn, 0x91c53a);
+        leftHorn.position.set(0.25, 0.35, 0.1); leftHorn.rotation.z = -0.5; leftHorn.rotation.x = -0.2;
         this.bodyMesh.add(leftHorn);
         const rightHorn = new THREE.Mesh(hornGeo, hornMat); 
-        rightHorn.position.set(-0.25, 0.35, 0.1); rightHorn.rotation.z = 0.5; rightHorn.rotation.x = -0.2; addEdgeOutline(rightHorn, 0x91c53a);
+        rightHorn.position.set(-0.25, 0.35, 0.1); rightHorn.rotation.z = 0.5; rightHorn.rotation.x = -0.2;
         this.bodyMesh.add(rightHorn);
         
         this.animOffset = Math.random() * 10;
