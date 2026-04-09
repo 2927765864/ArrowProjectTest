@@ -103,8 +103,7 @@ function init() {
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
         depthBuffer: true,
-        stencilBuffer: true,
-        samples: 4
+        stencilBuffer: true
     };
     const renderTarget = new THREE.WebGLRenderTarget(width, height, renderTargetParameters);
 
