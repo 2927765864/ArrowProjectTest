@@ -148,7 +148,7 @@ body {
 }
 
 .dmg-flex { display: flex; align-items: center; gap: 4px; color: inherit; }
-.dmg-icon { fill: currentColor; filter: drop-shadow(2px 2px 0 #000) drop-shadow(-1px -1px 0 #000) drop-shadow(1px -1px 0 #000) drop-shadow(-1px 1px 0 #000); width: 1.2em; height: 1.2em; }
+.dmg-icon { fill: currentColor; filter: drop-shadow(0 0 6px rgba(145, 197, 58, 0.4)) drop-shadow(0 3px 6px rgba(0,0,0,0.35)); width: 1.2em; height: 1.2em; }
 
 #control-panel {
     position: absolute;
