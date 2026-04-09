@@ -277,17 +277,42 @@ export function setupControlPanel() {
 
     const toggleBtn = document.getElementById('toggle-panel');
     const panelContent = document.getElementById('panel-content');
+    const panelTabs = document.getElementById('panel-tabs');
     const panelGroups = Array.from(document.querySelectorAll('.panel-group'));
 
-    panelGroups.forEach((group) => {
-        group.addEventListener('toggle', () => {
-            if (!group.open) return;
-            panelGroups.forEach((other) => {
-                if (other !== group) other.open = false;
-            });
-            group.scrollIntoView({ block: 'nearest' });
+    const setActivePanelGroup = (activeGroup) => {
+        panelGroups.forEach((group) => {
+            group.open = group === activeGroup;
         });
+
+        Array.from(panelTabs.querySelectorAll('.panel-tab')).forEach((tab) => {
+            tab.classList.toggle('is-active', tab.dataset.target === activeGroup.dataset.panelKey);
+        });
+
+        activeGroup.scrollIntoView({ block: 'nearest' });
+    };
+
+    panelTabs.innerHTML = '';
+    panelGroups.forEach((group, index) => {
+        const summary = group.querySelector('summary');
+        const label = summary?.textContent?.trim() || `分类 ${index + 1}`;
+        const key = `panel-group-${index}`;
+        group.dataset.panelKey = key;
+
+        const tab = document.createElement('button');
+        tab.type = 'button';
+        tab.className = 'panel-tab';
+        tab.dataset.target = key;
+        tab.innerText = label;
+        tab.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            setActivePanelGroup(group);
+        });
+        panelTabs.appendChild(tab);
     });
+
+    const initiallyOpenGroup = panelGroups.find((group) => group.open) || panelGroups[0];
+    if (initiallyOpenGroup) setActivePanelGroup(initiallyOpenGroup);
 
     toggleBtn.addEventListener('click', () => {
         const isHidden = panelContent.style.display === 'none';
