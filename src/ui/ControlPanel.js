@@ -1,6 +1,6 @@
 import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
-import { clearSceneEntities, refreshBoundaryVisual } from '../main.js';
+import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
 const PANEL_VERSION = 'v2026.04.09-1006';
 
@@ -82,6 +82,8 @@ export function setupControlPanel() {
 
     const btnFlm = document.getElementById('btn-flm');
     const valFlm = document.getElementById('val-flm');
+    const btnCfl = document.getElementById('btn-cfl');
+    const valCfl = document.getElementById('val-cfl');
     const btnMfm = document.getElementById('btn-mfm');
     const valMfm = document.getElementById('val-mfm');
     
@@ -105,6 +107,24 @@ export function setupControlPanel() {
             btnFlm.innerText = '切换为纯色';
         }
         refreshBoundaryVisual();
+    });
+
+    const syncCameraFollowUi = () => {
+        if (CONFIG.cameraFollowEnabled === false) {
+            valCfl.innerText = '关';
+            btnCfl.innerText = '开启相机跟随';
+        } else {
+            valCfl.innerText = '开';
+            btnCfl.innerText = '关闭相机跟随';
+        }
+    };
+    syncCameraFollowUi();
+
+    btnCfl.addEventListener('click', () => {
+        Globals.audioManager?.playUIClick();
+        CONFIG.cameraFollowEnabled = CONFIG.cameraFollowEnabled === false;
+        syncCameraFollowUi();
+        refreshCameraFollow();
     });
 
     const syncMoveFacingModeUi = () => {
@@ -257,6 +277,18 @@ export function setupControlPanel() {
 
     const toggleBtn = document.getElementById('toggle-panel');
     const panelContent = document.getElementById('panel-content');
+    const panelGroups = Array.from(document.querySelectorAll('.panel-group'));
+
+    panelGroups.forEach((group) => {
+        group.addEventListener('toggle', () => {
+            if (!group.open) return;
+            panelGroups.forEach((other) => {
+                if (other !== group) other.open = false;
+            });
+            group.scrollIntoView({ block: 'nearest' });
+        });
+    });
+
     toggleBtn.addEventListener('click', () => {
         const isHidden = panelContent.style.display === 'none';
         panelContent.style.display = isHidden ? 'flex' : 'none';

@@ -17,6 +17,7 @@ export const DEFAULT_CONFIG = {
     floorStyle: 'solid', // solid, checkerboard
     maxMoveSpeed: 10,
     cameraViewScale: 1.0,
+    cameraFollowEnabled: true,
     moveFacingMode: 'decoupled', // decoupled, faceMoveDirection
     turnSpeed: 18,
     moveAcceleration: 25,

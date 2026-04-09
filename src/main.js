@@ -315,6 +315,12 @@ function updateVisibleGroundBounds() {
 function updateCameraFollow() {
     if (!Globals.player) return;
 
+    if (!CONFIG.cameraFollowEnabled) {
+        Globals.baseCamTarget.set(0, 0, 0);
+        Globals.baseCamPos.copy(Globals.cameraOffset);
+        return;
+    }
+
     const marginZ = 0.8 * CONFIG.playerScale;
     const playerMinZ = visibleGroundBounds.minZ + marginZ;
     const playerMaxZ = visibleGroundBounds.maxZ - marginZ;
@@ -399,6 +405,10 @@ export function refreshBoundaryVisual() {
     updateBoundaryVisual();
     updateCameraFollow();
     setupObstacles();
+}
+
+export function refreshCameraFollow() {
+    updateCameraFollow();
 }
 
 function getSpawnPositionInView() {
