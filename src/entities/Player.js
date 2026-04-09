@@ -47,13 +47,13 @@ export class PlayerCharacter {
         // 3. Cheeks / Jowls (Makes the face wide at the bottom)
         const cheekGeo = new THREE.SphereGeometry(0.11, 32, 32);
         const cheekL = new THREE.Mesh(cheekGeo, faceMat);
-        cheekL.scale.set(1.1, 0.85, 1.1);
-        cheekL.position.set(0.11, -0.04, 0.06);
+        cheekL.scale.set(0.9, 0.75, 0.95);
+        cheekL.position.set(0.09, -0.04, 0.05);
         this.headGroup.add(cheekL);
         
         const cheekR = new THREE.Mesh(cheekGeo, faceMat);
-        cheekR.scale.set(1.1, 0.85, 1.1);
-        cheekR.position.set(-0.11, -0.04, 0.06);
+        cheekR.scale.set(0.9, 0.75, 0.95);
+        cheekR.position.set(-0.09, -0.04, 0.05);
         this.headGroup.add(cheekR);
 
         // 4. Ears (Flattened cones with inner ear depth)
@@ -142,7 +142,7 @@ export class PlayerCharacter {
         armMeshL.position.y = -0.06; 
         armMeshL.castShadow = true;
         this.leftArm.add(armMeshL);
-        this.leftArm.position.set(0.18, 0.18, 0); 
+        this.leftArm.position.set(0.16, 0.10, 0); 
         this.bodyGroup.add(this.leftArm);
         
         this.rightArm = new THREE.Group();
@@ -150,7 +150,7 @@ export class PlayerCharacter {
         armMeshR.position.y = -0.06;
         armMeshR.castShadow = true;
         this.rightArm.add(armMeshR);
-        this.rightArm.position.set(-0.18, 0.18, 0); 
+        this.rightArm.position.set(-0.16, 0.10, 0); 
         this.bodyGroup.add(this.rightArm);
         
         // Legs
