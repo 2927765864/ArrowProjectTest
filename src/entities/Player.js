@@ -184,11 +184,9 @@ export class PlayerCharacter {
         const magnitude = Math.min(inputMag, 1.8); // 允许最大延伸力度 1.8
         if (magnitude > 0.001) input.normalize().multiplyScalar(magnitude);
 
-        // 原来是 1.35，现在我们要求它在全速移动时（magnitude=1）达到某个范围
-        // 然后在手指滑到更远时（magnitude=1.8）达到 1.5 倍身位
-        // 因此最大范围 1.5 身位，发生在 magnitude=1.8 时
-        // 当 magnitude=1 时，大概是 1.5 / 1.8 = 0.83 身位，更紧凑
-        const maxOffsetBase = 1.5 / 1.8 * CONFIG.playerScale; 
+        // 原来是 1.35，现在我们要求它在手指滑到更远时（magnitude=1.8）达到 1.0 倍身位
+        // 因此最大范围 1.0 身位，发生在 magnitude=1.8 时
+        const maxOffsetBase = 1.0 / 1.8 * CONFIG.playerScale; 
         const targetOffset = new THREE.Vector3(input.x * maxOffsetBase, 0, input.y * maxOffsetBase);
         
         if (magnitude > 0.001) {
@@ -205,7 +203,7 @@ export class PlayerCharacter {
         const alpha = 0.18 + magnitude * 0.82;
         this.moveIndicatorGlow.material.opacity = 0.08 + alpha * 0.22;
         this.moveIndicatorCore.material.opacity = 0.18 + alpha * 0.7;
-        const scale = CONFIG.playerScale * (0.85 + magnitude * 0.45);
+        const scale = CONFIG.playerScale * (0.65 + magnitude * 0.35); // 缩小整体尺寸的基准乘数
         this.moveIndicator.scale.setScalar(scale);
     }
     
