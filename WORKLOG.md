@@ -122,3 +122,6 @@
 
 - 修复移动端网页控制面板 `.panel-group` 的内层滚动溢出问题。去除了 `overflow: hidden` 并通过赋予 `overflow-y: auto` 与 `max-height: 480px`，允许内容过多的分类单独滚动，避免移动端屏幕空间受限导致下方参数不可见。
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1041`。
+
+- 调低了 `.panel-group` 的 `max-height` 阈值限制（从 480px 降至 360px），以确保在各种移动设备和窗口尺寸下均能稳定触发 CSS 的超出溢出滚动机制 (`overflow-y: auto`)，避免受外层大容器遮挡而无法看到底部的控制拉条。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1042`。
