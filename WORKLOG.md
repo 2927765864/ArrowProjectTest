@@ -105,3 +105,7 @@
 - 弃用基于 apktool 反编译替换资源的出包方式，改为基于完整的 Android Shell 原生工程 (`.build/android-shell`) 并利用内部自带环境调用 `gradle assembleDebug` 构建原生的全新独立 APK 包，以避免可能带来的 webview 加载异常和资源映射路径损坏。
 
 - 修复全新的原生 Android 打包工程中，WebView 本地资产路径 (`appassets.androidplatform.net/assets/web/index.html`) 与 `assets` 文件夹实际物理结构不匹配导致的 `net::ERR_INVALID_RESPONSE` 白屏错误。现已将所有 Web 资源文件放入到 `assets/web/` 子文件夹中进行正确的构建与映射。
+
+- 优化障碍物渲染模型，为 `BoxGeometry` 的各个面赋予略有差异亮度的材质数组，解决以往同一纯色材质下导致的“看起来像一个平面正方形”的问题，现在障碍物呈现出了清晰的 3D 立体长方体感。
+- 调整了主角的物理碰撞体积（AABB）。为解决俯视角画面透视带来的视觉差和误判（容易被前方的障碍物错误卡住头部），我们将主角碰撞体积中偏北方（-Z 轴，即屏幕上方）的半个圆剔除，只保留其脚底及偏南方（+Z 轴，即屏幕下方）的判定区域。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1037`。

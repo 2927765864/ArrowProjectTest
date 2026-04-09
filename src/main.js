@@ -253,10 +253,22 @@ function setupObstacles() {
     obstacleGroup = new THREE.Group();
     Globals.scene.add(obstacleGroup);
 
-    const boxMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
+    const baseColor = new THREE.Color(0x5e55a2);
+    const topMat = new THREE.MeshBasicMaterial({ color: baseColor });
+    const sideMat1 = new THREE.MeshBasicMaterial({ color: baseColor.clone().multiplyScalar(0.85) });
+    const sideMat2 = new THREE.MeshBasicMaterial({ color: baseColor.clone().multiplyScalar(0.7) });
+    const boxMaterials = [
+        sideMat1, // right
+        sideMat1, // left
+        topMat,   // top
+        topMat,   // bottom
+        sideMat2, // front
+        sideMat2  // back
+    ];
+    
     const createBox = (x, z, w, d) => {
         const h = 2.0; // Box height
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMaterials);
         mesh.position.set(x, h / 2, z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
@@ -577,12 +589,12 @@ function updatePlayerMovement(delta) {
             for (const obs of Globals.obstacles) {
                 // Check X movement
                 if (nextX + playerRadius > obs.minX && nextX - playerRadius < obs.maxX &&
-                    Globals.player.mesh.position.z + playerRadius > obs.minZ && Globals.player.mesh.position.z - playerRadius < obs.maxZ) {
+                    Globals.player.mesh.position.z + playerRadius > obs.minZ && Globals.player.mesh.position.z < obs.maxZ) {
                     hitX = true;
                 }
                 // Check Z movement
                 if (Globals.player.mesh.position.x + playerRadius > obs.minX && Globals.player.mesh.position.x - playerRadius < obs.maxX &&
-                    nextZ + playerRadius > obs.minZ && nextZ - playerRadius < obs.maxZ) {
+                    nextZ + playerRadius > obs.minZ && nextZ < obs.maxZ) {
                     hitZ = true;
                 }
             }
