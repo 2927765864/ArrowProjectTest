@@ -41,7 +41,7 @@ let checkerboardFloorMat = null;
 let obstacleGroup = null;
 
 function createRenderer() {
-    return new THREE.WebGLRenderer({ antialias: true });
+    return new THREE.WebGLRenderer({ antialias: true, stencil: true });
 }
 
 const BLOOM_SCENE = 1;
@@ -243,7 +243,13 @@ function setupObstacles() {
         Globals.scene.remove(obstacleGroup);
         obstacleGroup.traverse((child) => {
             if (child.geometry) child.geometry.dispose();
-            if (child.material) child.material.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    child.material.dispose();
+                }
+            }
         });
         obstacleGroup = null;
     }

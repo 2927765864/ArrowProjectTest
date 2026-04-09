@@ -254,10 +254,13 @@ export class PlayerCharacter {
         const xrayMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
             transparent: true,
-            opacity: 0.35,
+            opacity: 0.6,
             depthFunc: THREE.GreaterDepth,
             depthWrite: false,
-            blending: THREE.AdditiveBlending
+            stencilWrite: true,
+            stencilRef: 1,
+            stencilFunc: THREE.NotEqualStencilFunc,
+            stencilZPass: THREE.ReplaceStencilOp
         });
 
         this.xrayMeshes = [];
