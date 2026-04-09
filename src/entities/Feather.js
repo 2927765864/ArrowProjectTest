@@ -138,7 +138,8 @@ export class Feather {
         this.modelGroup.add(buildProng(ptsR, 'left'));
 
         // Center the overall mass of the weapon for rotation
-        this.modelGroup.position.y = 1.0; 
+        // (Offset applied along parent Z because internal +Y becomes +Z after Math.PI/2 X-rotation, scaled by 0.35)
+        this.modelGroup.position.set(0, 0, 0.35);
 
         // Scale to gameplay size (Total length is ~13, scaled by 0.35 gives ~4.5)
         this.modelGroup.scale.setScalar(0.35);
