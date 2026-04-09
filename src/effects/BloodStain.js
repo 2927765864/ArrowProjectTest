@@ -26,7 +26,7 @@ export class BloodStain {
         const baseColor = 0x2e2a52;
         const mat = new THREE.MeshBasicMaterial({ 
             color: baseColor, transparent: true, opacity: 0.8, 
-            depthWrite: false, roughness: 1, metalness: 0 
+            depthWrite: false 
         });
         
         const shape = new THREE.Shape(); 

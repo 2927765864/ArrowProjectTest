@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Globals, addEdgeOutline, triggerShake } from '../utils.js';
+import { Globals, triggerShake } from '../utils.js';
 import { CONFIG } from '../config.js';
 
 export class Feather {
@@ -51,20 +51,13 @@ export class Feather {
         
         this.vaneMat = new THREE.MeshBasicMaterial({ 
             color: 0x91c53a, 
-            emissive: 0x91c53a, 
-            transparent: true, opacity: 0.9, roughness: 0.2, metalness: 0.6, flatShading: true 
+            transparent: true, opacity: 0.9 
         });
         const quillMat = new THREE.MeshBasicMaterial({ 
-            color: 0x91c53a, 
-            emissive: 0x91c53a, 
-            roughness: 0.1, metalness: 0.8 
+            color: 0x91c53a 
         });
         const tipMat = new THREE.MeshBasicMaterial({
-            color: 0x91c53a,
-            emissive: 0x91c53a,
-            roughness: 0.08,
-            metalness: 0.9,
-            flatShading: true
+            color: 0x91c53a
         });
         
         const shaftGeo = new THREE.CylinderGeometry(0.035, 0.045, 2.6, 8);
@@ -320,7 +313,6 @@ export class Feather {
         if (this.isSpecial) { 
             this.mesh.scale.set(2.2, 2.2, 2.2); 
             this.vaneMat.color.setHex(0x91c53a); 
-            this.vaneMat.emissive.setHex(0x91c53a); 
             this.speed = CONFIG.finalRecallSpeed; 
         } else {
             this.speed = CONFIG.baseRecallSpeed + index * 5;

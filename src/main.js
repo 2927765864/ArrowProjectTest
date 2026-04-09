@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { CONFIG } from './config.js';
@@ -137,6 +138,23 @@ function init() {
     Globals.finalComposer = new EffectComposer(Globals.renderer);
     Globals.finalComposer.addPass(renderPass);
     Globals.finalComposer.addPass(mixPass);
+
+    Globals.outlinePass = new OutlinePass(
+        new THREE.Vector2(wrapper.clientWidth, wrapper.clientHeight),
+        Globals.scene,
+        Globals.camera
+    );
+    Globals.outlinePass.edgeStrength = 4.0;
+    Globals.outlinePass.edgeGlow = 0.0;
+    Globals.outlinePass.edgeThickness = 1.0;
+    Globals.outlinePass.pulsePeriod = 0;
+    // 藤紫色边缘给怪物/环境，钛啡绿色边缘给玩家，
+    // 由于 OutlinePass 不能轻易针对不同物体设置不同颜色（需要分组渲染），
+    // 我们可以默认采用钛啡绿 0x1a1532（非常深的紫黑）或者亮色作为通用轮廓线
+    Globals.outlinePass.visibleEdgeColor.setHex(0x1a1532);
+    Globals.outlinePass.hiddenEdgeColor.setHex(0x1a1532);
+    Globals.finalComposer.addPass(Globals.outlinePass);
+
     Globals.finalComposer.addPass(outputPass);
     
     const ambientLight = new THREE.AmbientLight(0x5e55a2, 1.2);
@@ -157,13 +175,13 @@ function init() {
     Globals.scene.add(dirLight);
     
     const backdropGeo = new THREE.PlaneGeometry(160, 160);
-    const backdropMat = new THREE.MeshBasicMaterial({ color: 0x1a1532, roughness: 1, metalness: 0.02, depthWrite: false });
+    const backdropMat = new THREE.MeshBasicMaterial({ color: 0x1a1532, depthWrite: false });
     const backdropPlane = new THREE.Mesh(backdropGeo, backdropMat);
     backdropPlane.rotation.x = -Math.PI / 2;
     backdropPlane.position.y = -0.02;
     Globals.scene.add(backdropPlane);
 
-    solidFloorMat = new THREE.MeshBasicMaterial({ color: 0x2d2952, roughness: 0.95, metalness: 0.02 });
+    solidFloorMat = new THREE.MeshBasicMaterial({ color: 0x2d2952 });
     
     // Create a generated checkerboard texture
     const canvas = document.createElement('canvas');
@@ -183,7 +201,7 @@ function init() {
     checkerTexture.repeat.set(ARENA_WIDTH / 4, ARENA_HEIGHT / 4);
     checkerTexture.colorSpace = THREE.SRGBColorSpace;
     
-    checkerboardFloorMat = new THREE.MeshBasicMaterial({ map: checkerTexture, roughness: 0.8, metalness: 0.1 });
+    checkerboardFloorMat = new THREE.MeshBasicMaterial({ map: checkerTexture });
 
     const arenaFloorGeo = new THREE.PlaneGeometry(1, 1);
     arenaFloor = new THREE.Mesh(arenaFloorGeo, CONFIG.floorStyle === 'checkerboard' ? checkerboardFloorMat : solidFloorMat);
@@ -197,6 +215,7 @@ function init() {
     Globals.targetIndicator = new TargetIndicator();
     
     Globals.player = new PlayerCharacter();
+    Globals.outlinePass.selectedObjects.push(Globals.player.mesh);
     Globals.player.mesh.scale.setScalar(CONFIG.playerScale);
     Globals.scene.add(Globals.player.mesh);
     Globals.scene.add(Globals.player.moveIndicator);
@@ -234,7 +253,7 @@ function setupObstacles() {
     obstacleGroup = new THREE.Group();
     Globals.scene.add(obstacleGroup);
 
-    const boxMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, roughness: 0.7, metalness: 0.1 });
+    const boxMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
     const createBox = (x, z, w, d) => {
         const h = 2.0; // Box height
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
@@ -699,6 +718,16 @@ function animate() {
     }
     for (let i = Globals.feathers.length - 1; i >= 0; i--) {
         Globals.feathers[i].update(delta);
+    }
+    
+    // Update OutlinePass selection
+    if (Globals.outlinePass) {
+        const selection = [];
+        if (Globals.player && Globals.player.mesh) selection.push(Globals.player.mesh);
+        if (obstacleGroup) selection.push(...obstacleGroup.children);
+        for (const e of Globals.enemies) if (e.mesh) selection.push(e.mesh);
+        for (const f of Globals.feathers) if (f.mesh) selection.push(f.mesh);
+        Globals.outlinePass.selectedObjects = selection;
     }
     
     Globals.scene.traverse(darkenNonBloomed);

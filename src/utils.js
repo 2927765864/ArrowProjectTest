@@ -7,6 +7,7 @@ export const Globals = {
     renderer: null,
     composer: null,
     finalComposer: null,
+    outlinePass: null,
     bloomPass: null,
     audioManager: null,
     player: null,
@@ -78,13 +79,7 @@ export function showFloatingText(position, text, cssClass) {
     setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 950);
 }
 
-export function addEdgeOutline(mesh, outlineColorHex = 0x1a1532) {
-    if (!mesh || !mesh.geometry) return;
-    const edges = new THREE.EdgesGeometry(mesh.geometry, 5); // 角度阈值
-    const lineMat = new THREE.LineBasicMaterial({ color: outlineColorHex, linewidth: 2 });
-    const lineMesh = new THREE.LineSegments(edges, lineMat);
-    mesh.add(lineMesh);
-}
+
 
 export function getClosestEnemy() {
     let closest = null, minDist = Infinity;

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Globals, SVG, addEdgeOutline, showFloatingText, triggerShake } from '../utils.js';
+import { Globals, SVG, showFloatingText, triggerShake } from '../utils.js';
 import { CONFIG } from '../config.js';
 import { BloodStain } from '../effects/BloodStain.js';
 import { SlashFlashEffect } from '../effects/SlashFlashEffect.js';
@@ -11,18 +11,17 @@ export class Enemy {
         this.knockbackVelocity = new THREE.Vector3(0, 0, 0); 
         this.stunTimer = 0; 
         
-        const bodyMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, roughness: 0.7, flatShading: true });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x91c53a, emissive: 0x91c53a, emissiveIntensity: 2 });
-        const hornMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, flatShading: true });
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
+        const hornMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
         this.materials = [bodyMat, eyeMat, hornMat];
         this.flashTimeoutId = null;
         this.materials.forEach((mat) => {
-            mat.userData.baseEmissive = mat.emissive.getHex();
+            mat.userData.baseColor = mat.color.getHex();
         });
         
         const bodyGeo = new THREE.IcosahedronGeometry(0.4, 0); 
         this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat); 
-        addEdgeOutline(this.bodyMesh, 0x91c53a);
         this.mesh.add(this.bodyMesh);
         
         const eyeGeo = new THREE.BoxGeometry(0.15, 0.08, 0.1);
@@ -85,13 +84,13 @@ export class Enemy {
     takeDamage(amount, type, direction) {
         this.hp -= amount; 
         this.materials.forEach(mat => { 
-            mat.emissive.setHex(0x91c53a); 
+            mat.color.setHex(0xffffff); 
         });
         if (this.flashTimeoutId) clearTimeout(this.flashTimeoutId);
         this.flashTimeoutId = setTimeout(() => {
             if (!this.isDead) {
                 this.materials.forEach((mat) => {
-                    mat.emissive.setHex(mat.userData.baseEmissive);
+                    mat.color.setHex(mat.userData.baseColor);
                 });
             }
             this.flashTimeoutId = null;
