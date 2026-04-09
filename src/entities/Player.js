@@ -253,8 +253,9 @@ export class PlayerCharacter {
             if (this.attackTimer <= 0) this.isAttacking = false; 
         }
         
+        let speedMagnitude = 0;
         if (isMoving && currentVelocity) {
-            const speedMagnitude = currentVelocity.length();
+            speedMagnitude = currentVelocity.length();
             this.walkPhase += delta * speedMagnitude * 1.5;
             this.smokeTrailDistance += speedMagnitude * delta;
             
@@ -269,16 +270,6 @@ export class PlayerCharacter {
             if (this.tailGroup) {
                 this.tailGroup.rotation.y = Math.sin(this.walkPhase * 1.8) * 0.4;
             }
-        } else {
-            this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
-            this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
-            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
-            
-            // Idle tail wag
-            if (this.tailGroup) {
-                this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
-            }
-        }
 
             if (Globals.particleManager && speedMagnitude > 2.5 && this.smokeTrailDistance >= 1.35 * CONFIG.playerScale) {
                 const moveDir = currentVelocity.clone().normalize();
@@ -293,25 +284,50 @@ export class PlayerCharacter {
             const idleSpeed = 3;
             this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
             this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
-            
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
             
+            // Idle tail wag
+            if (this.tailGroup) {
+                this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
+            }
+            
             this.bodyGroup.position.y = 0.25 + Math.sin(time * idleSpeed) * 0.03;
-            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 10);
-            this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed) * 0.02;
+        }
+        
+        const idleSpeed2 = 3;
+        const armSpeed = this.isAttacking ? 20 : (isMoving ? 8 : 10);
+        
+        if (isMoving) {
+            const targetArmL = -Math.sin(this.walkPhase) * 0.5;
+            const targetArmR = Math.sin(this.walkPhase) * 0.5;
+            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
+            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0, delta * armSpeed);
+            if (this.isAttacking) {
+                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -0.8, delta * 20);
+                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, 0, delta * 20);
+            } else {
+                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
+                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, 0, delta * armSpeed);
+            }
+        } else {
+            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
+            this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
+            
             if (this.isAttacking) { 
-                this.rightArm.rotation.x = -Math.PI * 0.7; 
-                this.rightArm.rotation.z = -0.3; 
+                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.7, delta * 20); 
+                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.3, delta * 20); 
             } else { 
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * 10); 
-                this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed) * 0.02; 
+                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed); 
+                this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02; 
             }
         }
         
         // Ensure base ring stays flat despite player rotation
-        this.baseRingGroup.quaternion.copy(this.mesh.quaternion).invert();
-        this.dashRing.rotation.y += delta * 1.5;
-        const ringScale = 1.0 + Math.sin(time * 4) * 0.03;
-        this.baseRingGroup.scale.set(ringScale, 1, ringScale);
+        if (this.baseRingGroup) {
+            this.baseRingGroup.quaternion.copy(this.mesh.quaternion).invert();
+            if (this.dashRing) this.dashRing.rotation.y += delta * 1.5;
+            const ringScale = 1.0 + Math.sin(time * 4) * 0.03;
+            this.baseRingGroup.scale.set(ringScale, 1, ringScale);
+        }
     }
 }
