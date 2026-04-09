@@ -125,3 +125,6 @@
 
 - 调低了 `.panel-group` 的 `max-height` 阈值限制（从 480px 降至 360px），以确保在各种移动设备和窗口尺寸下均能稳定触发 CSS 的超出溢出滚动机制 (`overflow-y: auto`)，避免受外层大容器遮挡而无法看到底部的控制拉条。
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1042`。
+
+- 调整参数面板中 `自定义碰撞半径` (customCollisionRadius) 的拉条步进值 (`step`)，由 0.05 缩小至 0.01，以支持更精确的体积碰撞微调。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1043` 并发布 Android 安装包。
