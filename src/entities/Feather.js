@@ -49,10 +49,7 @@ export class Feather {
         this.modelGroup = new THREE.Group(); 
         this.mesh.add(this.modelGroup);
         
-        this.vaneMat = new THREE.MeshBasicMaterial({ 
-            color: 0x91c53a, 
-            transparent: true, opacity: 0.9 
-        });
+        
         const quillMat = new THREE.MeshBasicMaterial({ 
             color: 0x91c53a 
         });
@@ -60,52 +57,85 @@ export class Feather {
             color: 0x91c53a
         });
         
-        const shaftGeo = new THREE.CylinderGeometry(0.035, 0.045, 2.6, 8);
-        const shaft = new THREE.Mesh(shaftGeo, quillMat);
-        shaft.layers.enable(1);
+        // Spear of Longinus Model
+        const spearMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
+        const darkMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
+
+        // 1. Long Shaft
+        const shaftGeo = new THREE.CylinderGeometry(0.025, 0.045, 2.8, 8);
+        const shaft = new THREE.Mesh(shaftGeo, spearMat);
+        shaft.position.y = -0.2;
         this.modelGroup.add(shaft);
 
-        const tipGeo = new THREE.ConeGeometry(0.14, 0.58, 5);
-        const tip = new THREE.Mesh(tipGeo, tipMat);
-        tip.position.y = 1.54;
-        tip.layers.enable(1);
-        this.modelGroup.add(tip);
+        // 2. Base Pommel / Grip details
+        const pommelGeo = new THREE.CapsuleGeometry(0.06, 0.25, 4, 8);
+        const pommel = new THREE.Mesh(pommelGeo, darkMat);
+        pommel.position.y = -1.6;
+        this.modelGroup.add(pommel);
 
-        const neckGeo = new THREE.CylinderGeometry(0.05, 0.065, 0.16, 6);
-        const neck = new THREE.Mesh(neckGeo, tipMat);
-        neck.position.y = 1.18;
-        this.modelGroup.add(neck);
+        const guardGeo = new THREE.TorusGeometry(0.08, 0.025, 8, 16);
+        const guard = new THREE.Mesh(guardGeo, spearMat);
+        guard.position.y = -1.4;
+        guard.rotation.x = Math.PI / 2;
+        this.modelGroup.add(guard);
 
-        const finGeo = new THREE.BoxGeometry(0.1, 0.55, 0.018);
-        const fin1 = new THREE.Mesh(finGeo, this.vaneMat);
-        fin1.position.set(0, -0.82, 0);
-        fin1.layers.enable(1);
-        this.modelGroup.add(fin1);
-        const fin2 = new THREE.Mesh(finGeo, this.vaneMat);
-        fin2.position.set(0, -0.82, 0);
-        fin2.rotation.y = Math.PI / 2;
-        fin2.layers.enable(1);
-        this.modelGroup.add(fin2);
-
-        const ringGeo = new THREE.TorusGeometry(0.2, 0.035, 8, 18);
-        const ring = new THREE.Mesh(ringGeo, this.vaneMat);
-        ring.position.set(0, -1.02, 0);
-        ring.rotation.x = THREE.MathUtils.degToRad(68);
-        ring.rotation.z = THREE.MathUtils.degToRad(18);
-        ring.layers.enable(1);
-        this.modelGroup.add(ring);
-
-        const ringMarkerGeo = new THREE.SphereGeometry(0.05, 8, 8);
-        const ringMarker = new THREE.Mesh(ringMarkerGeo, tipMat);
-        ringMarker.position.set(0.16, -0.95, 0.05);
-        ringMarker.layers.enable(1);
-        this.modelGroup.add(ringMarker);
-
-        const tailCapGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.14, 8);
-        const tailCap = new THREE.Mesh(tailCapGeo, tipMat);
-        tailCap.position.y = -1.24;
-        this.modelGroup.add(tailCap);
+        // 3. Double Helix and Forked Prongs
+        class LonginusCurve extends THREE.Curve {
+            constructor(phase) {
+                super();
+                this.phase = phase;
+            }
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                let x = 0, y = 0, z = 0;
+                if (t < 0.65) {
+                    // Twisting helix part
+                    const ht = t / 0.65; // 0 to 1
+                    y = 1.2 + ht * 1.6;  // Start exactly where shaft ends (1.2)
+                    const turns = 2.5;
+                    const angle = ht * Math.PI * 2 * turns + this.phase;
+                    
+                    let r = 0.12; // Helix radius
+                    // Smooth taper out from the center shaft
+                    if (ht < 0.15) r = 0.02 + (ht / 0.15) * 0.1;
+                    // Taper back in before diverging
+                    if (ht > 0.85) r = 0.12 - ((ht - 0.85) / 0.15) * 0.06;
+                    
+                    x = Math.cos(angle) * r;
+                    z = Math.sin(angle) * r;
+                } else {
+                    // Forked prongs
+                    const pt = (t - 0.65) / 0.35; // 0 to 1
+                    y = 2.8 + pt * 1.2;
+                    
+                    // Final angle of the helix determines the spread direction
+                    const finalAngle = 1.0 * Math.PI * 2 * 2.5 + this.phase;
+                    
+                    // Width of the fork
+                    let r = 0.06 + pt * 0.12; 
+                    // Curve slightly inwards at the very tip for the classic look
+                    if (pt > 0.8) {
+                        r -= ((pt - 0.8) / 0.2) * 0.05;
+                    }
+                    
+                    x = Math.cos(finalAngle) * r;
+                    z = Math.sin(finalAngle) * r;
+                }
+                return optionalTarget.set(x, y, z);
+            }
+        }
         
+        // Use high tubularSegments to ensure the twist is smooth
+        const tube1Geo = new THREE.TubeGeometry(new LonginusCurve(0), 64, 0.028, 6, false);
+        const tube1 = new THREE.Mesh(tube1Geo, spearMat);
+        this.modelGroup.add(tube1);
+        
+        const tube2Geo = new THREE.TubeGeometry(new LonginusCurve(Math.PI), 64, 0.028, 6, false);
+        const tube2 = new THREE.Mesh(tube2Geo, spearMat);
+        this.modelGroup.add(tube2);
+        
+        // Ensure scale is correct for gameplay (Feather was smaller)
+        this.modelGroup.scale.setScalar(0.75);
+
         this.modelGroup.rotateX(-Math.PI / 2);
         if (isSpecial) this.mesh.scale.set(1.4, 1.4, 1.4);
         
@@ -312,7 +342,7 @@ export class Feather {
         this.deploymentRing.visible = false;
         if (this.isSpecial) { 
             this.mesh.scale.set(2.2, 2.2, 2.2); 
-            this.vaneMat.color.setHex(0x91c53a); 
+             
             this.speed = CONFIG.finalRecallSpeed; 
         } else {
             this.speed = CONFIG.baseRecallSpeed + index * 5;
