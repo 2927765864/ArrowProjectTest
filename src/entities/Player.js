@@ -15,8 +15,7 @@ export class PlayerCharacter {
         const detailMat = new THREE.MeshBasicMaterial({ color: 0x362c28 });
         const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xff9eab }); 
         
-        // Let all primary player meshes write to stencil 1 to prevent X-Ray from overlapping the player itself
-        const applyStencil = (mat) => {
+        const applyStencilAndOrder = (mat) => {
             mat.stencilWrite = true;
             mat.stencilRef = 1;
             mat.stencilFunc = THREE.AlwaysStencilFunc;
@@ -24,7 +23,7 @@ export class PlayerCharacter {
             mat.stencilZFail = THREE.KeepStencilOp;
             mat.stencilFail = THREE.KeepStencilOp;
         };
-        [skinMat, shirtMat, limbMat, eyeMat, faceMat, backMat, detailMat, innerEarMat].forEach(applyStencil);
+        [skinMat, shirtMat, limbMat, eyeMat, faceMat, backMat, detailMat, innerEarMat].forEach(applyStencilAndOrder);
 
         this.bodyGroup = new THREE.Group();
         this.bodyGroup.position.y = 0.25; 
@@ -260,38 +259,47 @@ export class PlayerCharacter {
         this.moveIndicator.add(this.moveIndicatorGlow);
         this.moveIndicator.add(this.moveIndicatorCore);
         this.moveIndicatorOffset = new THREE.Vector3();
-         
-        // Setup X-Ray Silhouette for occlusion
+
+        // ------------------ COMPLETELY NEW X-RAY IMPLEMENTATION ------------------
+        this.xrayMeshes = [];
         const xrayMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
-            transparent: true,
-            opacity: 0.6,
-            depthFunc: THREE.GreaterDepth,
-            depthWrite: false,
+            transparent: true, // Transparent queue so it renders after opaques
+            opacity: 1.0, // Solid color to prevent internal overlap patches
+            depthTest: false, // Force draw over walls
+            depthWrite: false, // Do not mess up depth for subsequent passes
+            // To prevent multiple X-Ray meshes (like Arm and Torso) from overlapping EACH OTHER
+            // and causing Z-fighting artifacts, we let the FIRST X-Ray mesh that draws write to the stencil.
+            // Subsequent X-Ray meshes will see Stencil = 1 and abort!
             stencilWrite: true,
             stencilRef: 1,
-            stencilFunc: THREE.NotEqualStencilFunc,
-            stencilZPass: THREE.ReplaceStencilOp,
-            stencilZFail: THREE.KeepStencilOp,
+            stencilFunc: THREE.NotEqualStencilFunc, // Draw ONLY if stencil is not 1
+            stencilZPass: THREE.ReplaceStencilOp, // Set stencil to 1 so no other X-Ray overlaps us!
+            stencilZFail: THREE.ReplaceStencilOp, // Same here, though depthTest=false so Z always passes
             stencilFail: THREE.KeepStencilOp
         });
 
-        this.xrayMeshes = [];
-        const applyXRay = (group) => {
-            const meshes = [];
-            group.traverse((child) => {
-                if (child.isMesh) meshes.push(child);
+        const setupXRay = (group) => {
+            const originalMeshes = [];
+            group.traverse(child => {
+                if (child.isMesh && child !== this.collisionDebugMesh) {
+                    originalMeshes.push(child);
+                }
             });
-            meshes.forEach((mesh) => {
+            originalMeshes.forEach(mesh => {
+                mesh.renderOrder = 1; 
                 const xray = new THREE.Mesh(mesh.geometry, xrayMat);
+                xray.renderOrder = 2; 
+                xray.userData.isXray = true; // Crucial: tell main.js to hide this during Bloom/Outline!
                 this.xrayMeshes.push(xray);
                 mesh.add(xray);
             });
         };
 
-        applyXRay(this.bodyGroup);
-        applyXRay(this.leftLeg);
-        applyXRay(this.rightLeg);
+        setupXRay(this.bodyGroup);
+        setupXRay(this.leftLeg);
+        setupXRay(this.rightLeg);
+        // --------------------------------------------------------------------------
 
         this.attackTimer = 0;
         this.isAttacking = false;

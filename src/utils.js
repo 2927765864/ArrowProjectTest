@@ -19,6 +19,7 @@ export const Globals = {
     spawnEffects: [],
     interruptEffects: [],
     obstacles: [],
+    floatingTexts: [],
     targetIndicator: null,
     particleManager: null,
     uiLayer: null,
@@ -60,11 +61,10 @@ export function updateShake(delta) {
 
 export function showFloatingText(position, text, cssClass) {
     if (!Globals.uiLayer || !Globals.camera) return;
-    const v = position.clone(); 
-    v.y += 2.0; 
-    v.x += (Math.random() - 0.5) * 2.5; 
-    v.z += (Math.random() - 0.5) * 2.5; 
-    v.project(Globals.camera);
+    const worldPos = position.clone(); 
+    worldPos.y += 2.0; 
+    worldPos.x += (Math.random() - 0.5) * 2.5; 
+    worldPos.z += (Math.random() - 0.5) * 2.5; 
     
     const w = document.getElementById('game-wrapper'); 
     if (!w) return;
@@ -72,11 +72,49 @@ export function showFloatingText(position, text, cssClass) {
     const div = document.createElement('div'); 
     div.className = `floating-text ${cssClass}`; 
     div.innerHTML = text;
-    div.style.left = `${(v.x * .5 + .5) * w.clientWidth}px`; 
-    div.style.top = `${(v.y * -.5 + .5) * w.clientHeight}px`; 
     Globals.uiLayer.appendChild(div);
     
-    setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, 950);
+    // Set initial position immediately to prevent a 1-frame jump
+    const v = worldPos.clone();
+    v.project(Globals.camera);
+    div.style.left = `${(v.x * 0.5 + 0.5) * w.clientWidth}px`;
+    div.style.top = `${(v.y * -0.5 + 0.5) * w.clientHeight}px`;
+    
+    Globals.floatingTexts.push({
+        worldPos: worldPos,
+        element: div,
+        life: 0.95
+    });
+}
+
+export function updateFloatingTexts(delta) {
+    if (!Globals.camera) return;
+    const w = document.getElementById('game-wrapper');
+    if (!w) return;
+    
+    for (let i = Globals.floatingTexts.length - 1; i >= 0; i--) {
+        const txt = Globals.floatingTexts[i];
+        txt.life -= delta;
+        
+        if (txt.life <= 0) {
+            if (txt.element.parentNode) txt.element.parentNode.removeChild(txt.element);
+            Globals.floatingTexts.splice(i, 1);
+            continue;
+        }
+        
+        // Project world position to screen continuously
+        const v = txt.worldPos.clone();
+        v.project(Globals.camera);
+        
+        // Hide if behind camera
+        if (v.z > 1.0) {
+            txt.element.style.display = 'none';
+        } else {
+            txt.element.style.display = '';
+            txt.element.style.left = `${(v.x * 0.5 + 0.5) * w.clientWidth}px`;
+            txt.element.style.top = `${(v.y * -0.5 + 0.5) * w.clientHeight}px`;
+        }
+    }
 }
 
 

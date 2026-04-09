@@ -7,7 +7,7 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { CONFIG } from './config.js';
-import { Globals, updateShake, triggerShake, getClosestEnemy, showFloatingText } from './utils.js';
+import { Globals, updateShake, triggerShake, getClosestEnemy, showFloatingText, updateFloatingTexts } from './utils.js';
 import { keys, joystick, initInput, refreshInputLayout } from './Input.js';
 import { InterruptBurstEffect } from './effects/InterruptBurstEffect.js';
 import { TargetIndicator } from './effects/TargetIndicator.js';
@@ -52,6 +52,11 @@ const darkMaterial = new THREE.MeshBasicMaterial({ color: 'black' });
 const materials = {};
 
 function darkenNonBloomed(obj) {
+    if (obj.userData?.isXray) {
+        obj.userData.wasVisible = obj.visible;
+        obj.visible = false;
+        return;
+    }
     if (obj.isMesh && bloomLayer.test(obj.layers) === false) {
         materials[obj.uuid] = obj.material;
         obj.material = darkMaterial;
@@ -59,6 +64,12 @@ function darkenNonBloomed(obj) {
 }
 
 function restoreMaterial(obj) {
+    if (obj.userData?.isXray) {
+        if (obj.userData.wasVisible !== undefined) {
+            obj.visible = obj.userData.wasVisible;
+        }
+        return;
+    }
     if (materials[obj.uuid]) {
         obj.material = materials[obj.uuid];
         delete materials[obj.uuid];
@@ -171,6 +182,19 @@ function init() {
     // 我们可以默认采用钛啡绿 0x1a1532（非常深的紫黑）或者亮色作为通用轮廓线
     Globals.outlinePass.visibleEdgeColor.setHex(0x1a1532);
     Globals.outlinePass.hiddenEdgeColor.setHex(0x1a1532);
+    
+    // Wrap OutlinePass render to hide X-Ray meshes (prevents Z-fighting internal lines)
+    const originalOutlineRender = Globals.outlinePass.render.bind(Globals.outlinePass);
+    Globals.outlinePass.render = function(renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
+        if (Globals.player && Globals.player.xrayMeshes) {
+            Globals.player.xrayMeshes.forEach(m => m.visible = false);
+        }
+        originalOutlineRender(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+        if (Globals.player && Globals.player.xrayMeshes) {
+            Globals.player.xrayMeshes.forEach(m => m.visible = !!CONFIG.xrayEnabled);
+        }
+    };
+    
     Globals.finalComposer.addPass(Globals.outlinePass);
 
     Globals.finalComposer.addPass(outputPass);
@@ -296,6 +320,8 @@ function setupObstacles() {
         mesh.position.set(x, h / 2, z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        // Make sure obstacles use default renderOrder (0) so they render BEFORE the player
+        mesh.renderOrder = 0; 
         obstacleGroup.add(mesh);
         
         Globals.obstacles.push({
@@ -330,6 +356,12 @@ export function clearSceneEntities() {
     for (let i = Globals.spawnEffects.length - 1; i >= 0; i--) {
         Globals.spawnEffects[i].life = 0;
     }
+    
+    for (let i = Globals.floatingTexts.length - 1; i >= 0; i--) {
+        const txt = Globals.floatingTexts[i];
+        if (txt.element.parentNode) txt.element.parentNode.removeChild(txt.element);
+    }
+    Globals.floatingTexts.length = 0;
 }
 
 function setupAudioUnlock() {
@@ -740,6 +772,7 @@ function animate() {
     SpeedChart.update(currentVelocity.length());
     updatePlayerHUD(); 
     updatePendingEnemySpawns(delta);
+    updateFloatingTexts(delta);
     
     if(Globals.particleManager) Globals.particleManager.update(delta);
     
