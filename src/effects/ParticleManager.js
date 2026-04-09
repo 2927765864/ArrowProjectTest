@@ -5,7 +5,7 @@ export class ParticleManager {
     constructor() { 
         this.particles = []; 
         this.geo = new THREE.BoxGeometry(0.12, 0.12, 0.12); 
-        this.dustGeo = new THREE.IcosahedronGeometry(0.1, 1);
+        this.dustGeo = new THREE.IcosahedronGeometry(0.1, 2);
     }
 
     spawnDustPuff(position, moveDirection, baseScale = 0.75) {

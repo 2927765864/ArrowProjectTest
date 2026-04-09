@@ -79,7 +79,7 @@ export class PlayerCharacter {
         this.headGroup.add(earR);
 
         // 5. Eyes (Big cute ovals)
-        const eyeGeo = new THREE.CapsuleGeometry(0.018, 0.04, 8, 8);
+        const eyeGeo = new THREE.CapsuleGeometry(0.018, 0.04, 8, 16);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
         eyeL.position.set(0.09, 0.02, 0.16);
         eyeL.rotation.z = -0.1;
@@ -126,7 +126,7 @@ export class PlayerCharacter {
         this.tailGroup = new THREE.Group();
         this.tailGroup.position.set(0, 0.0, -0.08); // Attached to lower back
         
-        const tailGeo = new THREE.CapsuleGeometry(0.025, 0.2, 4, 8);
+        const tailGeo = new THREE.CapsuleGeometry(0.025, 0.2, 8, 16);
         this.tailMesh = new THREE.Mesh(tailGeo, backMat);
         this.tailMesh.position.set(0, 0.1, -0.1);
         this.tailMesh.rotation.x = -0.6;

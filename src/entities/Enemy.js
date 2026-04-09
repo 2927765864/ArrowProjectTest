@@ -25,7 +25,7 @@ export class Enemy {
         this.bodyMesh.scale.set(1.15, 0.9, 1.1);
         this.mesh.add(this.bodyMesh);
         
-        const eyeGeo = new THREE.CapsuleGeometry(0.04, 0.08, 4, 8);
+        const eyeGeo = new THREE.CapsuleGeometry(0.04, 0.08, 8, 16);
         const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
         leftEye.position.set(0.16, 0.1, 0.32); leftEye.rotation.z = -0.3; leftEye.rotation.x = 0.2; leftEye.layers.enable(1); this.bodyMesh.add(leftEye);
         const rightEye = new THREE.Mesh(eyeGeo, eyeMat);

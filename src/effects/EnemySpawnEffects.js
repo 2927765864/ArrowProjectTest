@@ -127,7 +127,7 @@ export class SpawnSmokeEffect {
         const size = options.size ?? [0.2, 0.38];
         const growth = options.growth ?? [1.0, 1.6];
         for (let i = 0; i < puffCount; i++) {
-            const geo = new THREE.IcosahedronGeometry((size[0] + Math.random() * (size[1] - size[0])) * scale, 0);
+            const geo = new THREE.IcosahedronGeometry((size[0] + Math.random() * (size[1] - size[0])) * scale, 2);
             const mat = new THREE.MeshBasicMaterial({
                 color,
                 transparent: true,
