@@ -136,3 +136,6 @@
 - 修复了切换场景模式时导致崩溃的隐藏 BUG。此前为障碍物更换的数组材质在旧的场景清理代码中触发了 `dispose is not a function`，这导致阻挡逻辑未能完全清空并延续到了无尽模式中。现已修复材质数组的内存释放逻辑。
 - 优化【遮挡透视辅助】(X-Ray) 的渲染算法：引入了 WebGL Stencil Buffer（模板测试）。当主角由多个模型（头、手、脚、身体）叠加在障碍物后时，它们将会使用 `NotEqualStencilFunc` 及 `ReplaceStencilOp`。这确保透视剪影的像素不会互相叠加加深，而是始终呈现统一纯净的单色半透明状态。
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1045` 并重新出包。
+
+- 修复【遮挡透视辅助】(X-Ray Silhouette) 中因身体部位自遮挡导致的异常透视触发：通过为 WebGL 的两个后处理合成器 (`EffectComposer`) 强制绑定带 `stencilBuffer: true` 的独立 `WebGLRenderTarget`，确保了玩家基础材质写入的模板测试能够全局生效，从而正确规避透视材质在角色自己身上的非法重叠渲染。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1046`。

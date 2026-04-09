@@ -94,7 +94,15 @@ function init() {
     Globals.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(Globals.renderer.domElement);
 
-    Globals.composer = new EffectComposer(Globals.renderer);
+    const renderTargetParameters = {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        stencilBuffer: true
+    };
+    const renderTarget = new THREE.WebGLRenderTarget(wrapper.clientWidth, wrapper.clientHeight, renderTargetParameters);
+
+    Globals.composer = new EffectComposer(Globals.renderer, renderTarget);
     const renderPass = new RenderPass(Globals.scene, Globals.camera);
     Globals.composer.addPass(renderPass);
 
@@ -135,7 +143,8 @@ function init() {
 
     const outputPass = new OutputPass();
 
-    Globals.finalComposer = new EffectComposer(Globals.renderer);
+    const finalRenderTarget = new THREE.WebGLRenderTarget(wrapper.clientWidth, wrapper.clientHeight, renderTargetParameters);
+    Globals.finalComposer = new EffectComposer(Globals.renderer, finalRenderTarget);
     Globals.finalComposer.addPass(renderPass);
     Globals.finalComposer.addPass(mixPass);
 
