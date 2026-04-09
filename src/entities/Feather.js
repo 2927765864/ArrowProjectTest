@@ -87,34 +87,34 @@ export class Feather {
             }
             getPoint(t, optionalTarget = new THREE.Vector3()) {
                 let x = 0, y = 0, z = 0;
-                if (t < 0.65) {
-                    // Twisting helix part
-                    const ht = t / 0.65; // 0 to 1
-                    y = 1.2 + ht * 1.6;  // Start exactly where shaft ends (1.2)
-                    const turns = 2.5;
+                // t goes from 0 to 1
+                if (t < 0.6) {
+                    // Twisting helix part (60% of curve length)
+                    const ht = t / 0.6; // 0 to 1
+                    y = 1.2 + ht * 1.8;  // Starts at 1.2 (end of shaft), ends at 3.0
+                    const turns = 3.0; // More twists
                     const angle = ht * Math.PI * 2 * turns + this.phase;
                     
-                    let r = 0.12; // Helix radius
-                    // Smooth taper out from the center shaft
-                    if (ht < 0.15) r = 0.02 + (ht / 0.15) * 0.1;
+                    let r = 0.055; // Tighter radius (closer to shaft)
+                    // Smooth taper out from the center shaft at the base
+                    if (ht < 0.1) r = 0.015 + (ht / 0.1) * 0.04;
                     // Taper back in before diverging
-                    if (ht > 0.85) r = 0.12 - ((ht - 0.85) / 0.15) * 0.06;
+                    if (ht > 0.9) r = 0.055 - ((ht - 0.9) / 0.1) * 0.04;
                     
                     x = Math.cos(angle) * r;
                     z = Math.sin(angle) * r;
                 } else {
-                    // Forked prongs
-                    const pt = (t - 0.65) / 0.35; // 0 to 1
-                    y = 2.8 + pt * 1.2;
+                    // Forked prongs (40% of curve length)
+                    const pt = (t - 0.6) / 0.4; // 0 to 1
+                    y = 3.0 + pt * 3.0; // Prongs are much longer (extends 3.0 units)
                     
                     // Final angle of the helix determines the spread direction
-                    const finalAngle = 1.0 * Math.PI * 2 * 2.5 + this.phase;
+                    const finalAngle = 1.0 * Math.PI * 2 * 3.0 + this.phase;
                     
-                    // Width of the fork
-                    let r = 0.06 + pt * 0.12; 
+                    let r = 0.015 + pt * 0.22; // Spreads out from center
                     // Curve slightly inwards at the very tip for the classic look
                     if (pt > 0.8) {
-                        r -= ((pt - 0.8) / 0.2) * 0.05;
+                        r -= ((pt - 0.8) / 0.2) * 0.08;
                     }
                     
                     x = Math.cos(finalAngle) * r;
@@ -125,18 +125,19 @@ export class Feather {
         }
         
         // Use high tubularSegments to ensure the twist is smooth
-        const tube1Geo = new THREE.TubeGeometry(new LonginusCurve(0), 64, 0.028, 6, false);
+        const tube1Geo = new THREE.TubeGeometry(new LonginusCurve(0), 128, 0.025, 8, false);
         const tube1 = new THREE.Mesh(tube1Geo, spearMat);
         this.modelGroup.add(tube1);
         
-        const tube2Geo = new THREE.TubeGeometry(new LonginusCurve(Math.PI), 64, 0.028, 6, false);
+        const tube2Geo = new THREE.TubeGeometry(new LonginusCurve(Math.PI), 128, 0.025, 8, false);
         const tube2 = new THREE.Mesh(tube2Geo, spearMat);
         this.modelGroup.add(tube2);
         
         // Ensure scale is correct for gameplay (Feather was smaller)
-        this.modelGroup.scale.setScalar(0.75);
+        this.modelGroup.scale.setScalar(0.65);
 
-        this.modelGroup.rotateX(-Math.PI / 2);
+        // Fix direction: Rotate +Y (tip) to align with +Z (forward direction of lookAt)
+        this.modelGroup.rotateX(Math.PI / 2);
         if (isSpecial) this.mesh.scale.set(1.4, 1.4, 1.4);
         
         this.mesh.position.copy(Globals.player.mesh.position); 
