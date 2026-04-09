@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Globals, SVG, showFloatingText, triggerShake } from '../utils.js';
+import { Globals, SVG, addEdgeOutline, showFloatingText, triggerShake } from '../utils.js';
 import { CONFIG } from '../config.js';
 import { BloodStain } from '../effects/BloodStain.js';
 import { SlashFlashEffect } from '../effects/SlashFlashEffect.js';
@@ -11,9 +11,9 @@ export class Enemy {
         this.knockbackVelocity = new THREE.Vector3(0, 0, 0); 
         this.stunTimer = 0; 
         
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.7, flatShading: true });
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, emissive: 0x91c53a, emissiveIntensity: 2 });
-        const hornMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, flatShading: true });
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, roughness: 0.7, flatShading: true });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x91c53a, emissive: 0x91c53a, emissiveIntensity: 2 });
+        const hornMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, flatShading: true });
         this.materials = [bodyMat, eyeMat, hornMat];
         this.flashTimeoutId = null;
         this.materials.forEach((mat) => {
@@ -22,6 +22,7 @@ export class Enemy {
         
         const bodyGeo = new THREE.IcosahedronGeometry(0.4, 0); 
         this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat); 
+        addEdgeOutline(this.bodyMesh, 0x91c53a);
         this.mesh.add(this.bodyMesh);
         
         const eyeGeo = new THREE.BoxGeometry(0.15, 0.08, 0.1);
@@ -32,9 +33,11 @@ export class Enemy {
         
         const hornGeo = new THREE.ConeGeometry(0.08, 0.25, 4);
         const leftHorn = new THREE.Mesh(hornGeo, hornMat); 
-        leftHorn.position.set(0.25, 0.35, 0.1); leftHorn.rotation.z = -0.5; leftHorn.rotation.x = -0.2; this.bodyMesh.add(leftHorn);
+        leftHorn.position.set(0.25, 0.35, 0.1); leftHorn.rotation.z = -0.5; leftHorn.rotation.x = -0.2; addEdgeOutline(leftHorn, 0x91c53a);
+        this.bodyMesh.add(leftHorn);
         const rightHorn = new THREE.Mesh(hornGeo, hornMat); 
-        rightHorn.position.set(-0.25, 0.35, 0.1); rightHorn.rotation.z = 0.5; rightHorn.rotation.x = -0.2; this.bodyMesh.add(rightHorn);
+        rightHorn.position.set(-0.25, 0.35, 0.1); rightHorn.rotation.z = 0.5; rightHorn.rotation.x = -0.2; addEdgeOutline(rightHorn, 0x91c53a);
+        this.bodyMesh.add(rightHorn);
         
         this.animOffset = Math.random() * 10;
         if (spawnPosition) {

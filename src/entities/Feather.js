@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Globals, triggerShake } from '../utils.js';
+import { Globals, addEdgeOutline, triggerShake } from '../utils.js';
 import { CONFIG } from '../config.js';
 
 export class Feather {
@@ -49,17 +49,17 @@ export class Feather {
         this.modelGroup = new THREE.Group(); 
         this.mesh.add(this.modelGroup);
         
-        this.vaneMat = new THREE.MeshStandardMaterial({ 
+        this.vaneMat = new THREE.MeshBasicMaterial({ 
             color: 0x91c53a, 
             emissive: 0x91c53a, 
             transparent: true, opacity: 0.9, roughness: 0.2, metalness: 0.6, flatShading: true 
         });
-        const quillMat = new THREE.MeshStandardMaterial({ 
+        const quillMat = new THREE.MeshBasicMaterial({ 
             color: 0x91c53a, 
             emissive: 0x91c53a, 
             roughness: 0.1, metalness: 0.8 
         });
-        const tipMat = new THREE.MeshStandardMaterial({
+        const tipMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
             emissive: 0x91c53a,
             roughness: 0.08,

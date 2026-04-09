@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
-import { Globals } from '../utils.js';
+import { Globals, addEdgeOutline } from '../utils.js';
 
 export class PlayerCharacter {
     constructor() {
         this.mesh = new THREE.Group();
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.6 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.8 }); 
-        const limbMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.8 });
+        const skinMat = new THREE.MeshBasicMaterial({ color: 0x91c53a, roughness: 0.6 });
+        const shirtMat = new THREE.MeshBasicMaterial({ color: 0x91c53a, roughness: 0.8 }); 
+        const limbMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, roughness: 0.8 });
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 }); 
         
         this.bodyGroup = new THREE.Group();
@@ -19,6 +19,7 @@ export class PlayerCharacter {
         const torso = new THREE.Mesh(torsoGeo, shirtMat);
         torso.position.y = 0.08;
         torso.castShadow = true;
+        addEdgeOutline(torso, 0x1a1532);
         this.bodyGroup.add(torso);
         
         // Head
@@ -27,6 +28,7 @@ export class PlayerCharacter {
         const headGeo = new THREE.SphereGeometry(0.22, 32, 32);
         const head = new THREE.Mesh(headGeo, skinMat);
         head.castShadow = true;
+        addEdgeOutline(head, 0x1a1532);
         this.headGroup.add(head);
 
         // Eyes
@@ -39,12 +41,13 @@ export class PlayerCharacter {
         this.headGroup.add(eyeR);
         
         // Hat (Red Baseball Cap)
-        const hatMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.7 });
+        const hatMat = new THREE.MeshBasicMaterial({ color: 0x91c53a, roughness: 0.7 });
         
         const hatDomeGeo = new THREE.SphereGeometry(0.225, 32, 16, 0, Math.PI * 2, 0, Math.PI / 1.8);
         const hatDome = new THREE.Mesh(hatDomeGeo, hatMat);
         hatDome.position.y = 0.03;
         hatDome.castShadow = true;
+        addEdgeOutline(hatDome, 0x1a1532);
         this.headGroup.add(hatDome);
 
         const brimGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.02, 32);
@@ -53,6 +56,7 @@ export class PlayerCharacter {
         hatBrim.position.set(0, 0.03, 0.22);
         hatBrim.rotation.x = -0.12; 
         hatBrim.castShadow = true;
+        addEdgeOutline(hatBrim, 0x1a1532);
         this.headGroup.add(hatBrim);
 
         this.bodyGroup.add(this.headGroup);
@@ -64,6 +68,7 @@ export class PlayerCharacter {
         const armMeshL = new THREE.Mesh(armGeo, skinMat);
         armMeshL.position.y = -0.06; 
         armMeshL.castShadow = true;
+        addEdgeOutline(armMeshL, 0x1a1532);
         this.leftArm.add(armMeshL);
         this.leftArm.position.set(0.18, 0.18, 0); 
         this.bodyGroup.add(this.leftArm);
@@ -72,6 +77,7 @@ export class PlayerCharacter {
         const armMeshR = new THREE.Mesh(armGeo, skinMat);
         armMeshR.position.y = -0.06;
         armMeshR.castShadow = true;
+        addEdgeOutline(armMeshR, 0x1a1532);
         this.rightArm.add(armMeshR);
         this.rightArm.position.set(-0.18, 0.18, 0); 
         this.bodyGroup.add(this.rightArm);
@@ -83,6 +89,7 @@ export class PlayerCharacter {
         const legMeshL = new THREE.Mesh(legGeo, limbMat);
         legMeshL.position.y = -0.08;
         legMeshL.castShadow = true;
+        addEdgeOutline(legMeshL, 0x1a1532);
         this.leftLeg.add(legMeshL);
         this.leftLeg.position.set(0.07, 0.15, 0); 
         this.mesh.add(this.leftLeg);
@@ -91,6 +98,7 @@ export class PlayerCharacter {
         const legMeshR = new THREE.Mesh(legGeo, limbMat);
         legMeshR.position.y = -0.08;
         legMeshR.castShadow = true;
+        addEdgeOutline(legMeshR, 0x1a1532);
         this.rightLeg.add(legMeshR);
         this.rightLeg.position.set(-0.07, 0.15, 0); 
         this.mesh.add(this.rightLeg);

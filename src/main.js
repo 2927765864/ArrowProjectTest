@@ -157,13 +157,13 @@ function init() {
     Globals.scene.add(dirLight);
     
     const backdropGeo = new THREE.PlaneGeometry(160, 160);
-    const backdropMat = new THREE.MeshStandardMaterial({ color: 0x1a1532, roughness: 1, metalness: 0.02, depthWrite: false });
+    const backdropMat = new THREE.MeshBasicMaterial({ color: 0x1a1532, roughness: 1, metalness: 0.02, depthWrite: false });
     const backdropPlane = new THREE.Mesh(backdropGeo, backdropMat);
     backdropPlane.rotation.x = -Math.PI / 2;
     backdropPlane.position.y = -0.02;
     Globals.scene.add(backdropPlane);
 
-    solidFloorMat = new THREE.MeshStandardMaterial({ color: 0x2d2952, roughness: 0.95, metalness: 0.02 });
+    solidFloorMat = new THREE.MeshBasicMaterial({ color: 0x2d2952, roughness: 0.95, metalness: 0.02 });
     
     // Create a generated checkerboard texture
     const canvas = document.createElement('canvas');
@@ -183,7 +183,7 @@ function init() {
     checkerTexture.repeat.set(ARENA_WIDTH / 4, ARENA_HEIGHT / 4);
     checkerTexture.colorSpace = THREE.SRGBColorSpace;
     
-    checkerboardFloorMat = new THREE.MeshStandardMaterial({ map: checkerTexture, roughness: 0.8, metalness: 0.1 });
+    checkerboardFloorMat = new THREE.MeshBasicMaterial({ map: checkerTexture, roughness: 0.8, metalness: 0.1 });
 
     const arenaFloorGeo = new THREE.PlaneGeometry(1, 1);
     arenaFloor = new THREE.Mesh(arenaFloorGeo, CONFIG.floorStyle === 'checkerboard' ? checkerboardFloorMat : solidFloorMat);
@@ -234,7 +234,7 @@ function setupObstacles() {
     obstacleGroup = new THREE.Group();
     Globals.scene.add(obstacleGroup);
 
-    const boxMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.7, metalness: 0.1 });
+    const boxMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2, roughness: 0.7, metalness: 0.1 });
     const createBox = (x, z, w, d) => {
         const h = 2.0; // Box height
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
