@@ -599,6 +599,36 @@ function updatePlayerMovement(delta) {
     }
 }
 
+function updatePlayerFacing(delta, hasTargetLock, target) {
+    if (hasTargetLock && target) {
+        const targetPos = target.mesh.position.clone();
+        targetPos.y = Globals.player.mesh.position.y;
+        const currentRot = Globals.player.mesh.quaternion.clone();
+        Globals.player.mesh.lookAt(targetPos);
+        const targetRot = Globals.player.mesh.quaternion.clone();
+        Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed);
+        Globals.targetIndicator.update(targetPos, delta);
+        return;
+    }
+
+    let facingDirection = null;
+    if (CONFIG.moveFacingMode === 'decoupled' && Globals.player.lastMoveDirection?.lengthSq() > 0.0001) {
+        facingDirection = Globals.player.lastMoveDirection;
+    } else if (CONFIG.moveFacingMode === 'faceMoveDirection' && isMoving && currentVelocity.lengthSq() > 0.1) {
+        facingDirection = currentVelocity;
+    }
+
+    if (facingDirection) {
+        const targetPos = Globals.player.mesh.position.clone().add(facingDirection);
+        const currentRot = Globals.player.mesh.quaternion.clone();
+        Globals.player.mesh.lookAt(targetPos);
+        const targetRot = Globals.player.mesh.quaternion.clone();
+        Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed);
+    }
+
+    Globals.targetIndicator.update(null, delta);
+}
+
 function updatePlayerHUD() {
     const v = Globals.player.mesh.position.clone(); 
     v.y += 1.6; 
@@ -623,27 +653,9 @@ function animate() {
     const delta = Globals.clock.getDelta(), time = Globals.clock.getElapsedTime();
     const target = getClosestEnemy();
     const hasFeathers = Globals.feathers.length < MAX_FEATHERS || Globals.feathers.some(f => f.phase === 'recalling');
-    
-    if (hasFeathers && target) {
-        const targetPos = target.mesh.position.clone(); targetPos.y = Globals.player.mesh.position.y;
-        const currentRot = Globals.player.mesh.quaternion.clone(); 
-        Globals.player.mesh.lookAt(targetPos);
-        const targetRot = Globals.player.mesh.quaternion.clone(); 
-        Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed); 
-        
-        Globals.targetIndicator.update(targetPos, delta);
-    } else {
-        if (isMoving && currentVelocity.lengthSq() > 0.1) {
-            const targetPos = Globals.player.mesh.position.clone().add(currentVelocity);
-            const currentRot = Globals.player.mesh.quaternion.clone(); 
-            Globals.player.mesh.lookAt(targetPos);
-            const targetRot = Globals.player.mesh.quaternion.clone(); 
-            Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed); 
-        }
-        Globals.targetIndicator.update(null, delta);
-    }
-    
+
     updatePlayerMovement(delta);
+    updatePlayerFacing(delta, hasFeathers && !!target, target);
     updateCameraFollow();
     updateShake(delta);
     Globals.player.updateAnimation(delta, time, isMoving, currentVelocity);

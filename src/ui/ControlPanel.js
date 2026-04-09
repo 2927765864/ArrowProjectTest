@@ -82,6 +82,8 @@ export function setupControlPanel() {
 
     const btnFlm = document.getElementById('btn-flm');
     const valFlm = document.getElementById('val-flm');
+    const btnMfm = document.getElementById('btn-mfm');
+    const valMfm = document.getElementById('val-mfm');
     
     if (CONFIG.floorStyle === 'checkerboard') {
         valFlm.innerText = '黑白格子';
@@ -103,6 +105,23 @@ export function setupControlPanel() {
             btnFlm.innerText = '切换为纯色';
         }
         refreshBoundaryVisual();
+    });
+
+    const syncMoveFacingModeUi = () => {
+        if (CONFIG.moveFacingMode === 'faceMoveDirection') {
+            valMfm.innerText = '移动即朝向';
+            btnMfm.innerText = '切换为移动/旋转解耦';
+        } else {
+            valMfm.innerText = '移动/旋转解耦';
+            btnMfm.innerText = '切换为移动即朝向';
+        }
+    };
+    syncMoveFacingModeUi();
+
+    btnMfm.addEventListener('click', () => {
+        Globals.audioManager?.playUIClick();
+        CONFIG.moveFacingMode = CONFIG.moveFacingMode === 'faceMoveDirection' ? 'decoupled' : 'faceMoveDirection';
+        syncMoveFacingModeUi();
     });
 
     const bindSlider = (inputId, valId, configKey, isFloat = false) => {
