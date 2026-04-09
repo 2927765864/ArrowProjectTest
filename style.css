@@ -209,25 +209,33 @@ body {
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
 }
-#panel-content::-webkit-scrollbar { width: 5px; }
-#panel-content::-webkit-scrollbar-thumb { background: rgba(127, 221, 255, 0.28); border-radius: 999px; }
+#panel-content::-webkit-scrollbar { width: 8px; }
+#panel-content::-webkit-scrollbar-thumb { background: rgba(127, 221, 255, 0.45); border-radius: 4px; }
+#panel-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 4px; }
 #panel-tabs {
     display: flex;
     gap: 6px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding-bottom: 8px;
-    margin-bottom: 2px;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
     position: sticky;
     top: 0;
     z-index: 2;
     background: linear-gradient(180deg, rgba(20, 24, 38, 0.98) 0%, rgba(20, 24, 38, 0.88) 72%, rgba(20, 24, 38, 0) 100%);
-    scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-x;
 }
 #panel-tabs::-webkit-scrollbar {
-    display: none;
+    height: 6px;
+}
+#panel-tabs::-webkit-scrollbar-thumb {
+    background: rgba(127, 221, 255, 0.45);
+    border-radius: 4px;
+}
+#panel-tabs::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
 }
 .panel-tab {
     appearance: none;
