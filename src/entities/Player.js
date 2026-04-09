@@ -7,11 +7,11 @@ export class PlayerCharacter {
         this.mesh = new THREE.Group();
         const skinMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
         const shirtMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
-        const limbMat = new THREE.MeshBasicMaterial({ color: 0xd4c2b2 });
+        const limbMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 }); // 统一颜色，消除腿部与身体的突兀分割线
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x362c28 }); 
         
         const faceMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
-        const backMat = new THREE.MeshBasicMaterial({ color: 0xd4c2b2 });
+        const backMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 }); // 统一后脑勺、背部、耳朵背面的颜色
         const detailMat = new THREE.MeshBasicMaterial({ color: 0x362c28 });
         const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xff9eab }); 
         
