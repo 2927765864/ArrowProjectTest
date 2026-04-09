@@ -101,3 +101,5 @@
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1036`。
 
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1036`，并重新打包输出最新安卓客户端（包含武器偏移修复、平滑多边形细分提升及分轴移动速度分离）。
+
+- 弃用基于 apktool 反编译替换资源的出包方式，改为基于完整的 Android Shell 原生工程 (`.build/android-shell`) 并利用内部自带环境调用 `gradle assembleDebug` 构建原生的全新独立 APK 包，以避免可能带来的 webview 加载异常和资源映射路径损坏。
