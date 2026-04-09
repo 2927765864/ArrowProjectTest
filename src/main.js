@@ -579,9 +579,20 @@ function updatePlayerMovement(delta) {
         
         // Use a strictly small footprint radius to represent ONLY the player's feet.
         // This prevents the large visual head from colliding with obstacles.
-        const playerFootRadiusX = 0.08 * CONFIG.playerScale; 
-        const playerFootRadiusZ = 0.05 * CONFIG.playerScale; 
         
+        let colMinX, colMaxX, colMinZ, colMaxZ;
+
+        if (CONFIG.useCustomCollision) {
+            const r = CONFIG.customCollisionRadius;
+            colMinX = -r; colMaxX = r;
+            colMinZ = -r; colMaxZ = r;
+        } else {
+            const rx = 0.08 * CONFIG.playerScale;
+            const rz = 0.05 * CONFIG.playerScale;
+            colMinX = -rx; colMaxX = rx;
+            colMinZ = 0; colMaxZ = rz;
+        }
+
         let hitX = false;
         let hitZ = false;
 
@@ -589,14 +600,14 @@ function updatePlayerMovement(delta) {
         if (Globals.obstacles && Globals.obstacles.length > 0) {
             for (const obs of Globals.obstacles) {
                 // Check X movement
-                // Z logic: only check the southern half (feet) of the collision volume: player.z to player.z + footRadius
-                if (nextX + playerFootRadiusX > obs.minX && nextX - playerFootRadiusX < obs.maxX &&
-                    Globals.player.mesh.position.z + playerFootRadiusZ > obs.minZ && Globals.player.mesh.position.z < obs.maxZ) {
+                // Z logic: Check the collision volume matching player pos
+                if (nextX + colMaxX > obs.minX && nextX + colMinX < obs.maxX &&
+                    Globals.player.mesh.position.z + colMaxZ > obs.minZ && Globals.player.mesh.position.z + colMinZ < obs.maxZ) {
                     hitX = true;
                 }
                 // Check Z movement
-                if (Globals.player.mesh.position.x + playerFootRadiusX > obs.minX && Globals.player.mesh.position.x - playerFootRadiusX < obs.maxX &&
-                    nextZ + playerFootRadiusZ > obs.minZ && nextZ < obs.maxZ) {
+                if (Globals.player.mesh.position.x + colMaxX > obs.minX && Globals.player.mesh.position.x + colMinX < obs.maxX &&
+                    nextZ + colMaxZ > obs.minZ && nextZ + colMinZ < obs.maxZ) {
                     hitZ = true;
                 }
             }

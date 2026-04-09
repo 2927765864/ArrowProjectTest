@@ -210,6 +210,13 @@ export class PlayerCharacter {
         this.dashRing = new THREE.Group();
         this.baseRingGroup.add(this.dashRing);
 
+        // Debug Collision Mesh
+        const collGeo = new THREE.CylinderGeometry(1, 1, 1, 16);
+        const collMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: true, opacity: 0.3, depthTest: false, depthWrite: false });
+        this.collisionDebugMesh = new THREE.Mesh(collGeo, collMat);
+        this.collisionDebugMesh.visible = false;
+        this.mesh.add(this.collisionDebugMesh);
+
         const segmentCount = 6;
         const dashThickness = 0.05;
         const dashArc = (Math.PI * 2 * baseRadius / segmentCount) * 0.45;
@@ -285,6 +292,22 @@ export class PlayerCharacter {
     }
     
     updateAnimation(delta, time, isMoving, currentVelocity) {
+        if (!CONFIG.showCollisionBox) {
+            this.collisionDebugMesh.visible = false;
+        } else {
+            this.collisionDebugMesh.visible = true;
+            if (CONFIG.useCustomCollision) {
+                const r = CONFIG.customCollisionRadius;
+                this.collisionDebugMesh.scale.set(r, 0.4, r);
+                this.collisionDebugMesh.position.set(0, 0.2, 0); // Full cylinder centered at feet
+            } else {
+                const rx = 0.08 * CONFIG.playerScale;
+                const rz = 0.05 * CONFIG.playerScale;
+                this.collisionDebugMesh.scale.set(rx, 0.4, rz);
+                this.collisionDebugMesh.position.set(0, 0.2, rz / 2); // Shifted to match the lower half logic
+            }
+        }
+
         if (this.isAttacking) { 
             this.attackTimer -= delta; 
             if (this.attackTimer <= 0) this.isAttacking = false; 

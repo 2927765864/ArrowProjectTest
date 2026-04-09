@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.09-1038';
+const PANEL_VERSION = 'v2026.04.09-1039';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -194,6 +194,23 @@ export function setupControlPanel() {
     bindSlider('inp-mvf', 'val-mvf', 'moveFriction');
     bindSlider('inp-mmsx', 'val-mmsx', 'maxMoveSpeedX');
     bindSlider('inp-mmsz', 'val-mmsz', 'maxMoveSpeedZ');
+    bindSlider('inp-ccr', 'val-ccr', 'customCollisionRadius');
+
+    const bindToggle = (inputId, valId, configKey) => {
+        const input = document.getElementById(inputId);
+        const val = document.getElementById(valId);
+        if (CONFIG[configKey] !== undefined) {
+            input.checked = !!CONFIG[configKey];
+            val.innerText = CONFIG[configKey] ? '开' : '关';
+        }
+        input.addEventListener('change', (e) => {
+            CONFIG[configKey] = e.target.checked;
+            val.innerText = e.target.checked ? '开' : '关';
+        });
+    };
+
+    bindToggle('inp-scb', 'val-scb', 'showCollisionBox');
+    bindToggle('inp-ucc', 'val-ucc', 'useCustomCollision');
 
     const inpCvs = document.getElementById('inp-cvs');
     if (CONFIG.cameraViewScale !== undefined) {

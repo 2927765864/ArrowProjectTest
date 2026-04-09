@@ -76,6 +76,18 @@
                     <button id="btn-mfm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为移动即朝向</button>
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>显示碰撞范围</span><span id="val-scb">关</span></div>
+                    <input type="checkbox" id="inp-scb">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>自定义碰撞半径开关</span><span id="val-ucc">关</span></div>
+                    <input type="checkbox" id="inp-ucc">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>自定义碰撞半径</span><span id="val-ccr">0.20</span></div>
+                    <input type="range" id="inp-ccr" min="0.05" max="1.5" step="0.05" value="0.2">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>玩家尺寸倍率</span><span id="val-ps">2.5</span></div>
                     <input type="range" id="inp-ps" min="0.3" max="5.0" step="0.1" value="2.5">
                 </div>
