@@ -250,6 +250,33 @@ export class PlayerCharacter {
         this.moveIndicator.add(this.moveIndicatorCore);
         this.moveIndicatorOffset = new THREE.Vector3();
          
+        // Setup X-Ray Silhouette for occlusion
+        const xrayMat = new THREE.MeshBasicMaterial({
+            color: 0x91c53a,
+            transparent: true,
+            opacity: 0.35,
+            depthFunc: THREE.GreaterDepth,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        this.xrayMeshes = [];
+        const applyXRay = (group) => {
+            const meshes = [];
+            group.traverse((child) => {
+                if (child.isMesh) meshes.push(child);
+            });
+            meshes.forEach((mesh) => {
+                const xray = new THREE.Mesh(mesh.geometry, xrayMat);
+                this.xrayMeshes.push(xray);
+                mesh.add(xray);
+            });
+        };
+
+        applyXRay(this.bodyGroup);
+        applyXRay(this.leftLeg);
+        applyXRay(this.rightLeg);
+
         this.attackTimer = 0;
         this.isAttacking = false;
         this.lastMoveDirection = null;
@@ -292,6 +319,12 @@ export class PlayerCharacter {
     }
     
     updateAnimation(delta, time, isMoving, currentVelocity) {
+        if (this.xrayMeshes) {
+            this.xrayMeshes.forEach(mesh => {
+                mesh.visible = !!CONFIG.xrayEnabled;
+            });
+        }
+
         if (!CONFIG.showCollisionBox) {
             this.collisionDebugMesh.visible = false;
         } else {

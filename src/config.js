@@ -29,6 +29,7 @@ export const DEFAULT_CONFIG = {
     bloomStrength: 0.3,
     bloomThreshold: 0.1,
     bloomRadius: 0.5,
+    xrayEnabled: true,
     playerScale: 2.5,
     enemyScale: 2.0,
     damageTextScale: 0.6,
