@@ -94,15 +94,23 @@ function init() {
     Globals.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(Globals.renderer.domElement);
 
+    const pixelRatio = window.devicePixelRatio;
+    const width = Math.floor(wrapper.clientWidth * pixelRatio);
+    const height = Math.floor(wrapper.clientHeight * pixelRatio);
+    
     const renderTargetParameters = {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
         format: THREE.RGBAFormat,
-        stencilBuffer: true
+        depthBuffer: true,
+        stencilBuffer: true,
+        samples: 4
     };
-    const renderTarget = new THREE.WebGLRenderTarget(wrapper.clientWidth, wrapper.clientHeight, renderTargetParameters);
+    const renderTarget = new THREE.WebGLRenderTarget(width, height, renderTargetParameters);
 
     Globals.composer = new EffectComposer(Globals.renderer, renderTarget);
+    Globals.composer.setPixelRatio(pixelRatio);
+    Globals.composer.setSize(wrapper.clientWidth, wrapper.clientHeight);
     const renderPass = new RenderPass(Globals.scene, Globals.camera);
     Globals.composer.addPass(renderPass);
 
@@ -143,8 +151,10 @@ function init() {
 
     const outputPass = new OutputPass();
 
-    const finalRenderTarget = new THREE.WebGLRenderTarget(wrapper.clientWidth, wrapper.clientHeight, renderTargetParameters);
+    const finalRenderTarget = new THREE.WebGLRenderTarget(width, height, renderTargetParameters);
     Globals.finalComposer = new EffectComposer(Globals.renderer, finalRenderTarget);
+    Globals.finalComposer.setPixelRatio(pixelRatio);
+    Globals.finalComposer.setSize(wrapper.clientWidth, wrapper.clientHeight);
     Globals.finalComposer.addPass(renderPass);
     Globals.finalComposer.addPass(mixPass);
 

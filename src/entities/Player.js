@@ -15,6 +15,17 @@ export class PlayerCharacter {
         const detailMat = new THREE.MeshBasicMaterial({ color: 0x362c28 });
         const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xff9eab }); 
         
+        // Let all primary player meshes write to stencil 1 to prevent X-Ray from overlapping the player itself
+        const applyStencil = (mat) => {
+            mat.stencilWrite = true;
+            mat.stencilRef = 1;
+            mat.stencilFunc = THREE.AlwaysStencilFunc;
+            mat.stencilZPass = THREE.ReplaceStencilOp;
+            mat.stencilZFail = THREE.KeepStencilOp;
+            mat.stencilFail = THREE.KeepStencilOp;
+        };
+        [skinMat, shirtMat, limbMat, eyeMat, faceMat, backMat, detailMat, innerEarMat].forEach(applyStencil);
+
         this.bodyGroup = new THREE.Group();
         this.bodyGroup.position.y = 0.25; 
         this.mesh.add(this.bodyGroup);
@@ -260,7 +271,9 @@ export class PlayerCharacter {
             stencilWrite: true,
             stencilRef: 1,
             stencilFunc: THREE.NotEqualStencilFunc,
-            stencilZPass: THREE.ReplaceStencilOp
+            stencilZPass: THREE.ReplaceStencilOp,
+            stencilZFail: THREE.KeepStencilOp,
+            stencilFail: THREE.KeepStencilOp
         });
 
         this.xrayMeshes = [];

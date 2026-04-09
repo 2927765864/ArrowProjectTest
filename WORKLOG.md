@@ -139,3 +139,7 @@
 
 - 修复【遮挡透视辅助】(X-Ray Silhouette) 中因身体部位自遮挡导致的异常透视触发：通过为 WebGL 的两个后处理合成器 (`EffectComposer`) 强制绑定带 `stencilBuffer: true` 的独立 `WebGLRenderTarget`，确保了玩家基础材质写入的模板测试能够全局生效，从而正确规避透视材质在角色自己身上的非法重叠渲染。
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1046`。
+
+- 修复游戏全局出现“严重锯齿与低分辨率”的渲染 BUG。此前在引入合成器 Stencil 模板缓冲时，直接使用了 CSS 逻辑像素建立 `WebGLRenderTarget`，丢失了屏幕的真实物理分辨率（`window.devicePixelRatio`）和原生抗锯齿采样。现已在初始化 `EffectComposer` 时正确绑定物理像素并启用了 WebGL2 原生 MSAA（`samples: 4`）抗锯齿支持。
+- 修复障碍物完全遮挡玩家时 X-Ray 效果失效的问题。因为底层默认处理，部分材质在 Depth Test 深度测试失败（即被遮挡）时仍有可能错误处理或覆盖了 Stencil Buffer，导致透明发光材质在不该抛弃的地方被抛弃。现已在玩家的 `stencilZFail` 及 `stencilFail` 参数上严谨且显式声明为 `THREE.KeepStencilOp`，确保遮挡层和透视层的逻辑判定 100% 严丝合缝。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1047`。
