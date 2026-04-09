@@ -143,8 +143,8 @@ export class Feather {
         // Scale to gameplay size (Total length is ~13, scaled by 0.35 gives ~4.5)
         this.modelGroup.scale.setScalar(0.35);
 
-        // Correct direction: +Y (tip) rotates to exactly -Z (lookAt target forward)
-        this.modelGroup.rotation.set(-Math.PI / 2, 0, 0);
+        // Correct direction: +Y (tip) rotates to exactly +Z (lookAt target forward)
+        this.modelGroup.rotation.set(Math.PI / 2, 0, 0);
         if (isSpecial) this.mesh.scale.set(1.4, 1.4, 1.4);
         
         this.mesh.position.copy(Globals.player.mesh.position); 
