@@ -21,67 +21,103 @@ export class PlayerCharacter {
         torso.castShadow = true;
         this.bodyGroup.add(torso);
         
-        // Head (Cartoon Cat)
+        // Head (Refined Cartoon Cat)
         this.headGroup = new THREE.Group();
-        this.headGroup.position.y = 0.28; 
+        this.headGroup.position.y = 0.26; 
         
-        // Base Cat Head (wider, slightly squashed) - Scaled down
-        const headGeo = new THREE.SphereGeometry(0.18, 32, 32);
-        
-        // Front Face (brighter, lighter green)
         const faceMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        // Back Head/Body (slightly darker, more purplish-green to distinguish back from front)
         const backMat = new THREE.MeshBasicMaterial({ color: 0x7aa531 }); 
+        const detailMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 }); 
 
-        // We use two intersecting spheres (or offset a darker one) to create a "face" vs "back head" look
-        // The back head
-        const headBack = new THREE.Mesh(headGeo, backMat);
-        headBack.scale.set(1.25, 0.95, 1.1);
-        headBack.position.set(0, 0, -0.02);
-        headBack.castShadow = true;
-        this.headGroup.add(headBack);
+        // 1. Cranium (Top part of the head, slightly flattened)
+        const craniumGeo = new THREE.SphereGeometry(0.16, 32, 32);
+        const cranium = new THREE.Mesh(craniumGeo, faceMat);
+        cranium.scale.set(1.2, 0.8, 1.1);
+        cranium.position.set(0, 0.06, 0.02);
+        this.headGroup.add(cranium);
 
-        // The front face mask (slightly pushed forward)
-        const headFront = new THREE.Mesh(headGeo, faceMat);
-        headFront.scale.set(1.22, 0.92, 1.05);
-        headFront.position.set(0, 0, 0.02);
-        this.headGroup.add(headFront);
+        // 2. Back of the head (Darker color for facing direction)
+        const backHeadGeo = new THREE.SphereGeometry(0.17, 32, 32);
+        const backHead = new THREE.Mesh(backHeadGeo, backMat);
+        backHead.scale.set(1.25, 0.85, 1.1);
+        backHead.position.set(0, 0.02, -0.04);
+        this.headGroup.add(backHead);
 
-        // Cat Ears
-        const earGeo = new THREE.ConeGeometry(0.07, 0.16, 4);
+        // 3. Cheeks / Jowls (Makes the face wide at the bottom)
+        const cheekGeo = new THREE.SphereGeometry(0.11, 32, 32);
+        const cheekL = new THREE.Mesh(cheekGeo, faceMat);
+        cheekL.scale.set(1.1, 0.85, 1.1);
+        cheekL.position.set(0.11, -0.04, 0.06);
+        this.headGroup.add(cheekL);
         
+        const cheekR = new THREE.Mesh(cheekGeo, faceMat);
+        cheekR.scale.set(1.1, 0.85, 1.1);
+        cheekR.position.set(-0.11, -0.04, 0.06);
+        this.headGroup.add(cheekR);
+
+        // 4. Ears (Flattened cones with inner ear depth)
+        const earGeo = new THREE.ConeGeometry(0.08, 0.18, 16);
+        const innerEarGeo = new THREE.ConeGeometry(0.04, 0.12, 16);
+
         const earL = new THREE.Mesh(earGeo, backMat);
-        earL.position.set(0.14, 0.15, -0.02);
-        earL.rotation.z = -0.25;
-        earL.rotation.x = -0.08;
-        earL.castShadow = true;
+        earL.scale.set(1, 1, 0.5);
+        earL.position.set(0.13, 0.16, -0.02);
+        earL.rotation.set(-0.1, 0.15, -0.35);
+        const innerEarL = new THREE.Mesh(innerEarGeo, faceMat);
+        innerEarL.position.set(0, -0.01, 0.03);
+        earL.add(innerEarL);
         this.headGroup.add(earL);
 
         const earR = new THREE.Mesh(earGeo, backMat);
-        earR.position.set(-0.14, 0.15, -0.02);
-        earR.rotation.z = 0.25;
-        earR.rotation.x = -0.08;
-        earR.castShadow = true;
+        earR.scale.set(1, 1, 0.5);
+        earR.position.set(-0.13, 0.16, -0.02);
+        earR.rotation.set(-0.1, -0.15, 0.35);
+        const innerEarR = new THREE.Mesh(innerEarGeo, faceMat);
+        innerEarR.position.set(0, -0.01, 0.03);
+        earR.add(innerEarR);
         this.headGroup.add(earR);
 
-        // Cat Eyes (vertical slits)
-        const eyeGeo = new THREE.CapsuleGeometry(0.015, 0.04, 4, 8);
+        // 5. Eyes (Big cute ovals)
+        const eyeGeo = new THREE.CapsuleGeometry(0.018, 0.04, 8, 8);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeL.position.set(0.09, 0.03, 0.19);
-        eyeL.rotation.z = -0.08;
+        eyeL.position.set(0.09, 0.02, 0.16);
+        eyeL.rotation.z = -0.1;
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeR.position.set(-0.09, 0.03, 0.19);
-        eyeR.rotation.z = 0.08;
+        eyeR.position.set(-0.09, 0.02, 0.16);
+        eyeR.rotation.z = 0.1;
         this.headGroup.add(eyeL);
         this.headGroup.add(eyeR);
 
-        // Cat Nose
+        // 6. Nose (Tiny triangle)
         const noseGeo = new THREE.ConeGeometry(0.02, 0.025, 3);
         const nose = new THREE.Mesh(noseGeo, eyeMat);
-        nose.position.set(0, -0.02, 0.21);
-        nose.rotation.x = Math.PI / 2;
-        nose.rotation.y = Math.PI;
+        nose.position.set(0, -0.04, 0.17);
+        nose.rotation.set(Math.PI / 2, Math.PI, 0);
         this.headGroup.add(nose);
+
+        // 7. Whiskers (3 thin lines on each side)
+        const whiskerGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.14, 4);
+        const wL1 = new THREE.Mesh(whiskerGeo, detailMat);
+        wL1.position.set(0.18, -0.02, 0.12);
+        wL1.rotation.set(0, 0, Math.PI / 2 - 0.15);
+        const wL2 = new THREE.Mesh(whiskerGeo, detailMat);
+        wL2.position.set(0.19, -0.05, 0.12);
+        wL2.rotation.set(0, 0, Math.PI / 2);
+        const wL3 = new THREE.Mesh(whiskerGeo, detailMat);
+        wL3.position.set(0.18, -0.08, 0.12);
+        wL3.rotation.set(0, 0, Math.PI / 2 + 0.15);
+        this.headGroup.add(wL1, wL2, wL3);
+
+        const wR1 = new THREE.Mesh(whiskerGeo, detailMat);
+        wR1.position.set(-0.18, -0.02, 0.12);
+        wR1.rotation.set(0, 0, Math.PI / 2 + 0.15);
+        const wR2 = new THREE.Mesh(whiskerGeo, detailMat);
+        wR2.position.set(-0.19, -0.05, 0.12);
+        wR2.rotation.set(0, 0, Math.PI / 2);
+        const wR3 = new THREE.Mesh(whiskerGeo, detailMat);
+        wR3.position.set(-0.18, -0.08, 0.12);
+        wR3.rotation.set(0, 0, Math.PI / 2 - 0.15);
+        this.headGroup.add(wR1, wR2, wR3);
 
         this.bodyGroup.add(this.headGroup);
 
