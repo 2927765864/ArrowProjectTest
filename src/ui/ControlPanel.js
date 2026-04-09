@@ -5,8 +5,14 @@ import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '
 const PANEL_VERSION = 'v2026.04.09-1006';
 
 export function setupControlPanel() {
+    const controlPanel = document.getElementById('control-panel');
     const versionEl = document.getElementById('panel-version');
     if (versionEl) versionEl.innerText = PANEL_VERSION;
+
+    const stopEvent = (e) => e.stopPropagation();
+    ['pointerdown', 'pointermove', 'pointerup', 'touchstart', 'touchmove', 'touchend', 'wheel'].forEach((eventName) => {
+        controlPanel?.addEventListener(eventName, stopEvent, { passive: false });
+    });
 
     const audioEnabledInput = document.getElementById('inp-aen');
     const audioEnabledValue = document.getElementById('val-aen');
