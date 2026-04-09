@@ -577,9 +577,10 @@ function updatePlayerMovement(delta) {
         const nextX = Globals.player.mesh.position.x + currentVelocity.x * delta;
         const nextZ = Globals.player.mesh.position.z + currentVelocity.z * delta;
         
-        // Use a much smaller radius that represents the character's physical torso/head (roughly 0.22)
-        // rather than the visual blue dashed indicator ring on the ground (which is 0.45).
-        const playerRadius = 0.2 * CONFIG.playerScale; 
+        // Use a strictly small footprint radius to represent ONLY the player's feet.
+        // This prevents the large visual head from colliding with obstacles.
+        const playerFootRadiusX = 0.08 * CONFIG.playerScale; 
+        const playerFootRadiusZ = 0.05 * CONFIG.playerScale; 
         
         let hitX = false;
         let hitZ = false;
@@ -588,13 +589,14 @@ function updatePlayerMovement(delta) {
         if (Globals.obstacles && Globals.obstacles.length > 0) {
             for (const obs of Globals.obstacles) {
                 // Check X movement
-                if (nextX + playerRadius > obs.minX && nextX - playerRadius < obs.maxX &&
-                    Globals.player.mesh.position.z + playerRadius > obs.minZ && Globals.player.mesh.position.z < obs.maxZ) {
+                // Z logic: only check the southern half (feet) of the collision volume: player.z to player.z + footRadius
+                if (nextX + playerFootRadiusX > obs.minX && nextX - playerFootRadiusX < obs.maxX &&
+                    Globals.player.mesh.position.z + playerFootRadiusZ > obs.minZ && Globals.player.mesh.position.z < obs.maxZ) {
                     hitX = true;
                 }
                 // Check Z movement
-                if (Globals.player.mesh.position.x + playerRadius > obs.minX && Globals.player.mesh.position.x - playerRadius < obs.maxX &&
-                    nextZ + playerRadius > obs.minZ && nextZ < obs.maxZ) {
+                if (Globals.player.mesh.position.x + playerFootRadiusX > obs.minX && Globals.player.mesh.position.x - playerFootRadiusX < obs.maxX &&
+                    nextZ + playerFootRadiusZ > obs.minZ && nextZ < obs.maxZ) {
                     hitZ = true;
                 }
             }
