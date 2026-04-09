@@ -518,8 +518,8 @@ function updatePlayerMovement(delta) {
     if (keys.d || keys.ArrowRight) inputVelocity.x += 1;
     inputVelocity.x += joystick.x;
     inputVelocity.z += joystick.y;
-    const indicatorInputX = THREE.MathUtils.clamp(inputVelocity.x, -1, 1);
-    const indicatorInputZ = THREE.MathUtils.clamp(inputVelocity.z, -1, 1);
+    const indicatorInputX = THREE.MathUtils.clamp(inputVelocity.x, -2, 2);
+    const indicatorInputZ = THREE.MathUtils.clamp(inputVelocity.z, -2, 2);
     
     const wasMoving = isMoving; 
     if (inputVelocity.lengthSq() > 0) {

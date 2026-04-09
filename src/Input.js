@@ -92,12 +92,15 @@ function updateJoystick(localX, localY) {
     const knobX = Math.cos(angle) * visualDistance;
     const knobY = Math.sin(angle) * visualDistance;
 
-    // 逻辑上的输出向量 (缩短推满速所需的滑动距离)
-    // distance >= joystickLogicalRadius 时，速度就已经是 1.0 了
-    const logicIntensity = distance === 0 ? 0 : Math.min(distance / joystickLogicalRadius, 1.0);
+    // 物理输出：允许比 1.0 更大，用于控制指示器继续延伸。
+    // 在 distance = 28 时到达 1.0 (全速移动阈值)
+    // 设一个更大的范围（比如手指拉到 80px）才能让指示器达到最大半径（约 1.5 倍）
+    const logicIntensity = distance === 0 ? 0 : distance / joystickLogicalRadius;
+    const maxIndicatorIntensity = 1.8; // 允许指示器拉伸到 1.8 倍
+    const clampedIntensity = Math.min(logicIntensity, maxIndicatorIntensity);
     
-    joystick.x = Math.cos(angle) * logicIntensity;
-    joystick.y = Math.sin(angle) * logicIntensity;
+    joystick.x = Math.cos(angle) * clampedIntensity;
+    joystick.y = Math.sin(angle) * clampedIntensity;
     
     knobEl.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
 }

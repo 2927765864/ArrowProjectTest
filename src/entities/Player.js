@@ -180,11 +180,17 @@ export class PlayerCharacter {
 
     updateMoveIndicator(worldPosition, inputX, inputZ, delta) {
         const input = new THREE.Vector2(inputX, inputZ);
-        const magnitude = Math.min(input.length(), 1);
+        const inputMag = input.length();
+        const magnitude = Math.min(inputMag, 1.8); // 允许最大延伸力度 1.8
         if (magnitude > 0.001) input.normalize().multiplyScalar(magnitude);
 
-        const maxOffset = 1.35 * CONFIG.playerScale;
-        const targetOffset = new THREE.Vector3(input.x * maxOffset, 0, input.y * maxOffset);
+        // 原来是 1.35，现在我们要求它在全速移动时（magnitude=1）达到某个范围
+        // 然后在手指滑到更远时（magnitude=1.8）达到 1.5 倍身位
+        // 因此最大范围 1.5 身位，发生在 magnitude=1.8 时
+        // 当 magnitude=1 时，大概是 1.5 / 1.8 = 0.83 身位，更紧凑
+        const maxOffsetBase = 1.5 / 1.8 * CONFIG.playerScale; 
+        const targetOffset = new THREE.Vector3(input.x * maxOffsetBase, 0, input.y * maxOffsetBase);
+        
         if (magnitude > 0.001) {
             this.moveIndicatorOffset.copy(targetOffset);
         } else {
