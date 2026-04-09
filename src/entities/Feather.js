@@ -158,9 +158,11 @@ export class Feather {
             this.hitStopTimer -= delta;
             return;
         }
-        if (this.phase !== 'deployed') this.modelGroup.rotateZ(15 * delta);
         
         if (this.phase === 'shooting') {
+            // Keep straight forward orientation to target
+            this.mesh.lookAt(this.mesh.position.clone().add(this.direction));
+
             const dist = this.mesh.position.distanceTo(this.targetPos); 
             const step = this.speed * delta;
             if (dist <= step) { 
@@ -168,11 +170,14 @@ export class Feather {
                 this.phase = 'deployed'; 
                 this.tetherLine.visible = true; 
                 this.mesh.position.y = 1.6; // Raise the center slightly so it stands tall
+                
+                // Point UP to the sky when deployed on the ground
                 const standTarget = this.mesh.position.clone()
-                    .add(new THREE.Vector3(0, 4, 0)) // Look UP so the tip points to the sky
-                    .addScaledVector(this.direction, 0.5); // Slightly lean forward
+                    .add(new THREE.Vector3(0, 4, 0)) 
+                    .addScaledVector(this.direction, 0.2); // Slightly lean forward
                 this.mesh.lookAt(standTarget);
-                this.mesh.rotateZ((Math.random() - 0.5) * 0.35);
+                
+                // Remove the random Z rotation so it stands perfectly straight and solemn
                 this.updateDeploymentRing();
                 Globals.audioManager?.playDeploy(this.isSpecial);
             } else {
@@ -187,7 +192,7 @@ export class Feather {
             const pt = Globals.player.mesh.position.clone(); pt.y = 1; 
             const dir = new THREE.Vector3().subVectors(pt, this.mesh.position).normalize();
             
-            // lookAt player = tip pointing inwards (towards player)
+            // Look AT player = tip pointing inwards (towards player)
             this.mesh.lookAt(this.mesh.position.clone().add(dir));
             
             const dist = this.mesh.position.distanceTo(pt); 
