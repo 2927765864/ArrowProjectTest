@@ -15,7 +15,8 @@ export const DEFAULT_CONFIG = {
     specialTetherSegmentCount: 10,
     sceneMode: 'obstacles', // endless, empty, obstacles
     floorStyle: 'solid', // solid, checkerboard
-    maxMoveSpeed: 10,
+    maxMoveSpeedX: 7.5,
+    maxMoveSpeedZ: 10,
     cameraViewScale: 1.0,
     cameraFollowEnabled: true,
     moveFacingMode: 'decoupled', // decoupled, faceMoveDirection

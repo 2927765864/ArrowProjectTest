@@ -94,3 +94,8 @@
 - 将敌人生成时烟雾 (`EnemySpawnEffects.js`) 的多边形细分等级提升（从 IcosahedronGeometry 的 0 提升到 2），使得粒子边缘更加平滑柔和。
 - 全局检查模型平滑度：同步增加了粒子特效管理器中常规扬尘、玩家尾巴、玩家眼睛以及敌人眼睛的几何体 Segment（细分面）数量，以增强卡通渲染下的轮廓圆润度。
 - 更新 ControlPanel 面板版本号至 `v2026.04.09-1035`。
+
+- 拆分了角色的 `maxMoveSpeed` 配置项，分离为 `maxMoveSpeedX`（横向最大速度）与 `maxMoveSpeedZ`（纵向最大速度），以解决竖屏状态下横向移动在视觉上显得过快的问题。
+- 将默认的横向最大速度 (`maxMoveSpeedX`) 降至 7.5，保留纵向最大速度 (`maxMoveSpeedZ`) 为 10。
+- 在控制面板中开放了横纵向移动速度的独立控制。
+- 更新 ControlPanel 面板版本号至 `v2026.04.09-1036`。

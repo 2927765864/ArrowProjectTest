@@ -545,8 +545,8 @@ function updatePlayerMovement(delta) {
         inputVelocity.normalize(); 
         Globals.player.lastMoveDirection = inputVelocity.clone();
         
-        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, inputVelocity.x * CONFIG.maxMoveSpeed, delta * CONFIG.moveAcceleration);
-        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, inputVelocity.z * CONFIG.maxMoveSpeed, delta * CONFIG.moveAcceleration);
+        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, inputVelocity.x * CONFIG.maxMoveSpeedX, delta * CONFIG.moveAcceleration);
+        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, inputVelocity.z * CONFIG.maxMoveSpeedZ, delta * CONFIG.moveAcceleration);
         
         isMoving = true;
     } else {

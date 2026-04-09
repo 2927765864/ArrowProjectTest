@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.09-1035';
+const PANEL_VERSION = 'v2026.04.09-1036';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -192,7 +192,8 @@ export function setupControlPanel() {
     bindSlider('inp-tns', 'val-tns', 'turnSpeed');
     bindSlider('inp-mva', 'val-mva', 'moveAcceleration');
     bindSlider('inp-mvf', 'val-mvf', 'moveFriction');
-    bindSlider('inp-mms', 'val-mms', 'maxMoveSpeed');
+    bindSlider('inp-mmsx', 'val-mmsx', 'maxMoveSpeedX');
+    bindSlider('inp-mmsz', 'val-mmsz', 'maxMoveSpeedZ');
 
     const inpCvs = document.getElementById('inp-cvs');
     if (CONFIG.cameraViewScale !== undefined) {
