@@ -23,52 +23,79 @@ export class PlayerCharacter {
         
         // Head (Cartoon Cat)
         this.headGroup = new THREE.Group();
-        this.headGroup.position.y = 0.30; 
+        this.headGroup.position.y = 0.28; 
         
-        // Base Cat Head (wider, slightly squashed)
-        const headGeo = new THREE.SphereGeometry(0.24, 32, 32);
-        const head = new THREE.Mesh(headGeo, skinMat);
-        head.scale.set(1.25, 0.95, 1.1);
-        head.castShadow = true;
-        this.headGroup.add(head);
+        // Base Cat Head (wider, slightly squashed) - Scaled down
+        const headGeo = new THREE.SphereGeometry(0.18, 32, 32);
+        
+        // Front Face (brighter, lighter green)
+        const faceMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
+        // Back Head/Body (slightly darker, more purplish-green to distinguish back from front)
+        const backMat = new THREE.MeshBasicMaterial({ color: 0x7aa531 }); 
+
+        // We use two intersecting spheres (or offset a darker one) to create a "face" vs "back head" look
+        // The back head
+        const headBack = new THREE.Mesh(headGeo, backMat);
+        headBack.scale.set(1.25, 0.95, 1.1);
+        headBack.position.set(0, 0, -0.02);
+        headBack.castShadow = true;
+        this.headGroup.add(headBack);
+
+        // The front face mask (slightly pushed forward)
+        const headFront = new THREE.Mesh(headGeo, faceMat);
+        headFront.scale.set(1.22, 0.92, 1.05);
+        headFront.position.set(0, 0, 0.02);
+        this.headGroup.add(headFront);
 
         // Cat Ears
-        const earGeo = new THREE.ConeGeometry(0.09, 0.22, 4);
+        const earGeo = new THREE.ConeGeometry(0.07, 0.16, 4);
         
-        const earL = new THREE.Mesh(earGeo, skinMat);
-        earL.position.set(0.18, 0.20, 0);
+        const earL = new THREE.Mesh(earGeo, backMat);
+        earL.position.set(0.14, 0.15, -0.02);
         earL.rotation.z = -0.25;
         earL.rotation.x = -0.08;
         earL.castShadow = true;
         this.headGroup.add(earL);
 
-        const earR = new THREE.Mesh(earGeo, skinMat);
-        earR.position.set(-0.18, 0.20, 0);
+        const earR = new THREE.Mesh(earGeo, backMat);
+        earR.position.set(-0.14, 0.15, -0.02);
         earR.rotation.z = 0.25;
         earR.rotation.x = -0.08;
         earR.castShadow = true;
         this.headGroup.add(earR);
 
         // Cat Eyes (vertical slits)
-        const eyeGeo = new THREE.CapsuleGeometry(0.02, 0.05, 4, 8);
+        const eyeGeo = new THREE.CapsuleGeometry(0.015, 0.04, 4, 8);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeL.position.set(0.12, 0.04, 0.24);
+        eyeL.position.set(0.09, 0.03, 0.19);
         eyeL.rotation.z = -0.08;
         const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
-        eyeR.position.set(-0.12, 0.04, 0.24);
+        eyeR.position.set(-0.09, 0.03, 0.19);
         eyeR.rotation.z = 0.08;
         this.headGroup.add(eyeL);
         this.headGroup.add(eyeR);
 
         // Cat Nose
-        const noseGeo = new THREE.ConeGeometry(0.025, 0.035, 3);
+        const noseGeo = new THREE.ConeGeometry(0.02, 0.025, 3);
         const nose = new THREE.Mesh(noseGeo, eyeMat);
-        nose.position.set(0, -0.02, 0.26);
+        nose.position.set(0, -0.02, 0.21);
         nose.rotation.x = Math.PI / 2;
         nose.rotation.y = Math.PI;
         this.headGroup.add(nose);
 
         this.bodyGroup.add(this.headGroup);
+
+        // Tail (to clearly show the back of the character)
+        this.tailGroup = new THREE.Group();
+        this.tailGroup.position.set(0, 0.0, -0.08); // Attached to lower back
+        
+        const tailGeo = new THREE.CapsuleGeometry(0.025, 0.2, 4, 8);
+        this.tailMesh = new THREE.Mesh(tailGeo, backMat);
+        this.tailMesh.position.set(0, 0.1, -0.1);
+        this.tailMesh.rotation.x = -0.6;
+        
+        this.tailGroup.add(this.tailMesh);
+        this.bodyGroup.add(this.tailGroup);
         
         // Arms
         const armGeo = new THREE.CapsuleGeometry(0.04, 0.12, 4, 16);
@@ -238,16 +265,20 @@ export class PlayerCharacter {
             
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0.15, delta * 15); 
             
-            this.bodyGroup.position.y = 0.25 + Math.abs(Math.sin(this.walkPhase)) * 0.1 * (speedMagnitude / 10);
-            this.leftArm.rotation.x = -legSwing * 0.8; 
-            this.leftArm.rotation.z = 0.1;
-            if (this.isAttacking) { 
-                this.rightArm.rotation.x = -Math.PI * 0.7; 
-                this.rightArm.rotation.z = -0.3; 
-            } else { 
-                this.rightArm.rotation.x = legSwing * 0.8; 
-                this.rightArm.rotation.z = -0.1; 
+            // Tail wags when walking
+            if (this.tailGroup) {
+                this.tailGroup.rotation.y = Math.sin(this.walkPhase * 1.8) * 0.4;
             }
+        } else {
+            this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
+            this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
+            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
+            
+            // Idle tail wag
+            if (this.tailGroup) {
+                this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
+            }
+        }
 
             if (Globals.particleManager && speedMagnitude > 2.5 && this.smokeTrailDistance >= 1.35 * CONFIG.playerScale) {
                 const moveDir = currentVelocity.clone().normalize();
