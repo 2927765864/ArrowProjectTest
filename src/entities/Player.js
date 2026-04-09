@@ -5,10 +5,15 @@ import { Globals } from '../utils.js';
 export class PlayerCharacter {
     constructor() {
         this.mesh = new THREE.Group();
-        const skinMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        const shirtMat = new THREE.MeshBasicMaterial({ color: 0x91c53a }); 
-        const limbMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 }); 
+        const skinMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
+        const shirtMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
+        const limbMat = new THREE.MeshBasicMaterial({ color: 0xd4c2b2 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x362c28 }); 
+        
+        const faceMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
+        const backMat = new THREE.MeshBasicMaterial({ color: 0xd4c2b2 });
+        const detailMat = new THREE.MeshBasicMaterial({ color: 0x362c28 });
+        const innerEarMat = new THREE.MeshBasicMaterial({ color: 0xff9eab }); 
         
         this.bodyGroup = new THREE.Group();
         this.bodyGroup.position.y = 0.25; 
@@ -16,7 +21,7 @@ export class PlayerCharacter {
         
         // Torso
         const torsoGeo = new THREE.CapsuleGeometry(0.12, 0.12, 4, 16);
-        const torso = new THREE.Mesh(torsoGeo, shirtMat);
+        const torso = new THREE.Mesh(torsoGeo, backMat);
         torso.position.y = 0.08;
         torso.castShadow = true;
         this.bodyGroup.add(torso);
@@ -24,10 +29,6 @@ export class PlayerCharacter {
         // Head (Refined Cartoon Cat)
         this.headGroup = new THREE.Group();
         this.headGroup.position.y = 0.26; 
-        
-        const faceMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        const backMat = new THREE.MeshBasicMaterial({ color: 0x7aa531 }); 
-        const detailMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 }); 
 
         // 1. Cranium (Top part of the head, slightly flattened)
         const craniumGeo = new THREE.SphereGeometry(0.16, 32, 32);
@@ -63,7 +64,7 @@ export class PlayerCharacter {
         earL.scale.set(1, 1, 0.5);
         earL.position.set(0.13, 0.16, -0.02);
         earL.rotation.set(-0.1, 0.15, -0.35);
-        const innerEarL = new THREE.Mesh(innerEarGeo, faceMat);
+        const innerEarL = new THREE.Mesh(innerEarGeo, innerEarMat);
         innerEarL.position.set(0, -0.01, 0.03);
         earL.add(innerEarL);
         this.headGroup.add(earL);
@@ -72,7 +73,7 @@ export class PlayerCharacter {
         earR.scale.set(1, 1, 0.5);
         earR.position.set(-0.13, 0.16, -0.02);
         earR.rotation.set(-0.1, -0.15, 0.35);
-        const innerEarR = new THREE.Mesh(innerEarGeo, faceMat);
+        const innerEarR = new THREE.Mesh(innerEarGeo, innerEarMat);
         innerEarR.position.set(0, -0.01, 0.03);
         earR.add(innerEarR);
         this.headGroup.add(earR);
@@ -90,7 +91,7 @@ export class PlayerCharacter {
 
         // 6. Nose (Tiny triangle)
         const noseGeo = new THREE.ConeGeometry(0.02, 0.025, 3);
-        const nose = new THREE.Mesh(noseGeo, eyeMat);
+        const nose = new THREE.Mesh(noseGeo, innerEarMat);
         nose.position.set(0, -0.04, 0.17);
         nose.rotation.set(Math.PI / 2, Math.PI, 0);
         this.headGroup.add(nose);
@@ -137,7 +138,7 @@ export class PlayerCharacter {
         const armGeo = new THREE.CapsuleGeometry(0.04, 0.12, 4, 16);
         
         this.leftArm = new THREE.Group();
-        const armMeshL = new THREE.Mesh(armGeo, skinMat);
+        const armMeshL = new THREE.Mesh(armGeo, faceMat);
         armMeshL.position.y = -0.06; 
         armMeshL.castShadow = true;
         this.leftArm.add(armMeshL);
@@ -145,7 +146,7 @@ export class PlayerCharacter {
         this.bodyGroup.add(this.leftArm);
         
         this.rightArm = new THREE.Group();
-        const armMeshR = new THREE.Mesh(armGeo, skinMat);
+        const armMeshR = new THREE.Mesh(armGeo, faceMat);
         armMeshR.position.y = -0.06;
         armMeshR.castShadow = true;
         this.rightArm.add(armMeshR);
