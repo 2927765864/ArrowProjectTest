@@ -57,128 +57,94 @@ export class Feather {
             color: 0x91c53a
         });
         
-        // Spear of Longinus Model (Highly accurate EVA stylized)
+        // Spear of Longinus Model (Highly accurate EVA proportions based on reference)
         const spearMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
 
-        // The spear has three main parts: 
-        // 1. The straight base shaft (25%)
-        // 2. The tightly wound double helix body (50%)
-        // 3. The massive sweeping forked prongs (25%)
-        
-        // 1. Base Shaft
-        // The tail end of Longinus has a few segmented rings and tapers to a point
-        const tailGeo = new THREE.CylinderGeometry(0.01, 0.08, 0.5, 8);
-        const tail = new THREE.Mesh(tailGeo, spearMat);
-        tail.position.y = -1.25;
-        this.modelGroup.add(tail);
-
-        const ringGeo = new THREE.TorusGeometry(0.08, 0.02, 8, 16);
-        const ring = new THREE.Mesh(ringGeo, spearMat);
-        ring.position.y = -1.0;
-        ring.rotation.x = Math.PI / 2;
-        this.modelGroup.add(ring);
-
-        const shaftGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.5, 8);
+        // 1. The ultra-tight double helix base (Tapered twisted shaft)
+        // We use a cylinder that shrinks to 0 at the bottom, then severely flatten it
+        // and twist the vertices programmatically to create tight spiral grooves.
+        const shaftGeo = new THREE.CylinderGeometry(0.12, 0.0, 7.0, 16, 128);
+        const posAttribute = shaftGeo.attributes.position;
+        for (let i = 0; i < posAttribute.count; i++) {
+            let x = posAttribute.getX(i);
+            let y = posAttribute.getY(i);
+            let z = posAttribute.getZ(i);
+            
+            // Flatten to simulate two strands
+            z *= 0.25; 
+            
+            // y goes from 3.5 (top) to -3.5 (bottom)
+            const ht = (3.5 - y) / 7.0; 
+            // Extremely tight winding (28 full turns)
+            const twistAngle = ht * Math.PI * 2 * 28; 
+            
+            const nx = x * Math.cos(twistAngle) - z * Math.sin(twistAngle);
+            const nz = x * Math.sin(twistAngle) + z * Math.cos(twistAngle);
+            
+            posAttribute.setXYZ(i, nx, y, nz);
+        }
+        shaftGeo.computeVertexNormals();
         const shaft = new THREE.Mesh(shaftGeo, spearMat);
-        shaft.position.y = -0.25;
+        shaft.position.y = -3.5; // Top is exactly at Y=0
         this.modelGroup.add(shaft);
 
-        // 2. Tightly Wound Double Helix & 3. Forked Prongs
-        class LonginusCurve extends THREE.Curve {
-            constructor(phase) {
-                super();
-                this.phase = phase;
-            }
-            getPoint(t, optionalTarget = new THREE.Vector3()) {
-                let x = 0, y = 0, z = 0;
+        // 2. The iconic Zig-Zag diamond cutouts and extremely long straight prongs
+        // We build the prongs segment by segment to guarantee sharp, mechanical bends
+        const ptsR = [
+            new THREE.Vector3(0, 0, 0),         // Split start
+            new THREE.Vector3(0.3, 0.5, 0),     // Sharp outward bend
+            new THREE.Vector3(0.14, 0.8, 0),    // Sharp inward bend
+            new THREE.Vector3(0.28, 1.2, 0),    // Sharp outward bend again
+            new THREE.Vector3(0.015, 6.0, 0)    // Extends EXTREMELY far forward to a sharp tip
+        ];
+        const widths = [0.12, 0.1, 0.1, 0.08, 0.01];
+
+        const buildProng = (points, side) => {
+            const group = new THREE.Group();
+            const sign = side === 'left' ? -1 : 1;
+            
+            for(let i = 0; i < points.length; i++) {
+                const p = points[i].clone();
+                p.x *= sign;
                 
-                // Total length: y goes from 0.5 (end of shaft) to ~6.0
-                if (t < 0.65) {
-                    // Helix section
-                    const ht = t / 0.65; // 0 -> 1
-                    y = 0.5 + ht * 4.0;  // 0.5 to 4.5
+                // Joint sphere for sharp, seamless elbows
+                const jointGeo = new THREE.SphereGeometry(widths[i], 16, 16);
+                const joint = new THREE.Mesh(jointGeo, spearMat);
+                joint.position.copy(p);
+                joint.scale.z = 0.3; // Flatten into a blade profile
+                group.add(joint);
+                
+                // Straight segment
+                if (i < points.length - 1) {
+                    const pNext = points[i+1].clone();
+                    pNext.x *= sign;
                     
-                    const turns = 3.5; 
-                    const angle = ht * Math.PI * 2 * turns + this.phase;
+                    const dist = p.distanceTo(pNext);
+                    const segGeo = new THREE.CylinderGeometry(widths[i+1], widths[i], dist, 16);
+                    const seg = new THREE.Mesh(segGeo, spearMat);
                     
-                    // The helix is extremely tight. 
-                    // To look like two vines twisting, the radius is very small.
-                    let r = 0.055; 
+                    const dir = new THREE.Vector3().subVectors(pNext, p).normalize();
+                    seg.position.copy(p).add(pNext).multiplyScalar(0.5);
+                    seg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+                    seg.scale.z = 0.3; // Flatten into a blade profile
                     
-                    // At the bottom, it tapers seamlessly from the shaft
-                    if (ht < 0.05) {
-                        r = 0.0 + (ht / 0.05) * 0.055;
-                    }
-                    // At the top, it widens just before splitting into the prongs
-                    if (ht > 0.9) {
-                        r = 0.055 + ((ht - 0.9) / 0.1) * 0.06;
-                    }
-                    
-                    x = Math.cos(angle) * r;
-                    z = Math.sin(angle) * r;
-                } else {
-                    // Prong section
-                    const pt = (t - 0.65) / 0.35; // 0 -> 1
-                    y = 4.5 + pt * 2.5; // 4.5 to 7.0
-                    
-                    // The prongs stay locked at the final angle of the helix
-                    const finalAngle = 1.0 * Math.PI * 2 * 3.5 + this.phase;
-                    
-                    // The classic Longinus fork: bows out massively, then curves back in parallel
-                    let r;
-                    if (pt < 0.4) {
-                        // Bows outward strongly
-                        const bowT = pt / 0.4;
-                        // quadratic easing out
-                        r = 0.115 + (0.45 * (1 - Math.pow(1 - bowT, 2))); 
-                    } else if (pt < 0.8) {
-                        // Remains roughly parallel, slightly tapering inward
-                        const midT = (pt - 0.4) / 0.4;
-                        r = 0.565 - midT * 0.08;
-                    } else {
-                        // Curves sharply inward to a tip
-                        const tipT = (pt - 0.8) / 0.2;
-                        r = 0.485 - (tipT * 0.3); 
-                    }
-                    
-                    x = Math.cos(finalAngle) * r;
-                    z = Math.sin(finalAngle) * r;
+                    group.add(seg);
                 }
-                
-                return optionalTarget.set(x, y, z);
             }
-        }
-
-        // We use a flattened profile for the tube to mimic the "bladed" feel of the prongs
-        const profileShape = new THREE.Shape();
-        profileShape.ellipse(0, 0, 0.035, 0.06, 0, Math.PI * 2);
-
-        const extrudeSettings = {
-            steps: 128,
-            bevelEnabled: false,
-            extrudePath: new LonginusCurve(0)
+            return group;
         };
-        const prong1Geo = new THREE.ExtrudeGeometry(profileShape, extrudeSettings);
-        const prong1 = new THREE.Mesh(prong1Geo, spearMat);
-        this.modelGroup.add(prong1);
 
-        const extrudeSettings2 = {
-            steps: 128,
-            bevelEnabled: false,
-            extrudePath: new LonginusCurve(Math.PI)
-        };
-        const prong2Geo = new THREE.ExtrudeGeometry(profileShape, extrudeSettings2);
-        const prong2 = new THREE.Mesh(prong2Geo, spearMat);
-        this.modelGroup.add(prong2);
+        this.modelGroup.add(buildProng(ptsR, 'right'));
+        this.modelGroup.add(buildProng(ptsR, 'left'));
 
-        // Center the whole model so the origin is roughly at the grip
-        this.modelGroup.position.y = -1.5;
-        
-        // Ensure scale is correct for gameplay (Feather was smaller)
-        this.modelGroup.scale.setScalar(0.65);
+        // Center the overall mass of the weapon for rotation
+        this.modelGroup.position.y = 1.0; 
 
-        // Fix direction: Rotate +Y (tip) to align with +Z (forward direction of lookAt)
-        this.modelGroup.rotateX(Math.PI / 2);
+        // Scale to gameplay size (Total length is ~13, scaled by 0.35 gives ~4.5)
+        this.modelGroup.scale.setScalar(0.35);
+
+        // Correct direction: +Y (tip) rotates to exactly -Z (lookAt target forward)
+        this.modelGroup.rotation.set(-Math.PI / 2, 0, 0);
         if (isSpecial) this.mesh.scale.set(1.4, 1.4, 1.4);
         
         this.mesh.position.copy(Globals.player.mesh.position); 
