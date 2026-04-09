@@ -158,7 +158,7 @@ export class Feather {
             this.hitStopTimer -= delta;
             return;
         }
-        if (this.phase !== 'deployed') this.modelGroup.rotateY(15 * delta);
+        if (this.phase !== 'deployed') this.modelGroup.rotateZ(15 * delta);
         
         if (this.phase === 'shooting') {
             const dist = this.mesh.position.distanceTo(this.targetPos); 
@@ -167,11 +167,11 @@ export class Feather {
                 this.mesh.position.copy(this.targetPos); 
                 this.phase = 'deployed'; 
                 this.tetherLine.visible = true; 
-                this.mesh.position.y = 0.2 + Math.random() * 0.2; 
-                const stabTarget = this.mesh.position.clone()
-                    .addScaledVector(this.direction, 0.2)
-                    .add(new THREE.Vector3(0, -4, 0));
-                this.mesh.lookAt(stabTarget);
+                this.mesh.position.y = 1.6; // Raise the center slightly so it stands tall
+                const standTarget = this.mesh.position.clone()
+                    .add(new THREE.Vector3(0, 4, 0)) // Look UP so the tip points to the sky
+                    .addScaledVector(this.direction, 0.5); // Slightly lean forward
+                this.mesh.lookAt(standTarget);
                 this.mesh.rotateZ((Math.random() - 0.5) * 0.35);
                 this.updateDeploymentRing();
                 Globals.audioManager?.playDeploy(this.isSpecial);
@@ -186,7 +186,10 @@ export class Feather {
         } else if (this.phase === 'recalling') {
             const pt = Globals.player.mesh.position.clone(); pt.y = 1; 
             const dir = new THREE.Vector3().subVectors(pt, this.mesh.position).normalize();
-            this.mesh.lookAt(this.mesh.position.clone().sub(dir));
+            
+            // lookAt player = tip pointing inwards (towards player)
+            this.mesh.lookAt(this.mesh.position.clone().add(dir));
+            
             const dist = this.mesh.position.distanceTo(pt); 
             const step = this.speed * delta;
             if (dist <= step || dist < 1.0) {
