@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.09-1025';
+const PANEL_VERSION = 'v2026.04.09-1026';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');

@@ -20,23 +20,24 @@ export class Enemy {
             mat.userData.baseColor = mat.color.getHex();
         });
         
-        const bodyGeo = new THREE.IcosahedronGeometry(0.4, 0); 
-        this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat); 
+        const bodyGeo = new THREE.SphereGeometry(0.38, 32, 32);
+        this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+        this.bodyMesh.scale.set(1.15, 0.9, 1.1);
         this.mesh.add(this.bodyMesh);
         
-        const eyeGeo = new THREE.BoxGeometry(0.15, 0.08, 0.1);
-        const leftEye = new THREE.Mesh(eyeGeo, eyeMat); 
-        leftEye.position.set(0.15, 0.1, 0.32); leftEye.rotation.z = -0.2; leftEye.layers.enable(1); this.bodyMesh.add(leftEye);
-        const rightEye = new THREE.Mesh(eyeGeo, eyeMat); 
-        rightEye.position.set(-0.15, 0.1, 0.32); rightEye.rotation.z = 0.2; rightEye.layers.enable(1); this.bodyMesh.add(rightEye);
+        const eyeGeo = new THREE.CapsuleGeometry(0.04, 0.08, 4, 8);
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(0.16, 0.1, 0.32); leftEye.rotation.z = -0.3; leftEye.rotation.x = 0.2; leftEye.layers.enable(1); this.bodyMesh.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(-0.16, 0.1, 0.32); rightEye.rotation.z = 0.3; rightEye.rotation.x = 0.2; rightEye.layers.enable(1); this.bodyMesh.add(rightEye);
         
-        const hornGeo = new THREE.ConeGeometry(0.08, 0.25, 4);
-        const leftHorn = new THREE.Mesh(hornGeo, hornMat); 
-        leftHorn.position.set(0.25, 0.35, 0.1); leftHorn.rotation.z = -0.5; leftHorn.rotation.x = -0.2;
-        this.bodyMesh.add(leftHorn);
-        const rightHorn = new THREE.Mesh(hornGeo, hornMat); 
-        rightHorn.position.set(-0.25, 0.35, 0.1); rightHorn.rotation.z = 0.5; rightHorn.rotation.x = -0.2;
-        this.bodyMesh.add(rightHorn);
+        const earGeo = new THREE.ConeGeometry(0.12, 0.22, 16);
+        const leftEar = new THREE.Mesh(earGeo, hornMat);
+        leftEar.position.set(0.25, 0.28, 0); leftEar.rotation.z = -0.4; leftEar.rotation.x = -0.1;
+        this.bodyMesh.add(leftEar);
+        const rightEar = new THREE.Mesh(earGeo, hornMat);
+        rightEar.position.set(-0.25, 0.28, 0); rightEar.rotation.z = 0.4; rightEar.rotation.x = -0.1;
+        this.bodyMesh.add(rightEar);
         
         this.animOffset = Math.random() * 10;
         if (spawnPosition) {
@@ -63,9 +64,9 @@ export class Enemy {
             this.mesh.lookAt(Globals.player.mesh.position.x, this.mesh.position.y, Globals.player.mesh.position.z);
         }
         
-        this.bodyMesh.position.y = Math.sin(time * 5 + this.animOffset) * 0.1;
-        const scalePulse = 1 + Math.sin(time * 8 + this.animOffset) * 0.05;
-        this.bodyMesh.scale.set(scalePulse, scalePulse, scalePulse);
+        const bounce = Math.abs(Math.sin(time * 6 + this.animOffset));
+        this.bodyMesh.position.y = bounce * 0.15;
+        this.bodyMesh.scale.set(1.15 - bounce * 0.1, 0.9 + bounce * 0.15, 1.1 - bounce * 0.1);
         
         if (this.knockbackVelocity.lengthSq() > 0.01) { 
             this.mesh.position.addScaledVector(this.knockbackVelocity, delta); 
