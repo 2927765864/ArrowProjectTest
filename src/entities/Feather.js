@@ -20,7 +20,7 @@ export class Feather {
         this.tetherThickness = isSpecial ? CONFIG.specialTetherThickness : CONFIG.tetherThickness;
         this.tetherSegmentGeometry = new THREE.BoxGeometry(1, 1, 1);
         this.tetherBaseMaterial = new THREE.MeshBasicMaterial({
-            color: isSpecial ? 0xffc14d : 0x5ad7ff,
+            color: 0x91c53a,
             transparent: true,
             opacity: isSpecial ? 0.95 : 0.7,
             blending: THREE.AdditiveBlending,
@@ -36,7 +36,7 @@ export class Feather {
         this.deploymentRingSegments = [];
         this.deploymentRingGeometry = new THREE.BoxGeometry(1, 1, 1);
         this.deploymentRingMaterial = new THREE.MeshBasicMaterial({
-            color: isSpecial ? 0xffc14d : 0x5ad7ff,
+            color: 0x91c53a,
             transparent: true,
             opacity: isSpecial ? 1.0 : 0.82,
             blending: THREE.AdditiveBlending,
@@ -50,18 +50,18 @@ export class Feather {
         this.mesh.add(this.modelGroup);
         
         this.vaneMat = new THREE.MeshStandardMaterial({ 
-            color: isSpecial ? 0xffbb00 : 0xccffff, 
-            emissive: isSpecial ? 0xaa3300 : 0x114488, 
+            color: 0x91c53a, 
+            emissive: 0x91c53a, 
             transparent: true, opacity: 0.9, roughness: 0.2, metalness: 0.6, flatShading: true 
         });
         const quillMat = new THREE.MeshStandardMaterial({ 
-            color: isSpecial ? 0xffffff : 0x88ccff, 
-            emissive: isSpecial ? 0xcc4400 : 0x113355, 
+            color: 0x91c53a, 
+            emissive: 0x91c53a, 
             roughness: 0.1, metalness: 0.8 
         });
         const tipMat = new THREE.MeshStandardMaterial({
-            color: isSpecial ? 0xfff0c8 : 0xddeeff,
-            emissive: isSpecial ? 0xff6600 : 0x225588,
+            color: 0x91c53a,
+            emissive: 0x91c53a,
             roughness: 0.08,
             metalness: 0.9,
             flatShading: true
@@ -295,8 +295,8 @@ export class Feather {
                     if (damageType === 'low') {
                         Globals.audioManager?.playHit('low');
                         enemy.applyKnockback(currentDir, 10);
-                        Globals.particleManager.spawnBurst(entryPos, currentDir, 4, this.isSpecial ? 0xffaa00 : 0x00bfff, false, 0.7);
-                        Globals.particleManager.spawnBurst(exitPos, currentDir, 8, this.isSpecial ? 0xffaa00 : 0x00bfff, true, 0.7);
+                        Globals.particleManager.spawnBurst(entryPos, currentDir, 4, 0x91c53a, false, 0.7);
+                        Globals.particleManager.spawnBurst(exitPos, currentDir, 8, 0x91c53a, true, 0.7);
                     } else {
                         const isSpec = damageType === 'special';
                         Globals.audioManager?.playHit(isSpec ? 'special' : 'high');
@@ -304,8 +304,8 @@ export class Feather {
                         enemy.applyStun(0.15);
                         if (isSpec) triggerShake(CONFIG.shakeIntensityFinal, CONFIG.shakeDuration); 
                         else triggerShake(CONFIG.shakeIntensityRecall, 0.1);
-                        Globals.particleManager.spawnBurst(entryPos, currentDir, 8, isSpec ? 0xff1100 : 0x8a0018, false, 2.5);
-                        Globals.particleManager.spawnBurst(exitPos, currentDir, 16, isSpec ? 0xff1100 : 0x8a0018, true, 2.5);
+                        Globals.particleManager.spawnBurst(entryPos, currentDir, 8, 0x5e55a2, false, 2.5);
+                        Globals.particleManager.spawnBurst(exitPos, currentDir, 16, 0x5e55a2, true, 2.5);
                     }
                 }
             }
@@ -319,8 +319,8 @@ export class Feather {
         this.deploymentRing.visible = false;
         if (this.isSpecial) { 
             this.mesh.scale.set(2.2, 2.2, 2.2); 
-            this.vaneMat.color.setHex(0xff3300); 
-            this.vaneMat.emissive.setHex(0xdd0000); 
+            this.vaneMat.color.setHex(0x91c53a); 
+            this.vaneMat.emissive.setHex(0x91c53a); 
             this.speed = CONFIG.finalRecallSpeed; 
         } else {
             this.speed = CONFIG.baseRecallSpeed + index * 5;

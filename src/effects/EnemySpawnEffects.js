@@ -27,7 +27,7 @@ export class SpawnTelegraphEffect {
 
         const haloGeo = new THREE.CircleGeometry(1.16 * ringScale, 48);
         const haloMat = new THREE.MeshBasicMaterial({
-            color: 0x550000,
+            color: 0x5e55a2,
             transparent: true,
             opacity: 0.32,
             blending: THREE.AdditiveBlending,
@@ -40,7 +40,7 @@ export class SpawnTelegraphEffect {
 
         const outerRingGeo = new THREE.RingGeometry(0.9 * ringScale, 1.08 * ringScale, 48);
         const outerRingMat = new THREE.MeshBasicMaterial({
-            color: 0xff2a2a,
+            color: 0x5e55a2,
             transparent: true,
             opacity: 0.92,
             blending: THREE.AdditiveBlending,
@@ -53,14 +53,14 @@ export class SpawnTelegraphEffect {
 
         const innerRingGeo = new THREE.RingGeometry(0.52 * ringScale, 0.62 * ringScale, 40);
         const innerRingMat = outerRingMat.clone();
-        innerRingMat.color.setHex(0xff5a5a);
+        innerRingMat.color.setHex(0x5e55a2);
         innerRingMat.opacity = 0.82;
         this.innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
         this.innerRing.rotation.x = -Math.PI / 2;
 
         const starGeo = new THREE.ShapeGeometry(createStarShape(0.6 * ringScale, 0.24 * ringScale));
         const starMat = new THREE.MeshBasicMaterial({
-            color: 0xffcaca,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.9,
             blending: THREE.AdditiveBlending,

@@ -23,7 +23,7 @@ export class BloodStain {
         this.group.position.copy(position); 
         this.group.position.y = 0.01 + Math.random() * 0.05;
         
-        const baseColor = 0x3d000a;
+        const baseColor = 0x2e2a52;
         const mat = new THREE.MeshStandardMaterial({ 
             color: baseColor, transparent: true, opacity: 0.8, 
             depthWrite: false, roughness: 1, metalness: 0 

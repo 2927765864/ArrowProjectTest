@@ -30,7 +30,7 @@ export class SlashFlashEffect {
         const glowGeometry = createSlashShape(this.length, 0.34 * scale);
         const coreGeometry = createSlashShape(this.length * 0.96, 0.12 * scale);
         const glowMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.82,
             blending: THREE.AdditiveBlending,
@@ -39,7 +39,7 @@ export class SlashFlashEffect {
             toneMapped: false
         });
         const coreMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 1,
             blending: THREE.AdditiveBlending,

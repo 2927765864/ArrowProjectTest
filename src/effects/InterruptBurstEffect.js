@@ -11,7 +11,7 @@ export class InterruptBurstEffect {
         this.group.rotation.x = -Math.PI / 2;
 
         const glowMat = new THREE.MeshBasicMaterial({
-            color: isSpecial ? 0xffcf7a : 0x9cecff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 1,
             blending: THREE.AdditiveBlending,
@@ -20,7 +20,7 @@ export class InterruptBurstEffect {
             toneMapped: false
         });
         const coreMat = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 1,
             blending: THREE.AdditiveBlending,

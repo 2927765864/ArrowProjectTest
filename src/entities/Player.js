@@ -5,10 +5,10 @@ import { Globals } from '../utils.js';
 export class PlayerCharacter {
     constructor() {
         this.mesh = new THREE.Group();
-        const skinMat = new THREE.MeshStandardMaterial({ color: 0xffe0bd, roughness: 0.6 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: 0x44aaff, roughness: 0.8 }); 
-        const limbMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 }); 
+        const skinMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.6 });
+        const shirtMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.8 }); 
+        const limbMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.8 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 }); 
         
         this.bodyGroup = new THREE.Group();
         this.bodyGroup.position.y = 0.25; 
@@ -39,7 +39,7 @@ export class PlayerCharacter {
         this.headGroup.add(eyeR);
         
         // Hat (Red Baseball Cap)
-        const hatMat = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.7 });
+        const hatMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, roughness: 0.7 });
         
         const hatDomeGeo = new THREE.SphereGeometry(0.225, 32, 16, 0, Math.PI * 2, 0, Math.PI / 1.8);
         const hatDome = new THREE.Mesh(hatDomeGeo, hatMat);
@@ -96,7 +96,7 @@ export class PlayerCharacter {
         this.mesh.add(this.rightLeg);
 
         const indicatorGlowMat = new THREE.MeshBasicMaterial({
-            color: 0x32c8ff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.22,
             blending: THREE.AdditiveBlending,
@@ -104,7 +104,7 @@ export class PlayerCharacter {
             toneMapped: false
         });
         const indicatorCoreMat = new THREE.MeshBasicMaterial({
-            color: 0xe5fbff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.85,
             blending: THREE.AdditiveBlending,
@@ -120,7 +120,7 @@ export class PlayerCharacter {
         const baseRadius = 0.45;
         const bgGeo = new THREE.CircleGeometry(baseRadius * 0.95, 32);
         const bgMat = new THREE.MeshBasicMaterial({
-            color: 0x000000,
+            color: 0x5e55a2,
             transparent: true,
             opacity: 0.45,
             depthWrite: false,
@@ -138,7 +138,7 @@ export class PlayerCharacter {
         const dashArc = (Math.PI * 2 * baseRadius / segmentCount) * 0.45;
         const dashGeo = new THREE.BoxGeometry(dashArc, dashThickness, dashThickness);
         const dashMat = new THREE.MeshBasicMaterial({
-            color: 0x00bfff,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.85,
             blending: THREE.AdditiveBlending,

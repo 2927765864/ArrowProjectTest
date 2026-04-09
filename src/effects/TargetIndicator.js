@@ -11,7 +11,7 @@ export class TargetIndicator {
         // Pale black background circle
         const baseGeo = new THREE.CircleGeometry(baseRadius * 0.95, 32);
         const baseMat = new THREE.MeshBasicMaterial({
-            color: 0x000000,
+            color: 0x5e55a2,
             transparent: true,
             opacity: 0.45,
             depthWrite: false,
@@ -31,7 +31,7 @@ export class TargetIndicator {
         const dashArc = (Math.PI * 2 * baseRadius / segmentCount) * 0.45;
         const dashGeo = new THREE.BoxGeometry(dashArc, thickness, thickness);
         const dashMat = new THREE.MeshBasicMaterial({
-            color: 0xff1133,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.95,
             blending: THREE.AdditiveBlending,

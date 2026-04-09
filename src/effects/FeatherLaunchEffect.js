@@ -12,7 +12,7 @@ export class FeatherLaunchEffect {
 
         const basis = this.createBasis(direction);
         const count = options.count ?? 4;
-        const color = options.color ?? 0xe7fbff;
+        const color = options.color ?? 0x91c53a;
         const speed = options.speed ?? 18;
         const lengthMin = options.lengthMin ?? 1.4;
         const lengthMax = options.lengthMax ?? 2.2;

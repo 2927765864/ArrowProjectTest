@@ -13,7 +13,7 @@ export class ParticleManager {
         if (dir.lengthSq() > 0.0001) dir.normalize();
 
         const mat = new THREE.MeshBasicMaterial({
-            color: 0xfff2dc,
+            color: 0x91c53a,
             transparent: true,
             opacity: 0.34,
             depthWrite: false,

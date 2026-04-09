@@ -67,8 +67,8 @@ function restoreMaterial(obj) {
 function init() {
     Globals.uiLayer = document.getElementById('ui-layer');
     Globals.scene = new THREE.Scene();
-    Globals.scene.background = new THREE.Color(0x8a8e94);
-    // Globals.scene.fog = new THREE.Fog(0x8a8e94, 18, 56);
+    Globals.scene.background = new THREE.Color(0x1a1532);
+    // // Globals.scene.fog = new THREE.Fog(0x8a8e94, 18, 56);
     
     const wrapper = document.getElementById('game-wrapper');
     Globals.camera = createOrthographicCamera(wrapper.clientWidth / wrapper.clientHeight);
@@ -139,9 +139,9 @@ function init() {
     Globals.finalComposer.addPass(mixPass);
     Globals.finalComposer.addPass(outputPass);
     
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0x5e55a2, 1.2);
     Globals.scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const dirLight = new THREE.DirectionalLight(0x91c53a, 1.8);
     dirLight.position.set(10, 20, 10);
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.set(2048, 2048);
@@ -157,13 +157,13 @@ function init() {
     Globals.scene.add(dirLight);
     
     const backdropGeo = new THREE.PlaneGeometry(160, 160);
-    const backdropMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 1, metalness: 0.02, depthWrite: false });
+    const backdropMat = new THREE.MeshStandardMaterial({ color: 0x1a1532, roughness: 1, metalness: 0.02, depthWrite: false });
     const backdropPlane = new THREE.Mesh(backdropGeo, backdropMat);
     backdropPlane.rotation.x = -Math.PI / 2;
     backdropPlane.position.y = -0.02;
     Globals.scene.add(backdropPlane);
 
-    solidFloorMat = new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.95, metalness: 0.02 });
+    solidFloorMat = new THREE.MeshStandardMaterial({ color: 0x2d2952, roughness: 0.95, metalness: 0.02 });
     
     // Create a generated checkerboard texture
     const canvas = document.createElement('canvas');
@@ -234,7 +234,7 @@ function setupObstacles() {
     obstacleGroup = new THREE.Group();
     Globals.scene.add(obstacleGroup);
 
-    const boxMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7, metalness: 0.1 });
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.7, metalness: 0.1 });
     const createBox = (x, z, w, d) => {
         const h = 2.0; // Box height
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), boxMat);
@@ -373,11 +373,11 @@ function updateBoundaryVisual() {
     ];
     const outline = new THREE.LineLoop(
         new THREE.BufferGeometry().setFromPoints(linePoints),
-        new THREE.LineBasicMaterial({ color: 0x6ad6ff, transparent: true, opacity: 0.9 })
+        new THREE.LineBasicMaterial({ color: 0x91c53a, transparent: true, opacity: 0.9 })
     );
     boundaryGroup.add(outline);
 
-    const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0x6ad6ff, transparent: true, opacity: 0.18 });
+    const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0x91c53a, transparent: true, opacity: 0.18 });
     const horizontalEdgeGeo = new THREE.BoxGeometry(horizontalLength, 0.08, 0.16);
     const verticalEdgeGeo = new THREE.BoxGeometry(0.16, 0.08, verticalLength);
 
@@ -465,7 +465,7 @@ function shootFeather() {
         Globals.launchEffects.push(new FeatherLaunchEffect(launchPos, facingDir, {
             life: isSpecial ? 0.18 : 0.14,
             count: isSpecial ? 5 : 3,
-            color: isSpecial ? 0xffd98a : 0xdff7ff,
+            color: isSpecial ? 0x91c53a : 0x91c53a,
             speed: isSpecial ? 24 : 19,
             lengthMin: isSpecial ? 2.2 : 1.6,
             lengthMax: isSpecial ? 3.4 : 2.4,
@@ -483,7 +483,7 @@ function shootFeather() {
             rearBurstPos,
             backDir,
             isSpecial ? 16 : 11,
-            isSpecial ? 0xffd98a : 0xdff7ff,
+            isSpecial ? 0x91c53a : 0x91c53a,
             true,
             isSpecial ? 1.25 : 0.95,
             isSpecial ? [7, 14] : [6, 11]

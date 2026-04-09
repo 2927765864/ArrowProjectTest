@@ -11,9 +11,9 @@ export class Enemy {
         this.knockbackVelocity = new THREE.Vector3(0, 0, 0); 
         this.stunTimer = 0; 
         
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2a1525, roughness: 0.7, flatShading: true });
-        const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xff2200, emissiveIntensity: 2 });
-        const hornMat = new THREE.MeshStandardMaterial({ color: 0x882222, flatShading: true });
+        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, roughness: 0.7, flatShading: true });
+        const eyeMat = new THREE.MeshStandardMaterial({ color: 0x91c53a, emissive: 0x91c53a, emissiveIntensity: 2 });
+        const hornMat = new THREE.MeshStandardMaterial({ color: 0x5e55a2, flatShading: true });
         this.materials = [bodyMat, eyeMat, hornMat];
         this.flashTimeoutId = null;
         this.materials.forEach((mat) => {
@@ -82,7 +82,7 @@ export class Enemy {
     takeDamage(amount, type, direction) {
         this.hp -= amount; 
         this.materials.forEach(mat => { 
-            mat.emissive.setHex(0x555555); 
+            mat.emissive.setHex(0x91c53a); 
         });
         if (this.flashTimeoutId) clearTimeout(this.flashTimeoutId);
         this.flashTimeoutId = setTimeout(() => {
@@ -117,8 +117,8 @@ export class Enemy {
 
         Globals.slashEffects.push(new SlashFlashEffect(pos, dir, CONFIG.enemyScale));
         
-        Globals.particleManager.spawnBurst(pos, dir, 30, 0x8a0018, true, 5.0); 
-        Globals.particleManager.spawnBurst(pos, new THREE.Vector3(0,1,0), 10, 0x3d000a, true, 4.0); 
+        Globals.particleManager.spawnBurst(pos, dir, 30, 0x5e55a2, true, 5.0); 
+        Globals.particleManager.spawnBurst(pos, new THREE.Vector3(0,1,0), 10, 0x2e2a52, true, 4.0); 
         
         Globals.bloodStains.push(new BloodStain(pos)); 
         Globals.scene.remove(this.mesh);
