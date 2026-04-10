@@ -375,14 +375,13 @@ export class PlayerCharacter {
         if (isMoving && currentVelocity) {
             speedMagnitude = currentVelocity.length();
             
-            // 检查是否正在进行大幅度转身（比较当前视觉面朝方向与真实的摇杆输入意图方向）
-            if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0) {
+            // 检查是否正在进行大幅度转身（比较当前的物理速度方向与摇杆的意图方向）
+            if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0 && speedMagnitude > 0.1) {
+                const currentDir = currentVelocity.clone().normalize();
                 const intendedDir = this.lastMoveDirection.clone().normalize();
-                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
-                const dot = forward.dot(intendedDir);
+                const dot = currentDir.dot(intendedDir);
                 
-                // 放宽转身的判定角度：只要摇杆方向和当前面朝方向相差超过约 60 度 (dot < 0.5) 
-                // 我们就判定人物处于“明显的转身阶段”，此时抑制蹦跳动画
+                // 如果实际运动方向和摇杆意图方向夹角大于 60 度 (dot < 0.5)，说明处于大幅度转弯或急停反转滑动阶段
                 if (dot < 0.5) {
                     isSharpTurning = true;
                 }
