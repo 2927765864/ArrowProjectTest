@@ -479,6 +479,12 @@ export class PlayerCharacter {
         if (isMoving && currentVelocity) {
             speedMagnitude = currentVelocity.length();
             
+            // 为了实现在原地“单点触发移动动画”，当速度极小时，强制给予一个虚拟的动画速度
+            let animSpeed = speedMagnitude;
+            if (animSpeed < 0.1) {
+                animSpeed = 8.0; 
+            }
+            
             // 检查是否正在进行大幅度转身（比较当前的物理速度方向与摇杆的意图方向）
             if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0 && speedMagnitude > 0.1) {
                 const currentDir = currentVelocity.clone().normalize();
@@ -493,11 +499,11 @@ export class PlayerCharacter {
 
             // 只有在非大幅度转身时才推进步伐相位，防止转身时抽搐
             if (!isSharpTurning) {
-                this.walkPhase += delta * speedMagnitude * 1.5;
+                this.walkPhase += delta * animSpeed * 1.5;
             }
             this.smokeTrailDistance += speedMagnitude * delta;
             
-            const legSwing = Math.sin(this.walkPhase) * 0.7 * (speedMagnitude / 10);
+            const legSwing = Math.sin(this.walkPhase) * 0.7 * (animSpeed / 10);
             
             this.leftLeg.rotation.x = legSwing; 
             this.rightLeg.rotation.x = -legSwing;

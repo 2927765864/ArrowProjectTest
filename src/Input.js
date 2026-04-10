@@ -86,6 +86,9 @@ function updateJoystick(localX, localY) {
     const dy = localY - origin.y;
     const distance = Math.hypot(dx, dy);
     
+    // 摇杆死区设计：当滑动距离小于死区时，无物理输出（角色不产生位移），但输入状态依然激活，用于触发原地走A等高阶操作
+    const DEAD_ZONE = 5;
+    
     // 视觉上 Knob 能够到达的物理边缘
     const visualDistance = Math.min(distance, joystickVisualRadius);
     const angle = Math.atan2(dy, dx);
@@ -93,9 +96,11 @@ function updateJoystick(localX, localY) {
     const knobY = Math.sin(angle) * visualDistance;
 
     // 物理输出：允许比 1.0 更大，用于控制指示器继续延伸。
-    // 在 distance = 28 时到达 1.0 (全速移动阈值)
-    // 设一个更大的范围（比如手指拉到 80px）才能让指示器达到最大半径（约 1.5 倍）
-    const logicIntensity = distance === 0 ? 0 : distance / joystickLogicalRadius;
+    let logicIntensity = 0;
+    if (distance > DEAD_ZONE) {
+        logicIntensity = (distance - DEAD_ZONE) / joystickLogicalRadius;
+    }
+    
     const maxIndicatorIntensity = 1.8; // 允许指示器拉伸到 1.8 倍
     const clampedIntensity = Math.min(logicIntensity, maxIndicatorIntensity);
     

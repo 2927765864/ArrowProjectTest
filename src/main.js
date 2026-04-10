@@ -612,9 +612,15 @@ function updatePlayerMovement(delta) {
     const indicatorInputZ = THREE.MathUtils.clamp(inputVelocity.z, -2, 2);
     
     const wasMoving = isMoving; 
-    if (inputVelocity.lengthSq() > 0) {
-        inputVelocity.normalize(); 
-        Globals.player.lastMoveDirection = inputVelocity.clone();
+    
+    // 判断是否有输入意图 (按下摇杆或键盘)，只要有意图就进入isMoving状态，触发动画和走A逻辑
+    const hasInputIntent = keys.w || keys.ArrowUp || keys.s || keys.ArrowDown || keys.a || keys.ArrowLeft || keys.d || keys.ArrowRight || joystick.isActive;
+
+    if (hasInputIntent) {
+        if (inputVelocity.lengthSq() > 0) {
+            inputVelocity.normalize(); 
+            Globals.player.lastMoveDirection = inputVelocity.clone();
+        }
         
         const targetVelocityX = inputVelocity.x * CONFIG.maxMoveSpeedX;
         const targetVelocityZ = inputVelocity.z * CONFIG.maxMoveSpeedZ;
