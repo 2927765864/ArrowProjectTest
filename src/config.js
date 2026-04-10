@@ -31,6 +31,8 @@ export const DEFAULT_CONFIG = {
     bloomRadius: 0.5,
     xrayEnabled: true,
     playerScale: 2.5,
+    indicatorMaxRange: 0.6,
+    indicatorMaxInput: 1.8,
     enemyScale: 2.0,
     damageTextScale: 0.6,
     hudScale: 1.0,
@@ -41,7 +43,8 @@ export const DEFAULT_CONFIG = {
     bloodLinger: 5.0,
     cameraVerticalDeadZone: 6.0,
     audioEnabled: true,
-    audioVolume: 0.42
+    audioVolume: 0.42,
+    playerBounce: 0.18
 };
 
 export const CONFIG = { ...DEFAULT_CONFIG };

@@ -316,12 +316,11 @@ export class PlayerCharacter {
     updateMoveIndicator(worldPosition, inputX, inputZ, delta) {
         const input = new THREE.Vector2(inputX, inputZ);
         const inputMag = input.length();
-        const magnitude = Math.min(inputMag, 1.8); // 允许最大延伸力度 1.8
+        const magnitude = Math.min(inputMag, CONFIG.indicatorMaxInput); // 允许最大延伸力度
         if (magnitude > 0.001) input.normalize().multiplyScalar(magnitude);
 
-        // 原来是 1.35，现在我们要求它在手指滑到更远时（magnitude=1.8）达到 1.0 倍身位
-        // 因此最大范围 1.0 身位，发生在 magnitude=1.8 时
-        const maxOffsetBase = 1.0 / 1.8 * CONFIG.playerScale; 
+        // 我们要求它在手指滑到更远时（magnitude=CONFIG.indicatorMaxInput）达到 CONFIG.indicatorMaxRange 倍身位
+        const maxOffsetBase = CONFIG.indicatorMaxRange / CONFIG.indicatorMaxInput * CONFIG.playerScale; 
         const targetOffset = new THREE.Vector3(input.x * maxOffsetBase, 0, input.y * maxOffsetBase);
         
         if (magnitude > 0.001) {
@@ -371,9 +370,28 @@ export class PlayerCharacter {
         }
         
         let speedMagnitude = 0;
+        let isSharpTurning = false;
+
         if (isMoving && currentVelocity) {
             speedMagnitude = currentVelocity.length();
-            this.walkPhase += delta * speedMagnitude * 1.5;
+            
+            // 检查是否正在进行大幅度转身（比较当前视觉面朝方向与真实的摇杆输入意图方向）
+            if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0) {
+                const intendedDir = this.lastMoveDirection.clone().normalize();
+                const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.mesh.quaternion);
+                const dot = forward.dot(intendedDir);
+                
+                // 放宽转身的判定角度：只要摇杆方向和当前面朝方向相差超过约 60 度 (dot < 0.5) 
+                // 我们就判定人物处于“明显的转身阶段”，此时抑制蹦跳动画
+                if (dot < 0.5) {
+                    isSharpTurning = true;
+                }
+            }
+
+            // 只有在非大幅度转身时才推进步伐相位，防止转身时抽搐
+            if (!isSharpTurning) {
+                this.walkPhase += delta * speedMagnitude * 1.5;
+            }
             this.smokeTrailDistance += speedMagnitude * delta;
             
             const legSwing = Math.sin(this.walkPhase) * 0.7 * (speedMagnitude / 10);
@@ -390,34 +408,66 @@ export class PlayerCharacter {
             this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySway, delta * 15);
             
             // 大幅增强弹跳感：增加 bounce 的振幅。
-            // 使用 Math.abs(Math.sin(this.walkPhase)) 会在每走一步(左脚或右脚)时达到一个波峰
-            const bounce = Math.abs(Math.sin(this.walkPhase)) * 0.18;
-            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + bounce, delta * 20);
+            // 当进行大幅度转身时，强行将 bounce 压低至 0，使其贴近地面滑步转身
+            const targetBounce = isSharpTurning ? 0 : Math.abs(Math.sin(this.walkPhase)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
+            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + targetBounce, delta * 20);
             
             // 让腿部跟随身体一起弹跳，避免脱节
-            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + bounce, delta * 20);
-            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + bounce, delta * 20);
+            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + targetBounce, delta * 20);
+            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + targetBounce, delta * 20);
             
             // Tail wags when walking
             if (this.tailGroup) {
                 this.tailGroup.rotation.y = Math.sin(this.walkPhase * 1.8) * 0.4;
             }
 
-            if (Globals.particleManager && speedMagnitude > 2.5 && this.smokeTrailDistance >= 1.35 * CONFIG.playerScale) {
+            if (this.lastStepPhaseIndex === undefined) this.lastStepPhaseIndex = 0;
+            const currentStepIndex = Math.floor(this.walkPhase / Math.PI);
+
+            if (!this.bounceMonitorEl) {
+                this.bounceMonitorEl = document.getElementById('bounce-indicator-light');
+            }
+            if (this.bounceMonitorEl) {
+                if (isSharpTurning) {
+                    this.bounceMonitorEl.style.background = '#444';
+                    this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
+                    this.bounceMonitorEl.style.transform = 'scale(1)';
+                } else {
+                    const intensity = Math.abs(Math.sin(this.walkPhase));
+                    const r = Math.floor(100 + 155 * intensity);
+                    const g = Math.floor(200 + 55 * intensity);
+                    this.bounceMonitorEl.style.background = `rgb(${r}, ${g}, 50)`;
+                    this.bounceMonitorEl.style.boxShadow = `0 0 ${12 * intensity}px rgb(${r}, ${g}, 50)`;
+                    this.bounceMonitorEl.style.transform = `scale(${1 + 0.4 * intensity})`;
+                }
+            }
+
+            if (Globals.particleManager && speedMagnitude > 2.5 && currentStepIndex > this.lastStepPhaseIndex) {
                 const moveDir = currentVelocity.clone().normalize();
+                // 将烟团生成位置向玩家中心偏移拉近（从 -0.32 缩小到 -0.05），贴合脚底
                 const smokePos = this.mesh.position.clone()
-                    .addScaledVector(moveDir, -0.32 * CONFIG.playerScale);
-                Globals.particleManager.spawnDustPuff(smokePos, moveDir, 0.6 * CONFIG.playerScale);
-                this.smokeTrailDistance = 0;
+                    .addScaledVector(moveDir, -0.05 * CONFIG.playerScale);
+                Globals.particleManager.spawnDustPuff(smokePos, moveDir, 0.5 * CONFIG.playerScale);
+                this.lastStepPhaseIndex = currentStepIndex;
             }
         } else {
             this.walkPhase = 0;
             this.smokeTrailDistance = 0;
+            this.lastStepPhaseIndex = 0;
             const idleSpeed = 3;
             this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
             this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
             this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, 0, delta * 10);
+            
+            if (!this.bounceMonitorEl) {
+                this.bounceMonitorEl = document.getElementById('bounce-indicator-light');
+            }
+            if (this.bounceMonitorEl) {
+                this.bounceMonitorEl.style.background = '#444';
+                this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
+                this.bounceMonitorEl.style.transform = 'scale(1)';
+            }
             
             // Idle tail wag
             if (this.tailGroup) {

@@ -195,6 +195,7 @@ export function setupControlPanel() {
     bindSlider('inp-mmsx', 'val-mmsx', 'maxMoveSpeedX');
     bindSlider('inp-mmsz', 'val-mmsz', 'maxMoveSpeedZ');
     bindSlider('inp-ccr', 'val-ccr', 'customCollisionRadius');
+    bindSlider('inp-pbnc', 'val-pbnc', 'playerBounce', true);
 
     const bindToggle = (inputId, valId, configKey) => {
         const input = document.getElementById(inputId);
@@ -261,6 +262,32 @@ export function setupControlPanel() {
         if (Globals.player) Globals.player.mesh.scale.setScalar(val);
         refreshBoundaryVisual();
     });
+
+    const inpImr = document.getElementById('inp-imr');
+    if (CONFIG.indicatorMaxRange !== undefined && inpImr) {
+        inpImr.value = CONFIG.indicatorMaxRange;
+        document.getElementById('val-imr').innerText = CONFIG.indicatorMaxRange.toFixed(1);
+    }
+    if (inpImr) {
+        inpImr.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.indicatorMaxRange = val;
+            document.getElementById('val-imr').innerText = val.toFixed(1);
+        });
+    }
+
+    const inpImi = document.getElementById('inp-imi');
+    if (CONFIG.indicatorMaxInput !== undefined && inpImi) {
+        inpImi.value = CONFIG.indicatorMaxInput;
+        document.getElementById('val-imi').innerText = CONFIG.indicatorMaxInput.toFixed(1);
+    }
+    if (inpImi) {
+        inpImi.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.indicatorMaxInput = val;
+            document.getElementById('val-imi').innerText = val.toFixed(1);
+        });
+    }
     
     const inpEs = document.getElementById('inp-es');
     if (CONFIG.enemyScale !== undefined) {
