@@ -395,6 +395,14 @@ export class PlayerCharacter {
         setupXRay(this.rightLeg);
         // --------------------------------------------------------------------------
 
+        // Trajectory feature
+        this.trajectoryPoints = []; 
+        this.trajectoryLineGeo = new THREE.BufferGeometry();
+        this.trajectoryLineMat = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
+        this.trajectoryLine = new THREE.Line(this.trajectoryLineGeo, this.trajectoryLineMat);
+        // Added to scene in main.js or here conditionally if scene exists
+        if (Globals.scene) Globals.scene.add(this.trajectoryLine);
+
         this.attackTimer = 0;
         this.isAttacking = false;
         this.lastMoveDirection = null;
@@ -751,5 +759,43 @@ export class PlayerCharacter {
             this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
             this.shadowMesh.material.opacity = shadowOpacity;
         }
+    }
+
+    updateTrajectory(delta) {
+        if (!CONFIG.showPlayerTrajectory) {
+            if (this.trajectoryLine.visible) {
+                this.trajectoryLine.visible = false;
+                this.trajectoryPoints = [];
+            }
+            return;
+        }
+
+        if (!this.trajectoryLine.parent && Globals.scene) {
+            Globals.scene.add(this.trajectoryLine);
+        }
+
+        this.trajectoryLine.visible = true;
+
+        this.trajectoryTime = (this.trajectoryTime || 0) + delta;
+
+        // Record current position
+        const p = this.mesh.position.clone();
+        p.y = 0.05; // Slightly above ground
+        this.trajectoryPoints.push({ pos: p, time: this.trajectoryTime });
+
+        // Remove points older than 3 seconds
+        while (this.trajectoryPoints.length > 0 && this.trajectoryTime - this.trajectoryPoints[0].time > 3.0) {
+            this.trajectoryPoints.shift();
+        }
+
+        // Update geometry
+        const positions = new Float32Array(this.trajectoryPoints.length * 3);
+        for (let i = 0; i < this.trajectoryPoints.length; i++) {
+            positions[i * 3] = this.trajectoryPoints[i].pos.x;
+            positions[i * 3 + 1] = this.trajectoryPoints[i].pos.y;
+            positions[i * 3 + 2] = this.trajectoryPoints[i].pos.z;
+        }
+        this.trajectoryLineGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        this.trajectoryLineGeo.computeBoundingSphere();
     }
 }

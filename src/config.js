@@ -17,6 +17,7 @@ export const DEFAULT_CONFIG = {
     floorStyle: 'solid', // solid, checkerboard
     maxMoveSpeedX: 7.5,
     maxMoveSpeedZ: 10,
+    showPlayerTrajectory: false,
     showCollisionBox: false,
     useCustomCollision: false,
     customCollisionRadius: 0.2,

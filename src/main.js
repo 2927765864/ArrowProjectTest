@@ -12,7 +12,7 @@ import { keys, joystick, initInput, refreshInputLayout } from './Input.js';
 import { InterruptBurstEffect } from './effects/InterruptBurstEffect.js';
 import { TargetIndicator } from './effects/TargetIndicator.js';
 import { ParticleManager } from './effects/ParticleManager.js';
-import { SpawnSmokeEffect, SpawnTelegraphEffect } from './effects/EnemySpawnEffects.js';
+import { SpawnBeamEffect, SpawnTelegraphEffect } from './effects/EnemySpawnEffects.js';
 import { FeatherLaunchEffect } from './effects/FeatherLaunchEffect.js';
 import { WindRingEffect } from './effects/WindRingEffect.js';
 import { PlayerCharacter } from './entities/Player.js';
@@ -526,7 +526,7 @@ function updatePendingEnemySpawns(delta) {
         pending.timeLeft -= delta;
         if (pending.timeLeft <= 0) {
             new Enemy(pending.position);
-            Globals.spawnEffects.push(new SpawnSmokeEffect(pending.position, CONFIG.enemyScale));
+            Globals.spawnEffects.push(new SpawnBeamEffect(pending.position, CONFIG.enemyScale));
             pendingEnemySpawns.splice(i, 1);
         }
     }
@@ -798,6 +798,7 @@ function animate() {
     updateCameraFollow();
     updateShake(delta);
     Globals.player.updateAnimation(delta, time, isMoving, currentVelocity);
+    Globals.player.updateTrajectory(delta);
     Telemetry.update(currentVelocity.length(), Globals.player.mesh.position.x, Globals.player.mesh.position.y, Globals.player.mesh.position.z);
     updatePlayerHUD(); 
     updatePendingEnemySpawns(delta);

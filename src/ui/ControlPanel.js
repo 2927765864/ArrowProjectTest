@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.10-1126';
+const PANEL_VERSION = 'v2026.04.10-1127';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -211,6 +211,7 @@ export function setupControlPanel() {
     };
 
     bindToggle('inp-scb', 'val-scb', 'showCollisionBox');
+    bindToggle('inp-spt', 'val-spt', 'showPlayerTrajectory');
     bindToggle('inp-ucc', 'val-ucc', 'useCustomCollision');
     bindToggle('inp-xre', 'val-xre', 'xrayEnabled');
     bindToggle('inp-hvd', 'val-hvd', 'hideVisualDistractors');
