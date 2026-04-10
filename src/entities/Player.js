@@ -383,6 +383,21 @@ export class PlayerCharacter {
             
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0.15, delta * 15); 
             
+            // 上半身左右摇晃和蹦蹦跳跳的弹跳感
+            // 摇晃与脚步匹配：当左脚向前(legSwing为正)时，重心/身体向左侧倾斜(负Z轴旋转)以保持平衡。
+            // 使用 Math.sin 同步腿部的相位，调整系数控制幅度
+            const bodySway = -Math.sin(this.walkPhase) * 0.15;
+            this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySway, delta * 15);
+            
+            // 大幅增强弹跳感：增加 bounce 的振幅。
+            // 使用 Math.abs(Math.sin(this.walkPhase)) 会在每走一步(左脚或右脚)时达到一个波峰
+            const bounce = Math.abs(Math.sin(this.walkPhase)) * 0.18;
+            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + bounce, delta * 20);
+            
+            // 让腿部跟随身体一起弹跳，避免脱节
+            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + bounce, delta * 20);
+            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + bounce, delta * 20);
+            
             // Tail wags when walking
             if (this.tailGroup) {
                 this.tailGroup.rotation.y = Math.sin(this.walkPhase * 1.8) * 0.4;
@@ -402,13 +417,19 @@ export class PlayerCharacter {
             this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
             this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
             this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
+            this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, 0, delta * 10);
             
             // Idle tail wag
             if (this.tailGroup) {
                 this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
             }
             
-            this.bodyGroup.position.y = 0.25 + Math.sin(time * idleSpeed) * 0.03;
+            const targetIdleY = 0.25 + Math.sin(time * idleSpeed) * 0.03;
+            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, targetIdleY, delta * 10);
+            
+            // 待机时腿部高度复位
+            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15, delta * 10);
+            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15, delta * 10);
         }
         
         const idleSpeed2 = 3;
