@@ -262,6 +262,20 @@ export class PlayerCharacter {
         this.rightLeg.position.set(-0.07, 0.15, 0); 
         this.mesh.add(this.rightLeg);
 
+        // Player Blob Shadow
+        const shadowGeo = new THREE.CircleGeometry(0.22, 32);
+        const shadowMat = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.35,
+            depthWrite: false,
+            toneMapped: false
+        });
+        this.shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+        this.shadowMesh.rotation.x = -Math.PI / 2;
+        this.shadowMesh.position.y = 0.01; // Slightly above ground to prevent z-fighting
+        this.mesh.add(this.shadowMesh);
+
         const indicatorGlowMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
             transparent: true,
@@ -488,7 +502,21 @@ export class PlayerCharacter {
             this.leftLeg.rotation.x = legSwing; 
             this.rightLeg.rotation.x = -legSwing;
             
-            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0.15, delta * 15); 
+            let targetBodyRotX = 0.15;
+            if (this.isAttacking) {
+                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
+                // 0.0 - 0.3: wind up (lean back)
+                // 0.3 - 0.7: throw (lean forward)
+                // 0.7 - 1.0: recover
+                if (attackProgress < 0.3) {
+                    targetBodyRotX = THREE.MathUtils.lerp(0.15, -0.2, attackProgress / 0.3);
+                } else if (attackProgress < 0.7) {
+                    targetBodyRotX = THREE.MathUtils.lerp(-0.2, 0.4, (attackProgress - 0.3) / 0.4);
+                } else {
+                    targetBodyRotX = THREE.MathUtils.lerp(0.4, 0.15, (attackProgress - 0.7) / 0.3);
+                }
+            }
+            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20); 
             
             // 上半身左右摇晃和蹦蹦跳跳的弹跳感
             // 摇晃与脚步匹配：当左脚向前(legSwing为正)时，重心/身体向左侧倾斜(负Z轴旋转)以保持平衡。
@@ -546,7 +574,29 @@ export class PlayerCharacter {
             const idleSpeed = 3;
             this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
             this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
-            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
+            
+            let targetBodyRotX = 0;
+            if (this.isAttacking) {
+                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
+                if (attackProgress < 0.3) {
+                    targetBodyRotX = THREE.MathUtils.lerp(0, -0.2, attackProgress / 0.3);
+                } else if (attackProgress < 0.7) {
+                    targetBodyRotX = THREE.MathUtils.lerp(-0.2, 0.4, (attackProgress - 0.3) / 0.4);
+                } else {
+                    targetBodyRotX = THREE.MathUtils.lerp(0.4, 0, (attackProgress - 0.7) / 0.3);
+                }
+            } else if (!this.isCatching) {
+                // If catching, the catch recoil animation handles X rotation below, so don't override it here
+                targetBodyRotX = 0;
+            }
+            
+            // Only update rotation.x here if not catching, because catching recoil relies on this
+            if (!this.isCatching && !this.isAttacking) {
+                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
+            } else if (this.isAttacking) {
+                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20);
+            }
+            
             this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, 0, delta * 10);
             
             if (!this.bounceMonitorEl) {
@@ -590,19 +640,29 @@ export class PlayerCharacter {
         const weaponsOnBackCount = Math.max(0, weaponsInInventory - 1);
         
         // Hide weapon in hand during catching animation (if we put it on back)
-        if (this.isCatching && this.catchTimer < 0.2) {
+        if (CONFIG.hideVisualDistractors) {
             this.weaponGroup.visible = false;
-            this.weaponBackGroup.visible = true;
-        } else if (!this.isCatching) {
-            this.weaponGroup.visible = hasWeaponInHand;
             this.weaponBackGroup.visible = false;
-        }
+            if (this.backWeapons) {
+                for (let i = 0; i < 3; i++) {
+                    this.backWeapons[i].visible = false;
+                }
+            }
+        } else {
+            if (this.isCatching && this.catchTimer < 0.2) {
+                this.weaponGroup.visible = false;
+                this.weaponBackGroup.visible = true;
+            } else if (!this.isCatching) {
+                this.weaponGroup.visible = hasWeaponInHand;
+                this.weaponBackGroup.visible = false;
+            }
 
-        // Update back weapons visibility
-        if (this.backWeapons) {
-            for (let i = 0; i < 3; i++) {
-                // Determine if this pendant should be visible based on inventory
-                this.backWeapons[i].visible = (i < weaponsOnBackCount);
+            // Update back weapons visibility
+            if (this.backWeapons) {
+                for (let i = 0; i < 3; i++) {
+                    // Determine if this pendant should be visible based on inventory
+                    this.backWeapons[i].visible = (i < weaponsOnBackCount);
+                }
             }
         }
 
@@ -666,10 +726,24 @@ export class PlayerCharacter {
         
         // Ensure base ring stays flat despite player rotation
         if (this.baseRingGroup) {
+            this.baseRingGroup.visible = !CONFIG.hideVisualDistractors;
             this.baseRingGroup.quaternion.copy(this.mesh.quaternion).invert();
             if (this.dashRing) this.dashRing.rotation.y += delta * 1.5;
             const ringScale = 1.0 + Math.sin(time * 4) * 0.03;
             this.baseRingGroup.scale.set(ringScale, 1, ringScale);
+        }
+
+        if (this.shadowMesh) {
+            // bodyGroup rests around 0.25 on Y axis.
+            // When bouncing, it goes higher. We use this height offset to scale the shadow.
+            const heightOffset = Math.max(0, this.bodyGroup.position.y - 0.25);
+            
+            // As height increases, shadow shrinks and becomes more transparent
+            const shadowScale = Math.max(0.4, 1.0 - heightOffset * 2.0);
+            const shadowOpacity = Math.max(0.05, 0.35 - heightOffset * 0.8);
+            
+            this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
+            this.shadowMesh.material.opacity = shadowOpacity;
         }
     }
 }

@@ -88,6 +88,10 @@
                     </div>
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>关闭移动视觉干扰</span><span id="val-hvd">关</span></div>
+                    <input type="checkbox" id="inp-hvd">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>显示碰撞范围</span><span id="val-scb">关</span></div>
                     <input type="checkbox" id="inp-scb">
                 </div>
@@ -245,8 +249,26 @@
                 <summary>📊 数据图表 (实时)</summary>
                 <div class="panel-row" style="padding: 10px 5px; text-align: center; color: #888; font-style: normal;">
                     <div style="font-size: 10px; color: #ccc; margin-bottom: 4px;">玩家实时移动速度</div>
-                    <div id="chart-container" style="height: 80px; border: 1px solid #555; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; position: relative;">
+                    <div style="height: 80px; border: 1px solid #555; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; position: relative;">
                         <canvas id="speed-chart-canvas" width="180" height="80" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+                <div class="panel-row" style="padding: 10px 5px; text-align: center; color: #888; font-style: normal;">
+                    <div style="font-size: 10px; color: #ccc; margin-bottom: 4px;">玩家坐标 X</div>
+                    <div style="height: 80px; border: 1px solid #555; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; position: relative;">
+                        <canvas id="x-chart-canvas" width="180" height="80" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+                <div class="panel-row" style="padding: 10px 5px; text-align: center; color: #888; font-style: normal;">
+                    <div style="font-size: 10px; color: #ccc; margin-bottom: 4px;">玩家高度 Y</div>
+                    <div style="height: 80px; border: 1px solid #555; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; position: relative;">
+                        <canvas id="y-chart-canvas" width="180" height="80" style="width: 100%; height: 100%; display: block;"></canvas>
+                    </div>
+                </div>
+                <div class="panel-row" style="padding: 10px 5px; text-align: center; color: #888; font-style: normal;">
+                    <div style="font-size: 10px; color: #ccc; margin-bottom: 4px;">玩家坐标 Z</div>
+                    <div style="height: 80px; border: 1px solid #555; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; position: relative;">
+                        <canvas id="z-chart-canvas" width="180" height="80" style="width: 100%; height: 100%; display: block;"></canvas>
                     </div>
                 </div>
             </details>

@@ -3,7 +3,7 @@ import { Globals, triggerShake } from '../utils.js';
 import { CONFIG } from '../config.js';
 
 export class Feather {
-    constructor(targetEnemy, isSpecial = false) {
+    constructor(targetEnemy, isSpecial = false, originPos = null) {
         this.phase = 'shooting'; 
         this.index = 0; 
         this.speed = CONFIG.deploySpeed; 
@@ -148,12 +148,16 @@ export class Feather {
         this.modelGroup.rotation.set(Math.PI / 2, 0, 0);
         if (isSpecial) this.mesh.scale.set(1.4, 1.4, 1.4);
         
-        this.mesh.position.copy(Globals.player.mesh.position); 
-        this.mesh.position.y = 1; 
+        if (originPos) {
+            this.mesh.position.copy(originPos);
+        } else {
+            this.mesh.position.copy(Globals.player.mesh.position); 
+            this.mesh.position.y = 1; 
+        }
         Globals.scene.add(this.mesh);
         
-        const pt = Globals.player.mesh.position.clone(); pt.y = 1; 
-        const et = targetEnemy.mesh.position.clone(); et.y = 1;
+        const pt = this.mesh.position.clone();
+        const et = targetEnemy.mesh.position.clone(); et.y = pt.y;
         const dir = new THREE.Vector3().subVectors(et, pt).normalize(); 
         this.direction = dir;
         this.mesh.lookAt(this.mesh.position.clone().add(dir));

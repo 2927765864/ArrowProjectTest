@@ -14,11 +14,12 @@ import { TargetIndicator } from './effects/TargetIndicator.js';
 import { ParticleManager } from './effects/ParticleManager.js';
 import { SpawnSmokeEffect, SpawnTelegraphEffect } from './effects/EnemySpawnEffects.js';
 import { FeatherLaunchEffect } from './effects/FeatherLaunchEffect.js';
+import { WindRingEffect } from './effects/WindRingEffect.js';
 import { PlayerCharacter } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { Feather } from './entities/Feather.js';
 import { setupControlPanel } from './ui/ControlPanel.js';
-import { SpeedChart } from './ui/SpeedChart.js';
+import { Telemetry } from './ui/Charts.js';
 
 let isMoving = false;
 let lastShootTime = 0;
@@ -266,7 +267,7 @@ function init() {
     
     initInput(wrapper);
     setupControlPanel();
-    SpeedChart.init();
+    Telemetry.init();
     setupAudioUnlock();
     
     window.addEventListener('resize', onWindowResize);
@@ -545,10 +546,12 @@ function shootFeather() {
         if (facingDir.lengthSq() < 0.0001) facingDir.set(0, 0, 1);
         facingDir.normalize();
         const backDir = facingDir.clone().multiplyScalar(-1);
+        const rightDir = facingDir.clone().cross(new THREE.Vector3(0, 1, 0)).normalize();
         
         const launchPos = ptPos.clone();
         launchPos.y += 1.0;
         launchPos.addScaledVector(facingDir, 0.55);
+        launchPos.addScaledVector(rightDir, 0.35); // 偏移到右手侧
         Globals.launchEffects.push(new FeatherLaunchEffect(launchPos, facingDir, {
             life: isSpecial ? 0.18 : 0.14,
             count: isSpecial ? 5 : 3,
@@ -560,23 +563,23 @@ function shootFeather() {
             thicknessMax: isSpecial ? 0.11 : 0.075,
             sideSpawn: isSpecial ? 0.6 : 0.42,
             verticalSpawn: isSpecial ? 0.22 : 0.18,
-            forwardOffset: 0.2
+            forwardOffset: 0.2,
+            inheritedVelocity: currentVelocity.clone() // 传入玩家惯性
         }));
 
-        const rearBurstPos = ptPos.clone();
-        rearBurstPos.y += 0.9;
-        rearBurstPos.addScaledVector(backDir, 0.45);
-        Globals.particleManager.spawnBurst(
-            rearBurstPos,
-            backDir,
-            isSpecial ? 16 : 11,
-            isSpecial ? 0x91c53a : 0x91c53a,
-            true,
-            isSpecial ? 1.25 : 0.95,
-            isSpecial ? [7, 14] : [6, 11]
-        );
+        const ringPos = ptPos.clone();
+        ringPos.y += 1.0;
+        ringPos.addScaledVector(facingDir, 0.4); // 靠后一点，让中心尖刺穿透感更强
+        ringPos.addScaledVector(rightDir, 0.35); // 偏移到右手侧
+        Globals.launchEffects.push(new WindRingEffect(ringPos, facingDir, {
+            color: 0x91c53a,
+            speed: isSpecial ? 35 : 22,
+            radius: isSpecial ? 0.8 : 0.45,
+            life: isSpecial ? 0.15 : 0.12,
+            inheritedVelocity: currentVelocity.clone() // 传入玩家惯性
+        }));
         
-        Globals.feathers.push(new Feather(target, isSpecial)); 
+        Globals.feathers.push(new Feather(target, isSpecial, launchPos)); 
         Globals.player.playAttack(); 
         Globals.audioManager?.playShoot(isSpecial);
     }
@@ -613,8 +616,28 @@ function updatePlayerMovement(delta) {
         inputVelocity.normalize(); 
         Globals.player.lastMoveDirection = inputVelocity.clone();
         
-        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, inputVelocity.x * CONFIG.maxMoveSpeedX, delta * CONFIG.moveAcceleration);
-        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, inputVelocity.z * CONFIG.maxMoveSpeedZ, delta * CONFIG.moveAcceleration);
+        const targetVelocityX = inputVelocity.x * CONFIG.maxMoveSpeedX;
+        const targetVelocityZ = inputVelocity.z * CONFIG.maxMoveSpeedZ;
+        
+        const currentSpeed = Math.hypot(currentVelocity.x, currentVelocity.z);
+        const targetSpeed = Math.hypot(targetVelocityX, targetVelocityZ);
+        
+        currentVelocity.x = THREE.MathUtils.lerp(currentVelocity.x, targetVelocityX, delta * CONFIG.moveAcceleration);
+        currentVelocity.z = THREE.MathUtils.lerp(currentVelocity.z, targetVelocityZ, delta * CONFIG.moveAcceleration);
+        
+        const lerpedSpeed = Math.hypot(currentVelocity.x, currentVelocity.z);
+        
+        // Compensate for "chord cutting" speed dip during direction changes
+        if (currentSpeed > 0.1 && targetSpeed > 0.1 && lerpedSpeed > 0.01) {
+            const expectedSpeed = THREE.MathUtils.lerp(currentSpeed, targetSpeed, delta * CONFIG.moveAcceleration);
+            const factor = expectedSpeed / lerpedSpeed;
+            // Apply compensation to maintain momentum, avoiding massive inflations on direct 180-turns near origin
+            if (factor > 1.0) {
+                const appliedFactor = Math.min(factor, 3.0);
+                currentVelocity.x *= appliedFactor;
+                currentVelocity.z *= appliedFactor;
+            }
+        }
         
         isMoving = true;
     } else {
@@ -769,7 +792,7 @@ function animate() {
     updateCameraFollow();
     updateShake(delta);
     Globals.player.updateAnimation(delta, time, isMoving, currentVelocity);
-    SpeedChart.update(currentVelocity.length());
+    Telemetry.update(currentVelocity.length(), Globals.player.mesh.position.x, Globals.player.mesh.position.y, Globals.player.mesh.position.z);
     updatePlayerHUD(); 
     updatePendingEnemySpawns(delta);
     updateFloatingTexts(delta);

@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.10-1124';
+const PANEL_VERSION = 'v2026.04.10-1125';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -213,6 +213,7 @@ export function setupControlPanel() {
     bindToggle('inp-scb', 'val-scb', 'showCollisionBox');
     bindToggle('inp-ucc', 'val-ucc', 'useCustomCollision');
     bindToggle('inp-xre', 'val-xre', 'xrayEnabled');
+    bindToggle('inp-hvd', 'val-hvd', 'hideVisualDistractors');
 
     const inpCvs = document.getElementById('inp-cvs');
     if (CONFIG.cameraViewScale !== undefined) {

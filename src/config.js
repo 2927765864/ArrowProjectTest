@@ -44,7 +44,8 @@ export const DEFAULT_CONFIG = {
     cameraVerticalDeadZone: 6.0,
     audioEnabled: true,
     audioVolume: 0.42,
-    playerBounce: 0.18
+    playerBounce: 0.18,
+    hideVisualDistractors: false
 };
 
 export const CONFIG = { ...DEFAULT_CONFIG };
