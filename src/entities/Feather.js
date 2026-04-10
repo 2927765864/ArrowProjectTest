@@ -205,8 +205,34 @@ export class Feather {
             
             const dist = this.mesh.position.distanceTo(pt); 
             const step = this.speed * delta;
-            if (dist <= step || dist < 1.0) {
+            
+            // Animation for getting absorbed
+            if (dist < 3.0) {
+                const p = dist / 3.0; // 1.0 down to 0.0
+                const scale = Math.max(0.01, p);
+                this.modelGroup.scale.setScalar(0.35 * scale); // Shrink rapidly
+                
+                // Become brighter green and additive
+                this.modelGroup.traverse(child => {
+                    if (child.isMesh && child.material) {
+                        child.material.color.lerp(new THREE.Color(0xd4ff99), 1.0 - p); // Bright yellowish green
+                        child.material.transparent = true;
+                        child.material.blending = THREE.AdditiveBlending;
+                    }
+                });
+            }
+
+            if (dist <= step || dist < 0.5) {
                 Globals.audioManager?.playRecallComplete();
+                if (Globals.player && Globals.player.playCatch) {
+                    Globals.player.playCatch();
+                    // Optional: Spawn a tiny subtle burst particle at player to emphasize the catch impact
+                    if (Globals.particleManager) {
+                        const catchPos = Globals.player.mesh.position.clone();
+                        catchPos.y = 1.0; // Chest height
+                        Globals.particleManager.spawnBurst(catchPos, new THREE.Vector3(0,1,0), 6, 0xd4ff99, false, 0.4, [2, 5]);
+                    }
+                }
                 this.destroy();
             } else {
                 this.mesh.position.addScaledVector(dir, step);

@@ -162,6 +162,86 @@ export class PlayerCharacter {
         this.rightArm.add(armMeshR);
         this.rightArm.position.set(-0.16, 0.10, 0); 
         this.bodyGroup.add(this.rightArm);
+
+        // Weapon Mesh (Spear)
+        this.weaponGroup = new THREE.Group();
+        const spearMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
+        const shaftGeo = new THREE.CylinderGeometry(0.12, 0.0, 7.0, 16, 128);
+        const posAttribute = shaftGeo.attributes.position;
+        for (let i = 0; i < posAttribute.count; i++) {
+            let x = posAttribute.getX(i); let y = posAttribute.getY(i); let z = posAttribute.getZ(i);
+            z *= 0.25;
+            const ht = (3.5 - y) / 7.0;
+            const twistAngle = ht * Math.PI * 2 * 28;
+            const nx = x * Math.cos(twistAngle) - z * Math.sin(twistAngle);
+            const nz = x * Math.sin(twistAngle) + z * Math.cos(twistAngle);
+            posAttribute.setXYZ(i, nx, y, nz);
+        }
+        shaftGeo.computeVertexNormals();
+        const shaft = new THREE.Mesh(shaftGeo, spearMat);
+        shaft.position.y = -3.5;
+        this.weaponGroup.add(shaft);
+
+        const ptsR = [
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0.3, 0.5, 0),
+            new THREE.Vector3(0.14, 0.8, 0),
+            new THREE.Vector3(0.28, 1.2, 0),
+            new THREE.Vector3(0.015, 6.0, 0)
+        ];
+        const widths = [0.12, 0.1, 0.1, 0.08, 0.01];
+        const buildProng = (points, side) => {
+            const group = new THREE.Group();
+            const sign = side === 'left' ? -1 : 1;
+            for(let i = 0; i < points.length; i++) {
+                const p = points[i].clone(); p.x *= sign;
+                const jointGeo = new THREE.SphereGeometry(widths[i], 16, 16);
+                const joint = new THREE.Mesh(jointGeo, spearMat);
+                joint.position.copy(p); joint.scale.z = 0.3; group.add(joint);
+                if (i < points.length - 1) {
+                    const pNext = points[i+1].clone(); pNext.x *= sign;
+                    const dist = p.distanceTo(pNext);
+                    const segGeo = new THREE.CylinderGeometry(widths[i+1], widths[i], dist, 16);
+                    const seg = new THREE.Mesh(segGeo, spearMat);
+                    const dir = new THREE.Vector3().subVectors(pNext, p).normalize();
+                    seg.position.copy(p).add(pNext).multiplyScalar(0.5);
+                    seg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+                    seg.scale.z = 0.3; group.add(seg);
+                }
+            }
+            return group;
+        };
+        this.weaponGroup.add(buildProng(ptsR, 'right'));
+        this.weaponGroup.add(buildProng(ptsR, 'left'));
+        
+        this.weaponGroup.scale.setScalar(0.08); // Reduced size
+        this.weaponGroup.position.set(0, -0.06, 0.1); 
+        this.weaponGroup.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
+        this.rightArm.add(this.weaponGroup);
+        
+        // Also attach a weapon on the back for "sheathed" state (used during catch animation)
+        this.weaponBackGroup = this.weaponGroup.clone();
+        this.weaponBackGroup.scale.setScalar(0.08); // Reduced size
+        this.weaponBackGroup.position.set(0, 0.0, -0.16); // Move to lower back, push out slightly
+        this.weaponBackGroup.rotation.set(Math.PI / 2, 0, Math.PI / 4); // Slung flat across the back
+        this.weaponBackGroup.visible = false;
+        this.bodyGroup.add(this.weaponBackGroup);
+
+        // 3 tiny weapons as pendants on the waist
+        this.backWeapons = [];
+        for (let i = 0; i < 3; i++) {
+            const backWeapon = this.weaponGroup.clone();
+            backWeapon.scale.setScalar(0.035); // Small pendant size
+            const offsetX = (i - 1) * 0.08; // Spread out horizontally
+            backWeapon.position.set(offsetX, -0.02, -0.14); // Lower back/waist level
+            // Pointing downwards, flat against the back, slightly fanned out
+            backWeapon.rotation.set(Math.PI - 0.15, 0, -offsetX * 3);
+            this.bodyGroup.add(backWeapon);
+            this.backWeapons.push(backWeapon);
+        }
+
+        this.catchTimer = 0;
+        this.isCatching = false;
         
         // Legs
         const legGeo = new THREE.CapsuleGeometry(0.05, 0.12, 4, 16);
@@ -311,6 +391,16 @@ export class PlayerCharacter {
     playAttack() { 
         this.isAttacking = true; 
         this.attackTimer = 0.2; 
+    }
+
+    playCatch() {
+        this.isCatching = true;
+        this.catchTimer = 0.3; // Make it a snappy 0.3s reaction
+        // Store initial position slightly up and rotated back for recoil effect
+        if (this.bodyGroup) {
+            this.bodyGroup.position.y += 0.05; // tiny hop
+            this.bodyGroup.rotation.x = -0.15; // lean back slightly
+        }
     }
 
     updateMoveIndicator(worldPosition, inputX, inputZ, delta) {
@@ -481,31 +571,96 @@ export class PlayerCharacter {
             this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15, delta * 10);
         }
         
+        if (this.isCatching) {
+            this.catchTimer -= delta;
+            if (this.catchTimer <= 0) {
+                this.isCatching = false;
+                this.weaponBackGroup.visible = false;
+                this.weaponGroup.visible = true;
+            }
+        }
+
         const idleSpeed2 = 3;
         const armSpeed = this.isAttacking ? 20 : (isMoving ? 8 : 10);
         
+        const isRecallingAny = Globals.feathers && Globals.feathers.some(f => f.phase === 'recalling');
+        const activeFeathersCount = Globals.feathers ? Globals.feathers.length : 0;
+        const weaponsInInventory = Math.max(0, 4 - activeFeathersCount);
+        const hasWeaponInHand = weaponsInInventory > 0;
+        const weaponsOnBackCount = Math.max(0, weaponsInInventory - 1);
+        
+        // Hide weapon in hand during catching animation (if we put it on back)
+        if (this.isCatching && this.catchTimer < 0.2) {
+            this.weaponGroup.visible = false;
+            this.weaponBackGroup.visible = true;
+        } else if (!this.isCatching) {
+            this.weaponGroup.visible = hasWeaponInHand;
+            this.weaponBackGroup.visible = false;
+        }
+
+        // Update back weapons visibility
+        if (this.backWeapons) {
+            for (let i = 0; i < 3; i++) {
+                // Determine if this pendant should be visible based on inventory
+                this.backWeapons[i].visible = (i < weaponsOnBackCount);
+            }
+        }
+
         if (isMoving) {
             const targetArmL = -Math.sin(this.walkPhase) * 0.5;
             const targetArmR = Math.sin(this.walkPhase) * 0.5;
             this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
             this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0, delta * armSpeed);
+            
             if (this.isAttacking) {
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -0.8, delta * 20);
-                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, 0, delta * 20);
+                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
+                const swingAngle = THREE.MathUtils.lerp(Math.PI * 0.7, -Math.PI * 0.6, attackProgress);
+                this.rightArm.rotation.x = swingAngle;
+                this.rightArm.rotation.z = -0.2;
             } else {
                 this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
                 this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, 0, delta * armSpeed);
             }
         } else {
-            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
-            this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
-            
-            if (this.isAttacking) { 
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.7, delta * 20); 
-                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.3, delta * 20); 
-            } else { 
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed); 
-                this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02; 
+            if (this.isCatching) {
+                // Animation of absorbing/catching weapon
+                const catchProgress = 1 - (this.catchTimer / 0.3); // 0 to 1
+                
+                // Body recoil recovery
+                this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25, delta * 15);
+                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 15);
+
+                if (catchProgress < 0.5) {
+                    // Pull back quickly (recoil)
+                    this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 20);
+                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, Math.PI * 0.4, delta * 20); // Arm goes back
+                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, Math.PI * 0.1, delta * 20);
+                } else {
+                    // Return to idle stance
+                    this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 15);
+                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * 15);
+                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
+                }
+            } else if (isRecallingAny && !this.isAttacking) {
+                // Standing still and recalling -> hands reach forward to catch
+                this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, -Math.PI * 0.4, delta * 15);
+                this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0.1, delta * 15);
+                
+                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.4, delta * 15);
+                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
+            } else {
+                this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
+                this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
+                
+                if (this.isAttacking) { 
+                    const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
+                    const swingAngle = THREE.MathUtils.lerp(Math.PI * 0.7, -Math.PI * 0.6, attackProgress);
+                    this.rightArm.rotation.x = swingAngle;
+                    this.rightArm.rotation.z = -0.2;
+                } else { 
+                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed); 
+                    this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02; 
+                }
             }
         }
         
