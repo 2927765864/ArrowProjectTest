@@ -746,34 +746,90 @@ function updatePlayerMovement(delta) {
     }
 }
 
+let currentGlobalUpperAngle = null;
+
 function updatePlayerFacing(delta, hasTargetLock, target) {
-    if (hasTargetLock && target) {
-        const targetPos = target.mesh.position.clone();
-        targetPos.y = Globals.player.mesh.position.y;
-        const currentRot = Globals.player.mesh.quaternion.clone();
-        Globals.player.mesh.lookAt(targetPos);
-        const targetRot = Globals.player.mesh.quaternion.clone();
-        Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed);
-        Globals.targetIndicator.update(targetPos, delta);
-        return;
-    }
-
-    let facingDirection = null;
+    let moveDirection = null;
     if (CONFIG.moveFacingMode === 'decoupled' && Globals.player.lastMoveDirection?.lengthSq() > 0.0001) {
-        facingDirection = Globals.player.lastMoveDirection;
+        moveDirection = Globals.player.lastMoveDirection;
     } else if (CONFIG.moveFacingMode === 'faceMoveDirection' && isMoving && currentVelocity.lengthSq() > 0.1) {
-        facingDirection = currentVelocity;
+        moveDirection = currentVelocity;
     }
 
-    if (facingDirection) {
-        const targetPos = Globals.player.mesh.position.clone().add(facingDirection);
-        const currentRot = Globals.player.mesh.quaternion.clone();
-        Globals.player.mesh.lookAt(targetPos);
-        const targetRot = Globals.player.mesh.quaternion.clone();
-        Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed);
-    }
+    if (hasTargetLock && target) {
+        const pPos = Globals.player.mesh.position;
+        const tPos = target.mesh.position;
+        
+        // 1. Target Absolute Angle for Upper Body (Facing Enemy)
+        const targetUpperAngle = Math.atan2(tPos.x - pPos.x, tPos.z - pPos.z);
+        
+        if (currentGlobalUpperAngle === null) {
+            const euler = new THREE.Euler().setFromQuaternion(Globals.player.mesh.quaternion, 'YXZ');
+            currentGlobalUpperAngle = euler.y;
+        }
 
-    Globals.targetIndicator.update(null, delta);
+        // Smoothly interpolate the global upper body angle towards the enemy
+        let diffUpper = targetUpperAngle - currentGlobalUpperAngle;
+        while (diffUpper > Math.PI) diffUpper -= Math.PI * 2;
+        while (diffUpper < -Math.PI) diffUpper += Math.PI * 2;
+        currentGlobalUpperAngle += diffUpper * delta * CONFIG.turnSpeed;
+        
+        // Normalize
+        while (currentGlobalUpperAngle > Math.PI) currentGlobalUpperAngle -= Math.PI * 2;
+        while (currentGlobalUpperAngle < -Math.PI) currentGlobalUpperAngle += Math.PI * 2;
+
+        // 2. Target Absolute Angle for Lower Body (Movement + Constraint)
+        let targetLowerAngle = currentGlobalUpperAngle; // Default to facing enemy if not moving
+        if (moveDirection) {
+            targetLowerAngle = Math.atan2(moveDirection.x, moveDirection.z);
+            
+            // Constraint: Lower body cannot deviate more than 90 degrees from upper body
+            let diffLower = targetLowerAngle - currentGlobalUpperAngle;
+            while (diffLower > Math.PI) diffLower -= Math.PI * 2;
+            while (diffLower < -Math.PI) diffLower += Math.PI * 2;
+            
+            const maxDeviation = Math.PI / 2; // 90 degrees constraint
+            if (diffLower > maxDeviation) diffLower = maxDeviation;
+            if (diffLower < -maxDeviation) diffLower = -maxDeviation;
+            
+            targetLowerAngle = currentGlobalUpperAngle + diffLower;
+        }
+
+        // 3. Apply Lower Body (Mesh) Rotation
+        const currentLowerRot = Globals.player.mesh.quaternion.clone();
+        const targetLowerQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), targetLowerAngle);
+        Globals.player.mesh.quaternion.copy(currentLowerRot).slerp(targetLowerQuat, delta * CONFIG.turnSpeed);
+
+        // 4. Apply Upper Body (bodyGroup) Local Twist Compensation
+        const actualLowerEuler = new THREE.Euler().setFromQuaternion(Globals.player.mesh.quaternion, 'YXZ');
+        let localTwist = currentGlobalUpperAngle - actualLowerEuler.y;
+        while (localTwist > Math.PI) localTwist -= Math.PI * 2;
+        while (localTwist < -Math.PI) localTwist += Math.PI * 2;
+        
+        Globals.player.bodyGroup.rotation.y = localTwist;
+
+        // Update Target Indicator
+        const targetPos = tPos.clone();
+        targetPos.y = pPos.y;
+        Globals.targetIndicator.update(targetPos, delta);
+        
+    } else {
+        // No Target (Normal Mode)
+        currentGlobalUpperAngle = null;
+        
+        if (moveDirection) {
+            const targetPos = Globals.player.mesh.position.clone().add(moveDirection);
+            const currentRot = Globals.player.mesh.quaternion.clone();
+            Globals.player.mesh.lookAt(targetPos);
+            const targetRot = Globals.player.mesh.quaternion.clone();
+            Globals.player.mesh.quaternion.copy(currentRot).slerp(targetRot, delta * CONFIG.turnSpeed);
+        }
+
+        // Smoothly return upper body to neutral (0 twist)
+        Globals.player.bodyGroup.rotation.y = THREE.MathUtils.lerp(Globals.player.bodyGroup.rotation.y, 0, delta * 15);
+        
+        Globals.targetIndicator.update(null, delta);
+    }
 }
 
 function updatePlayerHUD() {
@@ -802,7 +858,7 @@ function animate() {
     const hasFeathers = Globals.feathers.length < MAX_FEATHERS || Globals.feathers.some(f => f.phase === 'recalling');
 
     updatePlayerMovement(delta);
-    updatePlayerFacing(delta, hasFeathers && !!target, target);
+    updatePlayerFacing(delta, isMoving && hasFeathers && !!target, target);
     updateCameraFollow();
     updateShake(delta);
     Globals.player.updateAnimation(delta, time, isMoving, currentVelocity);

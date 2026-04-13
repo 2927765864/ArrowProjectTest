@@ -1,6 +1,6 @@
 {
   "type": "arrowProjectPreset",
-  "name": "存档测试01",
+  "name": "障碍物移动测试存档",
   "config": {
     "shootCooldown": 0.35,
     "deploySpeed": 40,
@@ -16,11 +16,11 @@
     "specialTetherGapLength": 0.5,
     "specialTetherThickness": 0.13,
     "specialTetherSegmentCount": 10,
-    "sceneMode": "empty",
+    "sceneMode": "obstacles",
     "floorStyle": "solid",
     "maxMoveSpeedX": 8.5,
     "maxMoveSpeedZ": 10,
-    "showPlayerTrajectory": false,
+    "showPlayerTrajectory": true,
     "showCollisionBox": false,
     "useCustomCollision": true,
     "customCollisionRadius": 0.15,
@@ -28,8 +28,8 @@
     "cameraFollowEnabled": false,
     "moveFacingMode": "decoupled",
     "turnSpeed": 60,
-    "moveAcceleration": 30,
-    "moveFriction": 30,
+    "moveAcceleration": 80,
+    "moveFriction": 50,
     "bloomStrength": 0.3,
     "bloomThreshold": 0.1,
     "bloomRadius": 0.5,
@@ -49,7 +49,7 @@
     "audioEnabled": true,
     "audioVolume": 0.42,
     "playerBounce": 0.18,
-    "hideVisualDistractors": false,
+    "hideVisualDistractors": true,
     "maxMoveSpeed": 10
   }
 }
