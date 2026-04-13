@@ -1,8 +1,8 @@
-import { CONFIG } from '../config.js';
+import { CONFIG, DEFAULT_CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.13-1128';
+const PANEL_VERSION = 'v2026.04.13-1129';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -411,6 +411,7 @@ export function setupControlPanel() {
     const inpImportPreset = document.getElementById('inp-import-preset');
 
     const PRESETS_STORAGE_KEY = 'arrowProjectPresets';
+    let builtInPresets = {};
 
     const getPresets = () => {
         try {
@@ -432,19 +433,59 @@ export function setupControlPanel() {
 
     const refreshPresetList = () => {
         if (!selPresetList) return;
-        const presets = getPresets();
-        // Keep the first default option
+        const customPresets = getPresets();
+        
         selPresetList.innerHTML = '<option value="">-- 选择要加载的存档 --</option>';
         
-        // Add built-in presets if we load them later
-        // Currently only custom presets from localStorage
-        for (const name in presets) {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.innerText = name;
-            selPresetList.appendChild(opt);
+        if (Object.keys(builtInPresets).length > 0) {
+            const groupBuiltIn = document.createElement('optgroup');
+            groupBuiltIn.label = '内置存档 (不可删改)';
+            for (const name in builtInPresets) {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({ type: 'builtin', name });
+                opt.innerText = name;
+                groupBuiltIn.appendChild(opt);
+            }
+            selPresetList.appendChild(groupBuiltIn);
+        }
+
+        if (Object.keys(customPresets).length > 0) {
+            const groupCustom = document.createElement('optgroup');
+            groupCustom.label = '自定义存档 (本地缓存)';
+            for (const name in customPresets) {
+                const opt = document.createElement('option');
+                opt.value = JSON.stringify({ type: 'custom', name });
+                opt.innerText = name;
+                groupCustom.appendChild(opt);
+            }
+            selPresetList.appendChild(groupCustom);
         }
     };
+
+    const fetchBuiltInPresets = async () => {
+        try {
+            const res = await fetch('./src/presets/manifest.json');
+            if (!res.ok) return;
+            const files = await res.json();
+            for (const file of files) {
+                try {
+                    const fileRes = await fetch(`./src/presets/${file}`);
+                    if (fileRes.ok) {
+                        const data = await fileRes.json();
+                        const name = data.type === 'arrowProjectPreset' && data.name ? data.name : file.replace('.json', '');
+                        const config = data.type === 'arrowProjectPreset' ? data.config : data;
+                        builtInPresets[name] = config;
+                    }
+                } catch (e) {
+                    console.error('Failed to load preset file:', file, e);
+                }
+            }
+            refreshPresetList();
+        } catch (e) {
+            console.warn('No manifest.json found or failed to load built-in presets.', e);
+        }
+    };
+    fetchBuiltInPresets();
 
     if (btnSavePreset && inpSaveName) {
         btnSavePreset.addEventListener('click', () => {
@@ -452,6 +493,11 @@ export function setupControlPanel() {
             const name = inpSaveName.value.trim();
             if (!name) {
                 alert('请输入存档名称');
+                return;
+            }
+            
+            if (builtInPresets[name]) {
+                alert(`与内置存档 "${name}" 同名，请使用其他名称！`);
                 return;
             }
             
@@ -466,7 +512,7 @@ export function setupControlPanel() {
             
             inpSaveName.value = '';
             // Select the newly saved preset
-            selPresetList.value = name;
+            selPresetList.value = JSON.stringify({ type: 'custom', name });
             
             const originalText = btnSavePreset.innerText;
             btnSavePreset.innerText = '保存成功';
@@ -481,20 +527,28 @@ export function setupControlPanel() {
     if (btnLoadPreset && selPresetList) {
         btnLoadPreset.addEventListener('click', () => {
             Globals.audioManager?.playUIClick();
-            const name = selPresetList.value;
-            if (!name) {
+            const val = selPresetList.value;
+            if (!val) {
                 alert('请先选择一个存档');
                 return;
             }
             
-            const presets = getPresets();
-            const presetConfig = presets[name];
+            let type, name;
+            try {
+                const parsed = JSON.parse(val);
+                type = parsed.type;
+                name = parsed.name;
+            } catch(e) { return; }
+            
+            let presetConfig = type === 'builtin' ? builtInPresets[name] : getPresets()[name];
+            
             if (presetConfig) {
-                Object.assign(CONFIG, presetConfig);
+                // Ensure missing properties fallback to default current parameters
+                const mergedConfig = { ...DEFAULT_CONFIG, ...presetConfig };
+                Object.assign(CONFIG, mergedConfig);
                 localStorage.setItem('arrowProjectConfig', JSON.stringify(CONFIG));
                 
                 // Need to reload to apply all config changes cleanly
-                // Many properties are bound on load or need to trigger refresh functions
                 if (confirm('加载存档成功！是否立即刷新页面以应用？')) {
                     location.reload();
                 }
@@ -507,9 +561,21 @@ export function setupControlPanel() {
     if (btnDelPreset && selPresetList) {
         btnDelPreset.addEventListener('click', () => {
             Globals.audioManager?.playUIClick();
-            const name = selPresetList.value;
-            if (!name) {
+            const val = selPresetList.value;
+            if (!val) {
                 alert('请先选择一个存档');
+                return;
+            }
+            
+            let type, name;
+            try {
+                const parsed = JSON.parse(val);
+                type = parsed.type;
+                name = parsed.name;
+            } catch(e) { return; }
+            
+            if (type === 'builtin') {
+                alert('内置存档不可删除！');
                 return;
             }
             
@@ -525,14 +591,20 @@ export function setupControlPanel() {
     if (btnExportPreset && selPresetList) {
         btnExportPreset.addEventListener('click', () => {
             Globals.audioManager?.playUIClick();
-            const name = selPresetList.value;
-            if (!name) {
+            const val = selPresetList.value;
+            if (!val) {
                 alert('请先选择一个存档进行导出');
                 return;
             }
             
-            const presets = getPresets();
-            const presetConfig = presets[name];
+            let type, name;
+            try {
+                const parsed = JSON.parse(val);
+                type = parsed.type;
+                name = parsed.name;
+            } catch(e) { return; }
+            
+            const presetConfig = type === 'builtin' ? builtInPresets[name] : getPresets()[name];
             if (!presetConfig) return;
             
             try {
@@ -597,11 +669,16 @@ export function setupControlPanel() {
                     
                     const actualName = finalName.trim() || nameToSave;
                     
+                    if (builtInPresets[actualName]) {
+                        alert(`不能与内置存档同名！`);
+                        return;
+                    }
+                    
                     const presets = getPresets();
                     presets[actualName] = configToSave;
                     savePresets(presets);
                     refreshPresetList();
-                    selPresetList.value = actualName;
+                    selPresetList.value = JSON.stringify({ type: 'custom', name: actualName });
                     
                     alert(`成功导入存档: "${actualName}"`);
                 } catch (err) {

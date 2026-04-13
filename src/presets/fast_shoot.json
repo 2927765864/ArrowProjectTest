@@ -1,0 +1,10 @@
+{
+  "type": "arrowProjectPreset",
+  "name": "内置演示：极速射击流",
+  "config": {
+    "shootCooldown": 0.15,
+    "deploySpeed": 60,
+    "baseRecallSpeed": 90,
+    "finalRecallDelay": 100
+  }
+}
