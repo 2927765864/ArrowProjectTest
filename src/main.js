@@ -336,13 +336,21 @@ function setupObstacles() {
     // Generate a maze-like or tight corner layout
     createBox(-6, -6, 4, 2);
     createBox(6, -6, 4, 2);
-    createBox(0, 0, 8, 2);
+    createBox(0, 2, 8, 2);
     createBox(-8, 6, 2, 6);
     createBox(8, 6, 2, 6);
     createBox(0, 10, 2, 4);
 }
 
 export function clearSceneEntities() {
+    if (Globals.player) {
+        Globals.player.mesh.position.set(0, 0, 0);
+        if (Globals.player.moveIndicator) Globals.player.moveIndicator.position.set(0, 0.05, 0);
+        if (Globals.player.moveIndicatorOffset) Globals.player.moveIndicatorOffset.set(0, 0, 0);
+        Globals.player.trajectoryPoints = [];
+        Globals.player.trajectoryTime = 0;
+    }
+
     for (let i = Globals.enemies.length - 1; i >= 0; i--) {
         const enemy = Globals.enemies[i];
         enemy.hp = 0;

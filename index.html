@@ -26,6 +26,28 @@
             <div class="panel-row" style="margin-bottom: 10px;">
                 <button id="btn-save-cfg" style="width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">将当前参数设置为默认参数</button>
             </div>
+            
+            <details class="panel-group" open style="margin-bottom: 10px;">
+                <summary>💾 参数存档管理</summary>
+                <div class="panel-row" style="padding-top: 6px; display: flex; gap: 5px;">
+                    <input type="text" id="inp-save-name" placeholder="输入存档名称..." style="flex: 1; padding: 6px; background: #222; color: white; border: 1px solid #555; border-radius: 4px;">
+                    <button id="btn-save-preset" style="background: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">保存为新存档</button>
+                </div>
+                <div class="panel-row" style="margin-top: 5px;">
+                    <select id="sel-preset-list" style="width: 100%; padding: 6px; background: #222; color: white; border: 1px solid #555; border-radius: 4px;">
+                        <option value="">-- 选择要加载的存档 --</option>
+                    </select>
+                </div>
+                <div class="panel-row" style="display: flex; gap: 5px; margin-top: 5px;">
+                    <button id="btn-load-preset" style="flex: 1; background: #28a745; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">加载选定存档</button>
+                    <button id="btn-del-preset" style="flex: 1; background: #dc3545; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">删除选定存档</button>
+                </div>
+                <div class="panel-row" style="margin-top: 10px; border-top: 1px solid #444; padding-top: 10px; display: flex; gap: 5px;">
+                    <button id="btn-export-preset" style="flex: 1; background: #17a2b8; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">导出选定存档至文件</button>
+                    <button id="btn-import-preset" style="flex: 1; background: #ffc107; color: black; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">从文件导入存档</button>
+                    <input type="file" id="inp-import-preset" accept=".json" style="display: none;">
+                </div>
+            </details>
 
             <div id="panel-tabs" aria-label="参数分类"></div>
 

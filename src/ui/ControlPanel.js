@@ -2,7 +2,7 @@ import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
 import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.10-1127';
+const PANEL_VERSION = 'v2026.04.13-1128';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -82,6 +82,7 @@ export function setupControlPanel() {
             CONFIG.sceneMode = 'endless';
             valScm.innerText = '无尽';
             btnScm.innerText = '切换为障碍测试';
+            clearSceneEntities();
             refreshBoundaryVisual();
         }
     });
@@ -398,4 +399,224 @@ export function setupControlPanel() {
             }
         });
     }
+
+    // --- Preset Management System ---
+    const inpSaveName = document.getElementById('inp-save-name');
+    const btnSavePreset = document.getElementById('btn-save-preset');
+    const selPresetList = document.getElementById('sel-preset-list');
+    const btnLoadPreset = document.getElementById('btn-load-preset');
+    const btnDelPreset = document.getElementById('btn-del-preset');
+    const btnExportPreset = document.getElementById('btn-export-preset');
+    const btnImportPreset = document.getElementById('btn-import-preset');
+    const inpImportPreset = document.getElementById('inp-import-preset');
+
+    const PRESETS_STORAGE_KEY = 'arrowProjectPresets';
+
+    const getPresets = () => {
+        try {
+            const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+            return raw ? JSON.parse(raw) : {};
+        } catch (e) {
+            console.error('Failed to get presets', e);
+            return {};
+        }
+    };
+
+    const savePresets = (presets) => {
+        try {
+            localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+        } catch (e) {
+            console.error('Failed to save presets', e);
+        }
+    };
+
+    const refreshPresetList = () => {
+        if (!selPresetList) return;
+        const presets = getPresets();
+        // Keep the first default option
+        selPresetList.innerHTML = '<option value="">-- 选择要加载的存档 --</option>';
+        
+        // Add built-in presets if we load them later
+        // Currently only custom presets from localStorage
+        for (const name in presets) {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.innerText = name;
+            selPresetList.appendChild(opt);
+        }
+    };
+
+    if (btnSavePreset && inpSaveName) {
+        btnSavePreset.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            const name = inpSaveName.value.trim();
+            if (!name) {
+                alert('请输入存档名称');
+                return;
+            }
+            
+            const presets = getPresets();
+            if (presets[name] && !confirm(`存档 "${name}" 已存在，是否覆盖？`)) {
+                return;
+            }
+            
+            presets[name] = { ...CONFIG };
+            savePresets(presets);
+            refreshPresetList();
+            
+            inpSaveName.value = '';
+            // Select the newly saved preset
+            selPresetList.value = name;
+            
+            const originalText = btnSavePreset.innerText;
+            btnSavePreset.innerText = '保存成功';
+            btnSavePreset.style.background = '#218838';
+            setTimeout(() => {
+                btnSavePreset.innerText = originalText;
+                btnSavePreset.style.background = '#007bff';
+            }, 1500);
+        });
+    }
+
+    if (btnLoadPreset && selPresetList) {
+        btnLoadPreset.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            const name = selPresetList.value;
+            if (!name) {
+                alert('请先选择一个存档');
+                return;
+            }
+            
+            const presets = getPresets();
+            const presetConfig = presets[name];
+            if (presetConfig) {
+                Object.assign(CONFIG, presetConfig);
+                localStorage.setItem('arrowProjectConfig', JSON.stringify(CONFIG));
+                
+                // Need to reload to apply all config changes cleanly
+                // Many properties are bound on load or need to trigger refresh functions
+                if (confirm('加载存档成功！是否立即刷新页面以应用？')) {
+                    location.reload();
+                }
+            } else {
+                alert('存档数据无效或已损坏');
+            }
+        });
+    }
+
+    if (btnDelPreset && selPresetList) {
+        btnDelPreset.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            const name = selPresetList.value;
+            if (!name) {
+                alert('请先选择一个存档');
+                return;
+            }
+            
+            if (confirm(`确定要删除存档 "${name}" 吗？`)) {
+                const presets = getPresets();
+                delete presets[name];
+                savePresets(presets);
+                refreshPresetList();
+            }
+        });
+    }
+
+    if (btnExportPreset && selPresetList) {
+        btnExportPreset.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            const name = selPresetList.value;
+            if (!name) {
+                alert('请先选择一个存档进行导出');
+                return;
+            }
+            
+            const presets = getPresets();
+            const presetConfig = presets[name];
+            if (!presetConfig) return;
+            
+            try {
+                // Wrap in a standard format so we know it's a preset when importing
+                const exportData = {
+                    type: 'arrowProjectPreset',
+                    name: name,
+                    config: presetConfig
+                };
+                
+                const jsonStr = JSON.stringify(exportData, null, 2);
+                const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+                const dataUri = `data:application/json;base64,${base64Str}`;
+                
+                const a = document.createElement('a');
+                a.href = dataUri;
+                
+                // Format filename based on preset name
+                const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                a.download = `arrow_preset_${safeName}.json`;
+                
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } catch (e) {
+                console.error('Failed to export preset', e);
+                alert('导出存档失败');
+            }
+        });
+    }
+
+    if (btnImportPreset && inpImportPreset) {
+        btnImportPreset.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            inpImportPreset.click();
+        });
+
+        inpImportPreset.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    let nameToSave = importedData.name || 'Imported Preset';
+                    let configToSave = importedData.config;
+                    
+                    // Fallback if someone imports an old direct config export
+                    if (importedData.type !== 'arrowProjectPreset' && importedData.shootCooldown !== undefined) {
+                        configToSave = importedData;
+                        nameToSave = 'Imported Old Config';
+                    }
+                    
+                    if (!configToSave) {
+                        throw new Error('Invalid format');
+                    }
+                    
+                    // Prompt user for name, offering the original name as default
+                    const finalName = prompt('请输入导入的存档名称：', nameToSave);
+                    if (finalName === null) return; // Cancelled
+                    
+                    const actualName = finalName.trim() || nameToSave;
+                    
+                    const presets = getPresets();
+                    presets[actualName] = configToSave;
+                    savePresets(presets);
+                    refreshPresetList();
+                    selPresetList.value = actualName;
+                    
+                    alert(`成功导入存档: "${actualName}"`);
+                } catch (err) {
+                    console.error('Failed to parse imported preset', err);
+                    alert('导入失败：文件格式不正确或已损坏');
+                }
+            };
+            reader.onerror = () => {
+                alert('读取文件失败');
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+    }
+    
+    // Initial load of presets
+    refreshPresetList();
 }
