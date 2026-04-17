@@ -643,19 +643,28 @@ export class PlayerCharacter {
             wp = this.walkPhase + burst * Math.sin(this.walkPhase * 2.0);
             
             const sinVal = Math.sin(wp);
-            const forwardAmp = CONFIG.runLegSwingForward !== undefined ? CONFIG.runLegSwingForward : 1.1;
-            const backwardAmp = CONFIG.runLegSwingBackward !== undefined ? CONFIG.runLegSwingBackward : 0.6;
+            const cosVal = Math.cos(wp);
+            const animScale = (animSpeed / 10);
             
-            // Asymmetric mapping: negative sinVal corresponds to forward swing
-            const legSwingL = (sinVal < 0 ? sinVal * forwardAmp : sinVal * backwardAmp) * (animSpeed / 10);
-            const legSwingR = (-sinVal < 0 ? -sinVal * forwardAmp : -sinVal * backwardAmp) * (animSpeed / 10);
+            const forwardAmp = (CONFIG.runLegSwingForward !== undefined ? CONFIG.runLegSwingForward : 1.2) * animScale;
+            const backwardAmp = (CONFIG.runLegSwingBackward !== undefined ? CONFIG.runLegSwingBackward : 0.5) * animScale;
+            
+            // Left leg
+            const legSwingL = (sinVal < 0 ? sinVal * forwardAmp : sinVal * backwardAmp);
+            const kneeBendL = Math.max(0, -cosVal * 1.8 * animScale);
+            
+            // Right leg (phase + PI -> sin is inverted, cos is inverted)
+            const sinR = -sinVal;
+            const cosR = -cosVal;
+            const legSwingR = (sinR < 0 ? sinR * forwardAmp : sinR * backwardAmp);
+            const kneeBendR = Math.max(0, -cosR * 1.8 * animScale);
             
             this.leftLeg.rotation.x = legSwingL; 
             this.rightLeg.rotation.x = legSwingR;
             
-            // Add natural knee bending when walking
-            this.leftLowerLeg.rotation.x = Math.max(0, -legSwingL * 1.5);
-            this.rightLowerLeg.rotation.x = Math.max(0, -legSwingR * 1.5);
+            // Add natural knee bending when swinging forward (cos < 0), straightens when planting (sin reaches ±1)
+            this.leftLowerLeg.rotation.x = kneeBendL;
+            this.rightLowerLeg.rotation.x = kneeBendR;
             
             let targetBodyRotX = 0.15;
             let targetBodyRotY = 0; // New Y-axis torso rotation
@@ -701,7 +710,8 @@ export class PlayerCharacter {
             
             // 大幅增强弹跳感：增加 bounce 的振幅。
             // 当进行大幅度转身时，强行将 bounce 压低至 0，使其贴近地面滑步转身
-            const targetBounce = isSharpTurning ? 0 : Math.abs(Math.sin(wp)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
+            // 使用 cos(wp) 因为当跨步最大（sin=±1）时身体最低，当双腿交替（cos=±1）时身体被顶起达到最高
+            const targetBounce = isSharpTurning ? 0 : Math.abs(Math.cos(wp)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
             this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + targetBounce, delta * 20);
             
             // 让腿部跟随身体一起弹跳，避免脱节
@@ -725,7 +735,7 @@ export class PlayerCharacter {
                     this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
                     this.bounceMonitorEl.style.transform = 'scale(1)';
                 } else {
-                    const intensity = Math.abs(Math.sin(wp));
+                    const intensity = Math.abs(Math.cos(wp));
                     const r = Math.floor(100 + 155 * intensity);
                     const g = Math.floor(200 + 55 * intensity);
                     this.bounceMonitorEl.style.background = `rgb(${r}, ${g}, 50)`;
