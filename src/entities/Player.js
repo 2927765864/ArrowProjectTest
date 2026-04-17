@@ -160,30 +160,30 @@ export class PlayerCharacter {
         
         // Arms
         this.leftArm = new THREE.Group();
-        this.leftArm.position.set(0.16, 0.10, 0); 
+        this.leftArm.position.set(0.105, 0.10, 0); // Moved inward from 0.16 to embed into torso
         this.bodyGroup.add(this.leftArm);
 
         // Left Upper Arm
-        const upperArmGeoL = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const upperArmGeoL = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16); // Slightly thicker & longer
         const upperArmMeshL = new THREE.Mesh(upperArmGeoL, faceMat);
-        upperArmMeshL.position.y = -0.03;
+        upperArmMeshL.position.y = -0.035;
         upperArmMeshL.castShadow = true;
         this.leftArm.add(upperArmMeshL);
         
         // Left Shoulder Joint
-        const shoulderJointGeo = new THREE.SphereGeometry(0.04, 16, 16);
+        const shoulderJointGeo = new THREE.SphereGeometry(0.045, 16, 16);
         const shoulderJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.leftArm.add(shoulderJointL);
 
         // Left Forearm (Elbow joint)
         this.leftForearm = new THREE.Group();
-        this.leftForearm.position.set(0, -0.06, 0); 
+        this.leftForearm.position.set(0, -0.07, 0); 
         this.leftArm.add(this.leftForearm);
 
         // Left Lower Arm
-        const lowerArmGeoL = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const lowerArmGeoL = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16);
         const lowerArmMeshL = new THREE.Mesh(lowerArmGeoL, faceMat);
-        lowerArmMeshL.position.y = -0.03;
+        lowerArmMeshL.position.y = -0.035;
         lowerArmMeshL.castShadow = true;
         this.leftForearm.add(lowerArmMeshL);
         
@@ -192,13 +192,13 @@ export class PlayerCharacter {
         this.leftForearm.add(elbowJointL);
 
         this.rightArm = new THREE.Group();
-        this.rightArm.position.set(-0.16, 0.10, 0); 
+        this.rightArm.position.set(-0.105, 0.10, 0); 
         this.bodyGroup.add(this.rightArm);
 
         // Upper arm
-        const upperArmGeo = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const upperArmGeo = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16);
         const upperArmMesh = new THREE.Mesh(upperArmGeo, faceMat);
-        upperArmMesh.position.y = -0.03;
+        upperArmMesh.position.y = -0.035;
         upperArmMesh.castShadow = true;
         this.rightArm.add(upperArmMesh);
         
@@ -208,13 +208,13 @@ export class PlayerCharacter {
 
         // Forearm (Elbow joint)
         this.rightForearm = new THREE.Group();
-        this.rightForearm.position.set(0, -0.06, 0); 
+        this.rightForearm.position.set(0, -0.07, 0); 
         this.rightArm.add(this.rightForearm);
 
         // Lower arm
-        const lowerArmGeo = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const lowerArmGeo = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16);
         const lowerArmMesh = new THREE.Mesh(lowerArmGeo, faceMat);
-        lowerArmMesh.position.y = -0.03;
+        lowerArmMesh.position.y = -0.035;
         lowerArmMesh.castShadow = true;
         this.rightForearm.add(lowerArmMesh);
         
@@ -304,13 +304,13 @@ export class PlayerCharacter {
         
         // Legs
         this.leftLeg = new THREE.Group();
-        this.leftLeg.position.set(0.07, -0.10, 0); // Attach to bottom of bodyGroup
+        this.leftLeg.position.set(0.055, -0.05, 0); // Moved inward and slightly up to embed in torso
         this.bodyGroup.add(this.leftLeg);
 
         // Left Upper Leg (Thigh)
-        const upperLegGeo = new THREE.CapsuleGeometry(0.05, 0.06, 4, 16);
+        const upperLegGeo = new THREE.CapsuleGeometry(0.05, 0.08, 4, 16); // Slightly longer to compensate for higher pivot
         const upperLegMeshL = new THREE.Mesh(upperLegGeo, limbMat);
-        upperLegMeshL.position.y = -0.03;
+        upperLegMeshL.position.y = -0.04;
         upperLegMeshL.castShadow = true;
         this.leftLeg.add(upperLegMeshL);
         
@@ -321,12 +321,12 @@ export class PlayerCharacter {
 
         // Left Lower Leg (Calf + Knee)
         this.leftLowerLeg = new THREE.Group();
-        this.leftLowerLeg.position.set(0, -0.06, 0);
+        this.leftLowerLeg.position.set(0, -0.08, 0);
         this.leftLeg.add(this.leftLowerLeg);
 
-        const lowerLegGeo = new THREE.CapsuleGeometry(0.05, 0.06, 4, 16);
+        const lowerLegGeo = new THREE.CapsuleGeometry(0.05, 0.08, 4, 16);
         const lowerLegMeshL = new THREE.Mesh(lowerLegGeo, limbMat);
-        lowerLegMeshL.position.y = -0.03;
+        lowerLegMeshL.position.y = -0.04;
         lowerLegMeshL.castShadow = true;
         this.leftLowerLeg.add(lowerLegMeshL);
         
@@ -335,12 +335,12 @@ export class PlayerCharacter {
         this.leftLowerLeg.add(kneeJointL);
         
         this.rightLeg = new THREE.Group();
-        this.rightLeg.position.set(-0.07, -0.10, 0); // Attach to bottom of bodyGroup
+        this.rightLeg.position.set(-0.055, -0.05, 0); 
         this.bodyGroup.add(this.rightLeg);
 
         // Right Upper Leg (Thigh)
         const upperLegMeshR = new THREE.Mesh(upperLegGeo, limbMat);
-        upperLegMeshR.position.y = -0.03;
+        upperLegMeshR.position.y = -0.04;
         upperLegMeshR.castShadow = true;
         this.rightLeg.add(upperLegMeshR);
         
@@ -350,11 +350,11 @@ export class PlayerCharacter {
 
         // Right Lower Leg (Calf + Knee)
         this.rightLowerLeg = new THREE.Group();
-        this.rightLowerLeg.position.set(0, -0.06, 0);
+        this.rightLowerLeg.position.set(0, -0.08, 0);
         this.rightLeg.add(this.rightLowerLeg);
 
         const lowerLegMeshR = new THREE.Mesh(lowerLegGeo, limbMat);
-        lowerLegMeshR.position.y = -0.03;
+        lowerLegMeshR.position.y = -0.04;
         lowerLegMeshR.castShadow = true;
         this.rightLowerLeg.add(lowerLegMeshR);
         
