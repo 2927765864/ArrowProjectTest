@@ -642,15 +642,20 @@ export class PlayerCharacter {
             const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
             wp = this.walkPhase + burst * Math.sin(this.walkPhase * 2.0);
             
-            const legSwingAmplitude = CONFIG.runLegSwing !== undefined ? CONFIG.runLegSwing : 0.7;
-            const legSwing = Math.sin(wp) * legSwingAmplitude * (animSpeed / 10);
+            const sinVal = Math.sin(wp);
+            const forwardAmp = CONFIG.runLegSwingForward !== undefined ? CONFIG.runLegSwingForward : 1.1;
+            const backwardAmp = CONFIG.runLegSwingBackward !== undefined ? CONFIG.runLegSwingBackward : 0.6;
             
-            this.leftLeg.rotation.x = legSwing; 
-            this.rightLeg.rotation.x = -legSwing;
+            // Asymmetric mapping: negative sinVal corresponds to forward swing
+            const legSwingL = (sinVal < 0 ? sinVal * forwardAmp : sinVal * backwardAmp) * (animSpeed / 10);
+            const legSwingR = (-sinVal < 0 ? -sinVal * forwardAmp : -sinVal * backwardAmp) * (animSpeed / 10);
+            
+            this.leftLeg.rotation.x = legSwingL; 
+            this.rightLeg.rotation.x = legSwingR;
             
             // Add natural knee bending when walking
-            this.leftLowerLeg.rotation.x = Math.max(0, -legSwing * 1.5);
-            this.rightLowerLeg.rotation.x = Math.max(0, legSwing * 1.5);
+            this.leftLowerLeg.rotation.x = Math.max(0, -legSwingL * 1.5);
+            this.rightLowerLeg.rotation.x = Math.max(0, -legSwingR * 1.5);
             
             let targetBodyRotX = 0.15;
             let targetBodyRotY = 0; // New Y-axis torso rotation
