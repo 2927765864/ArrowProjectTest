@@ -253,7 +253,8 @@ export function setupControlPanel() {
     bindSlider('inp-rbt', 'val-rbt', 'runBodyTwist', true);
     bindSlider('inp-rbb', 'val-rbb', 'runBurst', true);
     bindSlider('inp-rsf', 'val-rsf', 'runStepFreq', true);
-    bindSlider('inp-rls', 'val-rls', 'runLegSwing', true);
+    bindSlider('inp-rlsf', 'val-rlsf', 'runLegSwingForward', true);
+    bindSlider('inp-rlsb', 'val-rlsb', 'runLegSwingBackward', true);
     bindSlider('inp-tlrad', 'val-tlrad', 'tailRadius', true);
     bindSlider('inp-tlseg', 'val-tlseg', 'tailSegLength', true);
 
