@@ -953,7 +953,8 @@ export class PlayerCharacter {
             const targetArmR = Math.sin(wp) * armSwing;
             this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
             this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, armSpread, delta * armSpeed);
-            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, Math.max(0, -targetArmL), delta * armSpeed); // Add natural elbow bending
+            // 手臂向前摆动时（rotation.x 为负），小臂应该向内弯曲（rotation.x 也为负，因为肘部是向前曲的）
+            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, Math.min(0, targetArmL * 0.8), delta * armSpeed);
 
                 if (this.isAttacking) {
                 let swingAngleX = 0;
@@ -1010,7 +1011,8 @@ export class PlayerCharacter {
                 this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
                 this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -armSpread, delta * armSpeed);
                 this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
-                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * armSpeed);
+                // 右臂跟随奔跑自然弯曲
+                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, Math.min(0, targetArmR * 0.8), delta * armSpeed);
             }
         } else {
             if (this.isCatching) {
