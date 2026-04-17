@@ -1,8 +1,8 @@
 import { CONFIG, DEFAULT_CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
-import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow } from '../main.js';
+import { clearSceneEntities, refreshBoundaryVisual, refreshCameraFollow, refreshCameraMode, updateCameraPosition } from '../main.js';
 
-const PANEL_VERSION = 'v2026.04.13-1134';
+const PANEL_VERSION = 'v2026.04.16-1154';
 
 export function setupControlPanel() {
     const controlPanel = document.getElementById('control-panel');
@@ -28,7 +28,7 @@ export function setupControlPanel() {
 
     const syncAudioUi = () => {
         const audio = Globals.audioManager;
-        if (!audio) return;
+        if (!audio || !audioEnabledInput || !audioVolumeInput) return;
         audioEnabledInput.checked = audio.enabled;
         audioEnabledValue.innerText = audio.enabled ? '开' : '关';
         audioVolumeInput.value = String(audio.volume);
@@ -36,19 +36,23 @@ export function setupControlPanel() {
     };
     syncAudioUi();
 
-    audioEnabledInput.addEventListener('change', (e) => {
-        const enabled = e.target.checked;
-        CONFIG.audioEnabled = enabled;
-        Globals.audioManager?.setEnabled(enabled);
-        audioEnabledValue.innerText = enabled ? '开' : '关';
-    });
+    if (audioEnabledInput) {
+        audioEnabledInput.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            CONFIG.audioEnabled = enabled;
+            Globals.audioManager?.setEnabled(enabled);
+            audioEnabledValue.innerText = enabled ? '开' : '关';
+        });
+    }
 
-    audioVolumeInput.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.audioVolume = val;
-        Globals.audioManager?.setVolume(val);
-        audioVolumeValue.innerText = val.toFixed(2);
-    });
+    if (audioVolumeInput) {
+        audioVolumeInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.audioVolume = val;
+            Globals.audioManager?.setVolume(val);
+            audioVolumeValue.innerText = val.toFixed(2);
+        });
+    }
 
     const btnScm = document.getElementById('btn-scm');
     const valScm = document.getElementById('val-scm');
@@ -58,6 +62,9 @@ export function setupControlPanel() {
         btnScm.innerText = '切换为无尽';
     } else if (CONFIG.sceneMode === 'obstacles') {
         valScm.innerText = '障碍测试';
+        btnScm.innerText = '切换为木桩';
+    } else if (CONFIG.sceneMode === 'dummy') {
+        valScm.innerText = '木桩';
         btnScm.innerText = '切换为空旷';
     } else {
         valScm.innerText = '无尽';
@@ -69,10 +76,16 @@ export function setupControlPanel() {
         if (CONFIG.sceneMode === 'endless') {
             CONFIG.sceneMode = 'obstacles';
             valScm.innerText = '障碍测试';
-            btnScm.innerText = '切换为空旷';
+            btnScm.innerText = '切换为木桩';
             clearSceneEntities();
             refreshBoundaryVisual();
         } else if (CONFIG.sceneMode === 'obstacles') {
+            CONFIG.sceneMode = 'dummy';
+            valScm.innerText = '木桩';
+            btnScm.innerText = '切换为空旷';
+            clearSceneEntities();
+            refreshBoundaryVisual();
+        } else if (CONFIG.sceneMode === 'dummy') {
             CONFIG.sceneMode = 'empty';
             valScm.innerText = '空旷';
             btnScm.innerText = '切换为无尽';
@@ -155,6 +168,8 @@ export function setupControlPanel() {
         const input = document.getElementById(inputId);
         const valDisplay = document.getElementById(valId);
         
+        if (!input || !valDisplay) return; // Fail gracefully if DOM element is missing
+
         // Initialize from CONFIG
         if (CONFIG[configKey] !== undefined) {
             input.value = CONFIG[configKey];
@@ -176,7 +191,11 @@ export function setupControlPanel() {
     bindSlider('inp-bl', 'val-bl', 'bloodLinger', true);
 
     bindSlider('inp-cd', 'val-cd', 'shootCooldown', true);
-    bindSlider('inp-ds', 'val-ds', 'deploySpeed');
+    bindSlider('inp-dis', 'val-dis', 'deployInitialSpeed');
+    bindSlider('inp-dfr', 'val-dfr', 'deployFriction');
+    bindSlider('inp-dms', 'val-dms', 'deployMinSpeed');
+    bindSlider('inp-pdbd', 'val-pdbd', 'pierceDistBeforeDrop', true);
+    bindSlider('inp-gip', 'val-gip', 'groundInsertPitch');
     bindSlider('inp-ri', 'val-ri', 'recallInterval');
     bindSlider('inp-rs', 'val-rs', 'baseRecallSpeed');
     bindSlider('inp-frd', 'val-frd', 'finalRecallDelay');
@@ -190,6 +209,36 @@ export function setupControlPanel() {
     bindSlider('inp-sttk', 'val-sttk', 'specialTetherThickness', true);
     bindSlider('inp-stsc', 'val-stsc', 'specialTetherSegmentCount');
 
+    // 📳 屏幕与马达震动
+    const bindCheckbox = (inputId, labelId, configKey) => {
+        const inp = document.getElementById(inputId);
+        const lbl = document.getElementById(labelId);
+        if(!inp || !lbl) return;
+        inp.checked = !!CONFIG[configKey];
+        lbl.innerText = CONFIG[configKey] ? '开' : '关';
+        inp.addEventListener('change', (e) => {
+            CONFIG[configKey] = e.target.checked;
+            lbl.innerText = e.target.checked ? '开' : '关';
+        });
+    };
+
+    bindCheckbox('inp-hen', 'val-hen', 'hapticEnabled');
+    bindSlider('inp-hint', 'val-hint', 'hapticIntensity', true);
+
+    const btnTestHaptic = document.getElementById('btn-test-haptic');
+    if (btnTestHaptic) {
+        btnTestHaptic.addEventListener('click', () => {
+            if (!CONFIG.hapticEnabled) return;
+            const duration = 50;
+            const amplitude = Math.floor(150 * CONFIG.hapticIntensity);
+            if (window.AndroidNative && window.AndroidNative.vibrate) {
+                window.AndroidNative.vibrate(duration, amplitude);
+            } else if (navigator.vibrate) {
+                navigator.vibrate(duration);
+            }
+        });
+    }
+
     bindSlider('inp-tns', 'val-tns', 'turnSpeed');
     bindSlider('inp-mva', 'val-mva', 'moveAcceleration');
     bindSlider('inp-mvf', 'val-mvf', 'moveFriction');
@@ -197,10 +246,23 @@ export function setupControlPanel() {
     bindSlider('inp-mmsz', 'val-mmsz', 'maxMoveSpeedZ');
     bindSlider('inp-ccr', 'val-ccr', 'customCollisionRadius');
     bindSlider('inp-pbnc', 'val-pbnc', 'playerBounce', true);
+    bindSlider('inp-ras', 'val-ras', 'runArmSpread', true);
+    bindSlider('inp-rsw', 'val-rsw', 'runArmSwing', true);
+    bindSlider('inp-rbu', 'val-rbu', 'runBodyUpShake', true);
+    bindSlider('inp-rbs', 'val-rbs', 'runBodySway', true);
+    bindSlider('inp-rbt', 'val-rbt', 'runBodyTwist', true);
+    bindSlider('inp-rbb', 'val-rbb', 'runBurst', true);
+    bindSlider('inp-rsf', 'val-rsf', 'runStepFreq', true);
+    bindSlider('inp-rls', 'val-rls', 'runLegSwing', true);
+    bindSlider('inp-tlrad', 'val-tlrad', 'tailRadius', true);
+    bindSlider('inp-tlseg', 'val-tlseg', 'tailSegLength', true);
 
     const bindToggle = (inputId, valId, configKey) => {
         const input = document.getElementById(inputId);
         const val = document.getElementById(valId);
+        
+        if (!input || !val) return; // Fail gracefully if DOM element is missing
+
         if (CONFIG[configKey] !== undefined) {
             input.checked = !!CONFIG[configKey];
             val.innerText = CONFIG[configKey] ? '开' : '关';
@@ -216,55 +278,111 @@ export function setupControlPanel() {
     bindToggle('inp-ucc', 'val-ucc', 'useCustomCollision');
     bindToggle('inp-xre', 'val-xre', 'xrayEnabled');
     bindToggle('inp-hvd', 'val-hvd', 'hideVisualDistractors');
+    bindToggle('inp-sct', 'val-sct', 'showCombatTexts');
+
+    const syncCameraModeUi = () => {
+        const val = document.getElementById('val-cam-mode');
+        const btn = document.getElementById('btn-cam-mode');
+        const rowFov = document.getElementById('row-cam-fov');
+        const rowScale = document.getElementById('row-cam-scale');
+        if (CONFIG.cameraMode === 'perspective') {
+            if (val) val.innerText = '透视';
+            if (btn) btn.innerText = '切换为正交';
+            if (rowFov) rowFov.style.display = 'flex';
+            if (rowScale) rowScale.style.display = 'none';
+        } else {
+            if (val) val.innerText = '正交';
+            if (btn) btn.innerText = '切换为透视';
+            if (rowFov) rowFov.style.display = 'none';
+            if (rowScale) rowScale.style.display = 'flex';
+        }
+    };
+    syncCameraModeUi();
+
+    const btnCamMode = document.getElementById('btn-cam-mode');
+    if (btnCamMode) {
+        btnCamMode.addEventListener('click', () => {
+            Globals.audioManager?.playUIClick();
+            CONFIG.cameraMode = CONFIG.cameraMode === 'orthographic' ? 'perspective' : 'orthographic';
+            syncCameraModeUi();
+            refreshCameraMode();
+        });
+    }
+
+    bindSlider('inp-cam-fov', 'val-cam-fov', 'cameraFov');
+    bindSlider('inp-cam-dist', 'val-cam-dist', 'cameraDist');
+    bindSlider('inp-cam-angx', 'val-cam-angx', 'cameraAngleX');
+    bindSlider('inp-cam-angy', 'val-cam-angy', 'cameraAngleY');
+
+    const bindCameraRefresh = (id) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', () => {
+                updateCameraPosition();
+            });
+        }
+    };
+    bindCameraRefresh('inp-cam-dist');
+    bindCameraRefresh('inp-cam-angx');
+    bindCameraRefresh('inp-cam-angy');
+    bindCameraRefresh('inp-cam-fov');
 
     const inpCvs = document.getElementById('inp-cvs');
-    if (CONFIG.cameraViewScale !== undefined) {
-        inpCvs.value = CONFIG.cameraViewScale;
-        document.getElementById('val-cvs').innerText = CONFIG.cameraViewScale.toFixed(1);
+    if (inpCvs) {
+        if (CONFIG.cameraViewScale !== undefined) {
+            inpCvs.value = CONFIG.cameraViewScale;
+            document.getElementById('val-cvs').innerText = CONFIG.cameraViewScale.toFixed(1);
+        }
+        inpCvs.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.cameraViewScale = val;
+            document.getElementById('val-cvs').innerText = val.toFixed(1);
+            refreshBoundaryVisual();
+        });
     }
-    inpCvs.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.cameraViewScale = val;
-        document.getElementById('val-cvs').innerText = val.toFixed(1);
-        refreshBoundaryVisual();
-    });
 
     const inpBst = document.getElementById('inp-bst');
-    if (CONFIG.bloomStrength !== undefined) {
-        inpBst.value = CONFIG.bloomStrength;
-        document.getElementById('val-bst').innerText = CONFIG.bloomStrength.toFixed(2);
+    if (inpBst) {
+        if (CONFIG.bloomStrength !== undefined) {
+            inpBst.value = CONFIG.bloomStrength;
+            document.getElementById('val-bst').innerText = CONFIG.bloomStrength.toFixed(2);
+        }
+        inpBst.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.bloomStrength = val;
+            document.getElementById('val-bst').innerText = val.toFixed(2);
+            if (Globals.bloomPass) Globals.bloomPass.strength = val;
+        });
     }
-    inpBst.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.bloomStrength = val;
-        document.getElementById('val-bst').innerText = val.toFixed(2);
-        if (Globals.bloomPass) Globals.bloomPass.strength = val;
-    });
 
     const inpBth = document.getElementById('inp-bth');
-    if (CONFIG.bloomThreshold !== undefined) {
-        inpBth.value = CONFIG.bloomThreshold;
-        document.getElementById('val-bth').innerText = CONFIG.bloomThreshold.toFixed(2);
+    if (inpBth) {
+        if (CONFIG.bloomThreshold !== undefined) {
+            inpBth.value = CONFIG.bloomThreshold;
+            document.getElementById('val-bth').innerText = CONFIG.bloomThreshold.toFixed(2);
+        }
+        inpBth.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.bloomThreshold = val;
+            document.getElementById('val-bth').innerText = val.toFixed(2);
+            if (Globals.bloomPass) Globals.bloomPass.threshold = val;
+        });
     }
-    inpBth.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.bloomThreshold = val;
-        document.getElementById('val-bth').innerText = val.toFixed(2);
-        if (Globals.bloomPass) Globals.bloomPass.threshold = val;
-    });
 
     const inpPs = document.getElementById('inp-ps');
-    if (CONFIG.playerScale !== undefined) {
-        inpPs.value = CONFIG.playerScale;
-        document.getElementById('val-ps').innerText = CONFIG.playerScale.toFixed(1);
+    if (inpPs) {
+        if (CONFIG.playerScale !== undefined) {
+            inpPs.value = CONFIG.playerScale;
+            document.getElementById('val-ps').innerText = CONFIG.playerScale.toFixed(1);
+        }
+        inpPs.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.playerScale = val;
+            document.getElementById('val-ps').innerText = val.toFixed(1);
+            if (Globals.player) Globals.player.mesh.scale.setScalar(val);
+            refreshBoundaryVisual();
+        });
     }
-    inpPs.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.playerScale = val;
-        document.getElementById('val-ps').innerText = val.toFixed(1);
-        if (Globals.player) Globals.player.mesh.scale.setScalar(val);
-        refreshBoundaryVisual();
-    });
 
     const inpImr = document.getElementById('inp-imr');
     if (CONFIG.indicatorMaxRange !== undefined && inpImr) {
@@ -293,42 +411,54 @@ export function setupControlPanel() {
     }
     
     const inpEs = document.getElementById('inp-es');
-    if (CONFIG.enemyScale !== undefined) {
-        inpEs.value = CONFIG.enemyScale;
-        document.getElementById('val-es').innerText = CONFIG.enemyScale.toFixed(1);
+    if (inpEs) {
+        if (CONFIG.enemyScale !== undefined) {
+            inpEs.value = CONFIG.enemyScale;
+            document.getElementById('val-es').innerText = CONFIG.enemyScale.toFixed(1);
+        }
+        inpEs.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.enemyScale = val;
+            document.getElementById('val-es').innerText = val.toFixed(1);
+            Globals.enemies.forEach(enemy => enemy.mesh.scale.setScalar(val));
+        });
     }
-    inpEs.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.enemyScale = val;
-        document.getElementById('val-es').innerText = val.toFixed(1);
-        Globals.enemies.forEach(enemy => enemy.mesh.scale.setScalar(val));
-    });
     
     const inpDsz = document.getElementById('inp-dsz');
-    if (CONFIG.damageTextScale !== undefined) {
-        inpDsz.value = CONFIG.damageTextScale;
-        document.getElementById('val-dsz').innerText = CONFIG.damageTextScale.toFixed(1);
-        document.documentElement.style.setProperty('--dmg-scale', CONFIG.damageTextScale); 
+    if (inpDsz) {
+        if (CONFIG.damageTextScale !== undefined) {
+            inpDsz.value = CONFIG.damageTextScale;
+            document.getElementById('val-dsz').innerText = CONFIG.damageTextScale.toFixed(1);
+            document.documentElement.style.setProperty('--dmg-scale', CONFIG.damageTextScale); 
+        }
+        inpDsz.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.damageTextScale = val;
+            document.getElementById('val-dsz').innerText = val.toFixed(1);
+            document.documentElement.style.setProperty('--dmg-scale', val); 
+        });
     }
-    inpDsz.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.damageTextScale = val;
-        document.getElementById('val-dsz').innerText = val.toFixed(1);
-        document.documentElement.style.setProperty('--dmg-scale', val); 
-    });
     
     const inpHsz = document.getElementById('inp-hsz');
-    if (CONFIG.hudScale !== undefined) {
-        inpHsz.value = CONFIG.hudScale;
-        document.getElementById('val-hsz').innerText = CONFIG.hudScale.toFixed(1);
-        document.documentElement.style.setProperty('--hud-scale', CONFIG.hudScale); 
+    if (inpHsz) {
+        if (CONFIG.hudScale !== undefined) {
+            inpHsz.value = CONFIG.hudScale;
+            document.getElementById('val-hsz').innerText = CONFIG.hudScale.toFixed(1);
+            document.documentElement.style.setProperty('--hud-scale', CONFIG.hudScale); 
+        }
+        inpHsz.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.hudScale = val;
+            document.getElementById('val-hsz').innerText = val.toFixed(1);
+            document.documentElement.style.setProperty('--hud-scale', val); 
+        });
     }
-    inpHsz.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
-        CONFIG.hudScale = val;
-        document.getElementById('val-hsz').innerText = val.toFixed(1);
-        document.documentElement.style.setProperty('--hud-scale', val); 
-    });
+
+    bindSlider('inp-jvo', 'val-jvo', 'joystickVisualOffset');
+    bindSlider('inp-jdz', 'val-jdz', 'joystickDeadZone', true);
+    bindSlider('inp-jlr', 'val-jlr', 'joystickLockRadius');
+    bindSlider('inp-jft', 'val-jft', 'joystickFastTraverseMs');
+    bindSlider('inp-jsf', 'val-jsf', 'joystickSmoothFactor', true);
 
     const toggleBtn = document.getElementById('toggle-panel');
     const panelContent = document.getElementById('panel-content');

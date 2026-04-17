@@ -81,6 +81,31 @@ body {
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22), 0 0 16px rgba(145, 197, 58, 0.22);
 }
 
+#joystick-arc {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    pointer-events: none;
+    /* 用 conic-gradient 画 90° 的扇形，从 -45° 到 +45°（即以 0° 为中心的四分之一） */
+    /* rotate 由 JS 根据推子方向动态设置 */
+    background: conic-gradient(
+        from -45deg,
+        rgba(145, 197, 58, 0.65) 0deg,
+        rgba(180, 220, 80, 0.75) 45deg,
+        rgba(145, 197, 58, 0.65) 90deg,
+        transparent 90deg
+    );
+    /* 用 radial-gradient mask 挖掉内圈，只留外围圆环 */
+    -webkit-mask: radial-gradient(circle, transparent 60%, black 62%);
+    mask: radial-gradient(circle, transparent 60%, black 62%);
+}
+
+#joystick-arc.is-visible {
+    opacity: 1;
+}
+
 #virtual-joystick.is-active {
     opacity: 0.92;
     transition: opacity 0.08s ease;

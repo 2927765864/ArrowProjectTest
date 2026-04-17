@@ -1,19 +1,30 @@
 import * as THREE from 'three';
-import { Globals, SVG, showFloatingText, triggerShake } from '../utils.js';
+import { Globals, SVG, showFloatingText, triggerShake, triggerHaptic } from '../utils.js';
 import { CONFIG } from '../config.js';
 import { BloodStain } from '../effects/BloodStain.js';
 import { SlashFlashEffect } from '../effects/SlashFlashEffect.js';
 
 export class Enemy {
-    constructor(spawnPosition = null) {
+    constructor(spawnPosition = null, isDummy = false) {
+        this.isDummy = isDummy;
         this.mesh = new THREE.Group(); 
         this.mesh.position.y = 0.4; 
         this.knockbackVelocity = new THREE.Vector3(0, 0, 0); 
         this.stunTimer = 0; 
         
-        const bodyMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
-        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        const hornMat = new THREE.MeshBasicMaterial({ color: 0x5e55a2 });
+        let bodyColor = 0x5e55a2;
+        let eyeColor = 0x91c53a;
+        let hornColor = 0x5e55a2;
+        
+        if (this.isDummy) {
+            bodyColor = 0xc2824e; // Wooden brown
+            eyeColor = 0x4a3219;  // Dark wood
+            hornColor = 0xa36c3e; // Slightly darker wood
+        }
+        
+        const bodyMat = new THREE.MeshBasicMaterial({ color: bodyColor });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: eyeColor });
+        const hornMat = new THREE.MeshBasicMaterial({ color: hornColor });
         this.materials = [bodyMat, eyeMat, hornMat];
         this.flashTimeoutId = null;
         this.materials.forEach((mat) => {
@@ -45,8 +56,8 @@ export class Enemy {
             this.mesh.position.z = spawnPosition.z;
         }
         
-        this.hp = 160; 
-        this.speed = 2.5 + Math.random() * 1.5; 
+        this.hp = this.isDummy ? Infinity : 160; 
+        this.speed = this.isDummy ? 0 : 2.5 + Math.random() * 1.5; 
         this.isDead = false; 
         this.mesh.scale.setScalar(CONFIG.enemyScale);
         
@@ -57,14 +68,14 @@ export class Enemy {
     update(delta, time) {
         if (this.isDead) return;
         if (this.stunTimer > 0) this.stunTimer -= delta;
-        else {
+        else if (!this.isDummy) {
             const dir = new THREE.Vector3().subVectors(Globals.player.mesh.position, this.mesh.position);
             dir.y = 0; dir.normalize(); 
             this.mesh.position.addScaledVector(dir, this.speed * delta);
             this.mesh.lookAt(Globals.player.mesh.position.x, this.mesh.position.y, Globals.player.mesh.position.z);
         }
         
-        const bounce = Math.abs(Math.sin(time * 6 + this.animOffset));
+        const bounce = this.isDummy ? 0 : Math.abs(Math.sin(time * 6 + this.animOffset));
         this.bodyMesh.position.y = bounce * 0.15;
         this.bodyMesh.scale.set(1.15 - bounce * 0.1, 0.9 + bounce * 0.15, 1.1 - bounce * 0.1);
         
@@ -75,7 +86,9 @@ export class Enemy {
     }
     
     applyKnockback(direction, force) { 
-        this.knockbackVelocity.add(direction.clone().multiplyScalar(force)); 
+        if (!this.isDummy) {
+            this.knockbackVelocity.add(direction.clone().multiplyScalar(force)); 
+        }
     }
     
     applyStun(duration) { 
@@ -112,6 +125,7 @@ export class Enemy {
             clearTimeout(this.flashTimeoutId);
             this.flashTimeoutId = null;
         }
+        triggerHaptic('die');
         triggerShake(CONFIG.shakeIntensityDeath, CONFIG.shakeDuration); 
         const pos = this.mesh.position.clone(); 
         const dir = direction || new THREE.Vector3(0,0,1);
@@ -120,10 +134,15 @@ export class Enemy {
 
         Globals.slashEffects.push(new SlashFlashEffect(pos, dir, CONFIG.enemyScale));
         
-        Globals.particleManager.spawnBurst(pos, dir, 30, 0x5e55a2, true, 5.0); 
-        Globals.particleManager.spawnBurst(pos, new THREE.Vector3(0,1,0), 10, 0x2e2a52, true, 4.0); 
+        if (this.isDummy) {
+            Globals.particleManager.spawnBurst(pos, dir, 30, 0xc2824e, true, 5.0); 
+            Globals.particleManager.spawnBurst(pos, new THREE.Vector3(0,1,0), 10, 0x4a3219, true, 4.0); 
+        } else {
+            Globals.particleManager.spawnBurst(pos, dir, 30, 0x5e55a2, true, 5.0); 
+            Globals.particleManager.spawnBurst(pos, new THREE.Vector3(0,1,0), 10, 0x2e2a52, true, 4.0); 
+            Globals.bloodStains.push(new BloodStain(pos)); 
+        }
         
-        Globals.bloodStains.push(new BloodStain(pos)); 
         Globals.scene.remove(this.mesh);
     }
 }

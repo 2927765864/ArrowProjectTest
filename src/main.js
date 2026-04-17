@@ -7,14 +7,13 @@ import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { AudioManager } from './audio/AudioManager.js';
 import { CONFIG } from './config.js';
-import { Globals, updateShake, triggerShake, getClosestEnemy, showFloatingText, updateFloatingTexts } from './utils.js';
+import { Globals, updateShake, triggerShake, triggerHaptic, getClosestEnemy, showFloatingText, updateFloatingTexts } from './utils.js';
 import { keys, joystick, initInput, refreshInputLayout } from './Input.js';
 import { InterruptBurstEffect } from './effects/InterruptBurstEffect.js';
 import { TargetIndicator } from './effects/TargetIndicator.js';
 import { ParticleManager } from './effects/ParticleManager.js';
 import { SpawnBeamEffect, SpawnTelegraphEffect } from './effects/EnemySpawnEffects.js';
-import { FeatherLaunchEffect } from './effects/FeatherLaunchEffect.js';
-import { WindRingEffect } from './effects/WindRingEffect.js';
+import { ThrowBurstEffect } from './effects/ThrowBurstEffect.js';
 import { PlayerCharacter } from './entities/Player.js';
 import { Enemy } from './entities/Enemy.js';
 import { Feather } from './entities/Feather.js';
@@ -23,6 +22,9 @@ import { Telemetry } from './ui/Charts.js';
 
 let isMoving = false;
 let lastShootTime = 0;
+let isWindupActive = false;
+let windupTarget = null;
+let windupTimer = 0;
 const MAX_FEATHERS = 4;
 let recallTimers = [];
 const currentVelocity = new THREE.Vector3();
@@ -84,19 +86,9 @@ function init() {
     // // Globals.scene.fog = new THREE.Fog(0x8a8e94, 18, 56);
     
     const wrapper = document.getElementById('game-wrapper');
-    Globals.camera = createOrthographicCamera(wrapper.clientWidth / wrapper.clientHeight);
-    
-    const camDist = 60;
-    const angleX = THREE.MathUtils.degToRad(55);
-    const angleY = THREE.MathUtils.degToRad(0);
-    Globals.baseCamPos.set(
-        Math.sin(angleY) * Math.cos(angleX) * camDist,
-        Math.sin(angleX) * camDist,
-        Math.cos(angleY) * Math.cos(angleX) * camDist
-    );
-    Globals.cameraOffset.copy(Globals.baseCamPos);
+    Globals.camera = createGameCamera(wrapper.clientWidth / wrapper.clientHeight);
     Globals.baseCamTarget.set(0, 0, 0);
-    Globals.camera.position.copy(Globals.baseCamPos);
+    updateCameraPosition();
     Globals.camera.lookAt(Globals.baseCamTarget);
     
     Globals.renderer = createRenderer();
@@ -122,8 +114,8 @@ function init() {
     Globals.composer = new EffectComposer(Globals.renderer, renderTarget);
     Globals.composer.setPixelRatio(pixelRatio);
     Globals.composer.setSize(wrapper.clientWidth, wrapper.clientHeight);
-    const renderPass = new RenderPass(Globals.scene, Globals.camera);
-    Globals.composer.addPass(renderPass);
+    Globals.renderPass = new RenderPass(Globals.scene, Globals.camera);
+    Globals.composer.addPass(Globals.renderPass);
 
     Globals.bloomPass = new UnrealBloomPass(
         new THREE.Vector2(wrapper.clientWidth, wrapper.clientHeight),
@@ -166,7 +158,7 @@ function init() {
     Globals.finalComposer = new EffectComposer(Globals.renderer, finalRenderTarget);
     Globals.finalComposer.setPixelRatio(pixelRatio);
     Globals.finalComposer.setSize(wrapper.clientWidth, wrapper.clientHeight);
-    Globals.finalComposer.addPass(renderPass);
+    Globals.finalComposer.addPass(Globals.renderPass);
     Globals.finalComposer.addPass(mixPass);
 
     Globals.outlinePass = new OutlinePass(
@@ -264,6 +256,7 @@ function init() {
     Globals.scene.add(Globals.player.moveIndicator);
     updateCameraFollow();
     setupObstacles();
+    setupDummy();
     
     initInput(wrapper);
     setupControlPanel();
@@ -380,24 +373,60 @@ function setupAudioUnlock() {
     window.addEventListener('touchstart', unlock, { passive: true });
 }
 
-function createOrthographicCamera(aspect) {
-    const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
-    const halfWidth = targetWidth * 0.5;
-    const halfHeight = halfWidth / aspect;
-    return new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 0.1, 200);
+function createGameCamera(aspect) {
+    if (CONFIG.cameraMode === 'perspective') {
+        return new THREE.PerspectiveCamera(CONFIG.cameraFov || 45, aspect, 0.1, 1000);
+    } else {
+        const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
+        const halfWidth = targetWidth * 0.5;
+        const halfHeight = halfWidth / aspect;
+        return new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 0.1, 1000);
+    }
 }
 
-function updateOrthographicFrustum() {
+function updateCameraFrustum() {
     const wrapper = document.getElementById('game-wrapper');
     const aspect = wrapper.clientWidth / wrapper.clientHeight;
-    const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
-    const halfWidth = targetWidth * 0.5;
-    const halfHeight = halfWidth / aspect;
-    Globals.camera.left = -halfWidth;
-    Globals.camera.right = halfWidth;
-    Globals.camera.top = halfHeight;
-    Globals.camera.bottom = -halfHeight;
-    Globals.camera.updateProjectionMatrix();
+    
+    if (Globals.camera.isPerspectiveCamera) {
+        Globals.camera.aspect = aspect;
+        Globals.camera.fov = CONFIG.cameraFov || 45;
+        Globals.camera.updateProjectionMatrix();
+    } else {
+        const targetWidth = ARENA_WIDTH * 1.05 * CONFIG.cameraViewScale; 
+        const halfWidth = targetWidth * 0.5;
+        const halfHeight = halfWidth / aspect;
+        Globals.camera.left = -halfWidth;
+        Globals.camera.right = halfWidth;
+        Globals.camera.top = halfHeight;
+        Globals.camera.bottom = -halfHeight;
+        Globals.camera.updateProjectionMatrix();
+    }
+}
+
+export function updateCameraPosition() {
+    const camDist = CONFIG.cameraDist !== undefined ? CONFIG.cameraDist : 60;
+    const angleX = THREE.MathUtils.degToRad(CONFIG.cameraAngleX !== undefined ? CONFIG.cameraAngleX : 55);
+    const angleY = THREE.MathUtils.degToRad(CONFIG.cameraAngleY !== undefined ? CONFIG.cameraAngleY : 0);
+    Globals.baseCamPos.set(
+        Math.sin(angleY) * Math.cos(angleX) * camDist,
+        Math.sin(angleX) * camDist,
+        Math.cos(angleY) * Math.cos(angleX) * camDist
+    );
+    Globals.cameraOffset.copy(Globals.baseCamPos);
+    
+    updateCameraFrustum();
+    updateCameraFollow();
+}
+
+export function refreshCameraMode() {
+    const wrapper = document.getElementById('game-wrapper');
+    Globals.camera = createGameCamera(wrapper.clientWidth / wrapper.clientHeight);
+    if (Globals.renderPass) Globals.renderPass.camera = Globals.camera;
+    if (Globals.outlinePass) Globals.outlinePass.renderCamera = Globals.camera;
+    
+    updateCameraPosition();
+    Globals.camera.lookAt(Globals.baseCamTarget);
 }
 
 function updateVisibleGroundBounds() {
@@ -497,10 +526,18 @@ function updateBoundaryVisual() {
 }
 
 export function refreshBoundaryVisual() {
-    updateOrthographicFrustum();
+    updateCameraFrustum();
     updateBoundaryVisual();
     updateCameraFollow();
     setupObstacles();
+    setupDummy();
+}
+
+function setupDummy() {
+    if (CONFIG.sceneMode === 'dummy') {
+        const dummyPos = new THREE.Vector3(0, 0, -4);
+        new Enemy(dummyPos, true);
+    }
 }
 
 export function refreshCameraFollow() {
@@ -546,9 +583,26 @@ function shootFeather() {
     
     const target = getClosestEnemy(); 
     if (target) {
-        const isSpecial = activeOnField === MAX_FEATHERS - 1; 
-        const ptPos = Globals.player.mesh.position.clone();
-        const etPos = target.mesh.position.clone();
+        const isSpecial = activeOnField === MAX_FEATHERS - 1;
+        // Option A: Start windup first
+        isWindupActive = true;
+        windupTarget = target;
+        windupTimer = isSpecial ? 0.20 : 0.12; // Longer windup for special
+        Globals.player.playAttack(windupTimer, isSpecial ? 0.25 : 0.2, isSpecial); 
+        // We will delay the actual feather creation and effects until windup finishes in the update loop
+    }
+}
+
+function executeThrow() {
+    const activeOnField = Globals.feathers.filter(f => f.phase !== 'recalling').length; 
+    if (activeOnField >= MAX_FEATHERS) return;
+
+    const target = windupTarget && windupTarget.mesh && windupTarget.health > 0 ? windupTarget : getClosestEnemy();
+    if (!target) return; // target might have died during windup
+
+    const isSpecial = activeOnField === MAX_FEATHERS - 1; 
+    const ptPos = Globals.player.mesh.position.clone();
+    const etPos = target.mesh.position.clone();
         const lookDir = new THREE.Vector3().subVectors(etPos, ptPos).normalize();
         const facingDir = new THREE.Vector3(etPos.x - ptPos.x, 0, etPos.z - ptPos.z);
         if (facingDir.lengthSq() < 0.0001) facingDir.set(0, 0, 1);
@@ -560,37 +614,15 @@ function shootFeather() {
         launchPos.y += 1.0;
         launchPos.addScaledVector(facingDir, 0.55);
         launchPos.addScaledVector(rightDir, 0.35); // 偏移到右手侧
-        Globals.launchEffects.push(new FeatherLaunchEffect(launchPos, facingDir, {
-            life: isSpecial ? 0.18 : 0.14,
-            count: isSpecial ? 5 : 3,
-            color: isSpecial ? 0x91c53a : 0x91c53a,
-            speed: isSpecial ? 24 : 19,
-            lengthMin: isSpecial ? 2.2 : 1.6,
-            lengthMax: isSpecial ? 3.4 : 2.4,
-            thicknessMin: isSpecial ? 0.065 : 0.05,
-            thicknessMax: isSpecial ? 0.11 : 0.075,
-            sideSpawn: isSpecial ? 0.6 : 0.42,
-            verticalSpawn: isSpecial ? 0.22 : 0.18,
-            forwardOffset: 0.2,
-            inheritedVelocity: currentVelocity.clone() // 传入玩家惯性
-        }));
 
-        const ringPos = ptPos.clone();
-        ringPos.y += 1.0;
-        ringPos.addScaledVector(facingDir, 0.4); // 靠后一点，让中心尖刺穿透感更强
-        ringPos.addScaledVector(rightDir, 0.35); // 偏移到右手侧
-        Globals.launchEffects.push(new WindRingEffect(ringPos, facingDir, {
-            color: 0x91c53a,
-            speed: isSpecial ? 35 : 22,
-            radius: isSpecial ? 0.8 : 0.45,
-            life: isSpecial ? 0.15 : 0.12,
-            inheritedVelocity: currentVelocity.clone() // 传入玩家惯性
-        }));
-        
+        // 在玩家身前生成瞬间斩击爆裂特效
+        Globals.launchEffects.push(new ThrowBurstEffect(launchPos, facingDir, isSpecial));
+
         Globals.feathers.push(new Feather(target, isSpecial, launchPos)); 
-        Globals.player.playAttack(); 
         Globals.audioManager?.playShoot(isSpecial);
-    }
+
+        // Screen Shake for Throw Impact
+        if (Globals.cameraManager) Globals.cameraManager.addShake(isSpecial ? 0.2 : 0.08, isSpecial ? 0.15 : 0.1); 
 }
 
 function triggerRecallSequence() {
@@ -718,6 +750,14 @@ function updatePlayerMovement(delta) {
     Globals.player.mesh.position.z = THREE.MathUtils.clamp(Globals.player.mesh.position.z, visibleGroundBounds.minZ + marginZ, visibleGroundBounds.maxZ - marginZ);
     Globals.player.updateMoveIndicator(Globals.player.mesh.position, indicatorInputX, indicatorInputZ, delta);
     
+    if (isWindupActive) {
+        windupTimer -= delta;
+        if (windupTimer <= 0) {
+            isWindupActive = false;
+            executeThrow();
+        }
+    }
+
     if (isMoving) { 
         if (!wasMoving) { 
             recallTimers.forEach(id => clearTimeout(id)); 
@@ -919,7 +959,7 @@ function animate() {
 
 function onWindowResize() { 
     const w = document.getElementById('game-wrapper'); 
-    updateOrthographicFrustum();
+    updateCameraFrustum();
     Globals.renderer.setSize(w.clientWidth, w.clientHeight); 
     if (Globals.composer) Globals.composer.setSize(w.clientWidth, w.clientHeight);
     if (Globals.finalComposer) Globals.finalComposer.setSize(w.clientWidth, w.clientHeight);

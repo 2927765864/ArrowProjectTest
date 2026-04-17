@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { Globals, triggerShake } from '../utils.js';
+import { Globals, triggerShake, triggerHaptic } from '../utils.js';
 import { CONFIG } from '../config.js';
 
 export class Feather {
     constructor(targetEnemy, isSpecial = false, originPos = null) {
         this.phase = 'shooting'; 
         this.index = 0; 
-        this.speed = CONFIG.deploySpeed; 
+        this.speed = CONFIG.deployInitialSpeed; 
         this.hitEnemies = new Set(); 
         this.isSpecial = isSpecial; 
         this.hitStopTimer = 0; 
@@ -156,12 +156,19 @@ export class Feather {
         }
         Globals.scene.add(this.mesh);
         
-        const pt = this.mesh.position.clone();
+        this.originPos = this.mesh.position.clone();
+        const pt = this.originPos.clone();
         const et = targetEnemy.mesh.position.clone(); et.y = pt.y;
         const dir = new THREE.Vector3().subVectors(et, pt).normalize(); 
         this.direction = dir;
         this.mesh.lookAt(this.mesh.position.clone().add(dir));
-        this.targetPos = et.clone().addScaledVector(dir, 1.5);
+        
+        // 记录基础的纯水平姿态（用于后续插值）
+        this.baseQuat = this.mesh.quaternion.clone();
+        
+        this.distanceToTarget = pt.distanceTo(et);
+        this.traveledDistance = 0;
+        this.startY = pt.y;
     }
     
     update(delta) {
@@ -172,29 +179,50 @@ export class Feather {
         }
         
         if (this.phase === 'shooting') {
-            // Keep straight forward orientation to target
-            this.mesh.lookAt(this.mesh.position.clone().add(this.direction));
+            this.speed = Math.max(CONFIG.deployMinSpeed, this.speed - CONFIG.deployFriction * delta);
+            this.traveledDistance += this.speed * delta;
+            
+            // 纯粹的运动学计算：X和Z直接由水平匀减速距离计算得出，不再依赖速度向量积分
+            this.mesh.position.x = this.originPos.x + this.direction.x * this.traveledDistance;
+            this.mesh.position.z = this.originPos.z + this.direction.z * this.traveledDistance;
 
-            const dist = this.mesh.position.distanceTo(this.targetPos); 
-            const step = this.speed * delta;
-            if (dist <= step) { 
-                this.mesh.position.copy(this.targetPos); 
-                this.phase = 'deployed'; 
-                this.tetherLine.visible = true; 
-                this.mesh.position.y = 1.6; // Raise the center slightly so it stands tall
+            const postPierceDist = this.traveledDistance - this.distanceToTarget;
+
+            if (postPierceDist > 0) {
+                // 已穿透敌人，开始进入落地滑行/下坠抛物线
+                const maxPostDist = Math.max(0.1, CONFIG.pierceDistBeforeDrop);
+                const t = Math.min(1.0, postPierceDist / maxPostDist);
                 
-                // Point UP to the sky when deployed on the ground
-                const standTarget = this.mesh.position.clone()
-                    .add(new THREE.Vector3(0, 4, 0)) 
-                    .addScaledVector(this.direction, 0.2); // Slightly lean forward
-                this.mesh.lookAt(standTarget);
+                // Y轴插值：平滑下降，随进度呈平方加速 (抛物线效果)
+                this.mesh.position.y = THREE.MathUtils.lerp(this.startY, 0.8, t * t);
                 
-                // Remove the random Z rotation so it stands perfectly straight and solemn
-                this.updateDeploymentRing();
-                Globals.audioManager?.playDeploy(this.isSpecial);
+                // 倾角插值：直接转换为弧度。缓动曲线采用 t^1.5，实现先缓后急的扎地低头效果
+                const currentPitchDeg = THREE.MathUtils.lerp(0, CONFIG.groundInsertPitch, Math.pow(t, 1.5));
+                const currentPitchRad = THREE.MathUtils.degToRad(currentPitchDeg);
+                
+                // 基于水平基准姿态，进行局部 X 轴的正向旋转（使武器前端向下）
+                const pitchQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), currentPitchRad); 
+                this.mesh.quaternion.copy(this.baseQuat).multiply(pitchQuat);
+
+                // 判断是否真正着地 (t达到1)
+                if (t >= 1.0) {
+                    this.mesh.position.y = 0.8;
+                    this.phase = 'deployed';
+                    this.tetherLine.visible = true;
+                    this.updateDeploymentRing();
+                    Globals.audioManager?.playDeploy(this.isSpecial);
+                    
+                    // Add a small ground impact dust burst
+                    if (Globals.particleManager) {
+                        Globals.particleManager.spawnBurst(this.mesh.position, new THREE.Vector3(0, 1, 0), 6, 0x91c53a, false, 0.5);
+                    }
+                }
             } else {
-                this.mesh.position.addScaledVector(this.direction, step);
+                // 还未穿透敌人前，保持水平飞行
+                this.mesh.position.y = this.startY;
+                this.mesh.quaternion.copy(this.baseQuat);
             }
+            
             this.checkCollision('low', 5);
         } else if (this.phase === 'deployed') {
             this.deploymentRingRotation += delta * (this.isSpecial ? 1.8 : 1.2);
@@ -363,12 +391,15 @@ export class Feather {
                     const exitPos = enemy.mesh.position.clone().addScaledVector(currentDir, offset);
                     
                     if (damageType === 'low') {
+                        triggerHaptic('hit');
                         Globals.audioManager?.playHit('low');
                         enemy.applyKnockback(currentDir, 10);
                         Globals.particleManager.spawnBurst(entryPos, currentDir, 4, 0x91c53a, false, 0.7);
                         Globals.particleManager.spawnBurst(exitPos, currentDir, 8, 0x91c53a, true, 0.7);
                     } else {
                         const isSpec = damageType === 'special';
+                        if (isSpec) triggerHaptic('recall_hit_special');
+                        else triggerHaptic('recall_hit');
                         Globals.audioManager?.playHit(isSpec ? 'special' : 'high');
                         this.hitStopTimer = isSpec ? 0.18 : 0.06;
                         enemy.applyStun(0.15);

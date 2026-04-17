@@ -67,8 +67,8 @@ export class PlayerCharacter {
         this.headGroup.add(cheekR);
 
         // 4. Ears (Flattened cones with inner ear depth)
-        const earGeo = new THREE.ConeGeometry(0.08, 0.18, 16);
-        const innerEarGeo = new THREE.ConeGeometry(0.04, 0.12, 16);
+        const earGeo = new THREE.ConeGeometry(0.112, 0.252, 16);
+        const innerEarGeo = new THREE.ConeGeometry(0.056, 0.168, 16);
 
         const earL = new THREE.Mesh(earGeo, backMat);
         earL.scale.set(1, 1, 0.5);
@@ -89,7 +89,7 @@ export class PlayerCharacter {
         this.headGroup.add(earR);
 
         // 5. Eyes (Big cute ovals)
-        const eyeGeo = new THREE.CapsuleGeometry(0.018, 0.04, 8, 16);
+        const eyeGeo = new THREE.CapsuleGeometry(0.025, 0.056, 8, 16);
         const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
         eyeL.position.set(0.09, 0.02, 0.16);
         eyeL.rotation.z = -0.1;
@@ -100,7 +100,7 @@ export class PlayerCharacter {
         this.headGroup.add(eyeR);
 
         // 6. Nose (Tiny triangle)
-        const noseGeo = new THREE.ConeGeometry(0.02, 0.025, 3);
+        const noseGeo = new THREE.ConeGeometry(0.028, 0.035, 3);
         const nose = new THREE.Mesh(noseGeo, innerEarMat);
         nose.position.set(0, -0.04, 0.17);
         nose.rotation.set(Math.PI / 2, Math.PI, 0);
@@ -132,36 +132,95 @@ export class PlayerCharacter {
 
         this.bodyGroup.add(this.headGroup);
 
-        // Tail (to clearly show the back of the character)
-        this.tailGroup = new THREE.Group();
-        this.tailGroup.position.set(0, 0.0, -0.08); // Attached to lower back
+        // --- NEW PROCEDURAL IK TAIL ---
+        this.tailWorldGroup = new THREE.Group();
+        this.tailPoints = [];
+        this.tailMeshes = [];
+        this.numTailSegments = 6;
+        this.tailSegLength = CONFIG.tailSegLength !== undefined ? CONFIG.tailSegLength : 0.07; // Length between joints
+        this.currentTailRadius = CONFIG.tailRadius !== undefined ? CONFIG.tailRadius : 0.04;
         
-        const tailGeo = new THREE.CapsuleGeometry(0.025, 0.2, 8, 16);
-        this.tailMesh = new THREE.Mesh(tailGeo, backMat);
-        this.tailMesh.position.set(0, 0.1, -0.1);
-        this.tailMesh.rotation.x = -0.6;
+        // Initialize position history points
+        for (let i = 0; i <= this.numTailSegments; i++) {
+            this.tailPoints.push(new THREE.Vector3());
+        }
         
-        this.tailGroup.add(this.tailMesh);
-        this.bodyGroup.add(this.tailGroup);
+        for (let i = 0; i < this.numTailSegments; i++) {
+            // Keep thickness perfectly uniform across all segments
+            const radius = this.currentTailRadius; 
+            // The capsule's cylindrical part will be segLength long, ends capped by spheres of `radius`
+            const geo = new THREE.CapsuleGeometry(radius, this.tailSegLength, 8, 8);
+            geo.rotateX(Math.PI / 2); // Align along Z axis for lookAt
+            const mesh = new THREE.Mesh(geo, backMat);
+            this.tailMeshes.push(mesh);
+            this.tailWorldGroup.add(mesh);
+        }
+        this.tailInitialized = false;
+        // ------------------------------
         
         // Arms
-        const armGeo = new THREE.CapsuleGeometry(0.04, 0.12, 4, 16);
-        
         this.leftArm = new THREE.Group();
-        const armMeshL = new THREE.Mesh(armGeo, faceMat);
-        armMeshL.position.y = -0.06; 
-        armMeshL.castShadow = true;
-        this.leftArm.add(armMeshL);
         this.leftArm.position.set(0.16, 0.10, 0); 
         this.bodyGroup.add(this.leftArm);
+
+        // Left Upper Arm
+        const upperArmGeoL = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const upperArmMeshL = new THREE.Mesh(upperArmGeoL, faceMat);
+        upperArmMeshL.position.y = -0.03;
+        upperArmMeshL.castShadow = true;
+        this.leftArm.add(upperArmMeshL);
         
+        // Left Shoulder Joint
+        const shoulderJointGeo = new THREE.SphereGeometry(0.04, 16, 16);
+        const shoulderJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
+        this.leftArm.add(shoulderJointL);
+
+        // Left Forearm (Elbow joint)
+        this.leftForearm = new THREE.Group();
+        this.leftForearm.position.set(0, -0.06, 0); 
+        this.leftArm.add(this.leftForearm);
+
+        // Left Lower Arm
+        const lowerArmGeoL = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const lowerArmMeshL = new THREE.Mesh(lowerArmGeoL, faceMat);
+        lowerArmMeshL.position.y = -0.03;
+        lowerArmMeshL.castShadow = true;
+        this.leftForearm.add(lowerArmMeshL);
+        
+        // Left Elbow Joint
+        const elbowJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
+        this.leftForearm.add(elbowJointL);
+
         this.rightArm = new THREE.Group();
-        const armMeshR = new THREE.Mesh(armGeo, faceMat);
-        armMeshR.position.y = -0.06;
-        armMeshR.castShadow = true;
-        this.rightArm.add(armMeshR);
         this.rightArm.position.set(-0.16, 0.10, 0); 
         this.bodyGroup.add(this.rightArm);
+
+        // Upper arm
+        const upperArmGeo = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const upperArmMesh = new THREE.Mesh(upperArmGeo, faceMat);
+        upperArmMesh.position.y = -0.03;
+        upperArmMesh.castShadow = true;
+        this.rightArm.add(upperArmMesh);
+        
+        // Right Shoulder Joint
+        const shoulderJointR = new THREE.Mesh(shoulderJointGeo, faceMat);
+        this.rightArm.add(shoulderJointR);
+
+        // Forearm (Elbow joint)
+        this.rightForearm = new THREE.Group();
+        this.rightForearm.position.set(0, -0.06, 0); 
+        this.rightArm.add(this.rightForearm);
+
+        // Lower arm
+        const lowerArmGeo = new THREE.CapsuleGeometry(0.04, 0.06, 4, 16);
+        const lowerArmMesh = new THREE.Mesh(lowerArmGeo, faceMat);
+        lowerArmMesh.position.y = -0.03;
+        lowerArmMesh.castShadow = true;
+        this.rightForearm.add(lowerArmMesh);
+        
+        // Right Elbow Joint
+        const elbowJointR = new THREE.Mesh(shoulderJointGeo, faceMat);
+        this.rightForearm.add(elbowJointR);
 
         // Weapon Mesh (Spear)
         this.weaponGroup = new THREE.Group();
@@ -215,9 +274,9 @@ export class PlayerCharacter {
         this.weaponGroup.add(buildProng(ptsR, 'left'));
         
         this.weaponGroup.scale.setScalar(0.08); // Reduced size
-        this.weaponGroup.position.set(0, -0.06, 0.1); 
+        this.weaponGroup.position.set(0, -0.03, 0.1); // Attached slightly lower on forearm
         this.weaponGroup.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
-        this.rightArm.add(this.weaponGroup);
+        this.rightForearm.add(this.weaponGroup);
         
         // Also attach a weapon on the back for "sheathed" state (used during catch animation)
         this.weaponBackGroup = this.weaponGroup.clone();
@@ -244,23 +303,64 @@ export class PlayerCharacter {
         this.isCatching = false;
         
         // Legs
-        const legGeo = new THREE.CapsuleGeometry(0.05, 0.12, 4, 16);
-        
         this.leftLeg = new THREE.Group();
-        const legMeshL = new THREE.Mesh(legGeo, limbMat);
-        legMeshL.position.y = -0.08;
-        legMeshL.castShadow = true;
-        this.leftLeg.add(legMeshL);
-        this.leftLeg.position.set(0.07, 0.15, 0); 
-        this.mesh.add(this.leftLeg);
+        this.leftLeg.position.set(0.07, -0.10, 0); // Attach to bottom of bodyGroup
+        this.bodyGroup.add(this.leftLeg);
+
+        // Left Upper Leg (Thigh)
+        const upperLegGeo = new THREE.CapsuleGeometry(0.05, 0.06, 4, 16);
+        const upperLegMeshL = new THREE.Mesh(upperLegGeo, limbMat);
+        upperLegMeshL.position.y = -0.03;
+        upperLegMeshL.castShadow = true;
+        this.leftLeg.add(upperLegMeshL);
+        
+        // Left Hip Joint
+        const hipJointGeo = new THREE.SphereGeometry(0.05, 16, 16);
+        const hipJointL = new THREE.Mesh(hipJointGeo, limbMat);
+        this.leftLeg.add(hipJointL);
+
+        // Left Lower Leg (Calf + Knee)
+        this.leftLowerLeg = new THREE.Group();
+        this.leftLowerLeg.position.set(0, -0.06, 0);
+        this.leftLeg.add(this.leftLowerLeg);
+
+        const lowerLegGeo = new THREE.CapsuleGeometry(0.05, 0.06, 4, 16);
+        const lowerLegMeshL = new THREE.Mesh(lowerLegGeo, limbMat);
+        lowerLegMeshL.position.y = -0.03;
+        lowerLegMeshL.castShadow = true;
+        this.leftLowerLeg.add(lowerLegMeshL);
+        
+        // Left Knee Joint
+        const kneeJointL = new THREE.Mesh(hipJointGeo, limbMat);
+        this.leftLowerLeg.add(kneeJointL);
         
         this.rightLeg = new THREE.Group();
-        const legMeshR = new THREE.Mesh(legGeo, limbMat);
-        legMeshR.position.y = -0.08;
-        legMeshR.castShadow = true;
-        this.rightLeg.add(legMeshR);
-        this.rightLeg.position.set(-0.07, 0.15, 0); 
-        this.mesh.add(this.rightLeg);
+        this.rightLeg.position.set(-0.07, -0.10, 0); // Attach to bottom of bodyGroup
+        this.bodyGroup.add(this.rightLeg);
+
+        // Right Upper Leg (Thigh)
+        const upperLegMeshR = new THREE.Mesh(upperLegGeo, limbMat);
+        upperLegMeshR.position.y = -0.03;
+        upperLegMeshR.castShadow = true;
+        this.rightLeg.add(upperLegMeshR);
+        
+        // Right Hip Joint
+        const hipJointR = new THREE.Mesh(hipJointGeo, limbMat);
+        this.rightLeg.add(hipJointR);
+
+        // Right Lower Leg (Calf + Knee)
+        this.rightLowerLeg = new THREE.Group();
+        this.rightLowerLeg.position.set(0, -0.06, 0);
+        this.rightLeg.add(this.rightLowerLeg);
+
+        const lowerLegMeshR = new THREE.Mesh(lowerLegGeo, limbMat);
+        lowerLegMeshR.position.y = -0.03;
+        lowerLegMeshR.castShadow = true;
+        this.rightLowerLeg.add(lowerLegMeshR);
+        
+        // Right Knee Joint
+        const kneeJointR = new THREE.Mesh(hipJointGeo, limbMat);
+        this.rightLowerLeg.add(kneeJointR);
 
         // Player Blob Shadow
         const shadowGeo = new THREE.CircleGeometry(0.22, 32);
@@ -279,17 +379,19 @@ export class PlayerCharacter {
         const indicatorGlowMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
             transparent: true,
-            opacity: 0.22,
-            blending: THREE.AdditiveBlending,
+            opacity: 0.80,
+            blending: THREE.NormalBlending,
             depthWrite: false,
+            depthTest: false,
             toneMapped: false
         });
         const indicatorCoreMat = new THREE.MeshBasicMaterial({
             color: 0x91c53a,
             transparent: true,
-            opacity: 0.85,
-            blending: THREE.AdditiveBlending,
+            opacity: 1.0,
+            blending: THREE.NormalBlending,
             depthWrite: false,
+            depthTest: false,
             toneMapped: false
         });
 
@@ -350,6 +452,8 @@ export class PlayerCharacter {
         this.moveIndicatorCore = new THREE.Mesh(new THREE.CircleGeometry(0.036, 16), indicatorCoreMat);
         this.moveIndicatorGlow.rotation.x = -Math.PI / 2;
         this.moveIndicatorCore.rotation.x = -Math.PI / 2;
+        this.moveIndicatorGlow.renderOrder = 999;
+        this.moveIndicatorCore.renderOrder = 999;
         this.moveIndicator.add(this.moveIndicatorGlow);
         this.moveIndicator.add(this.moveIndicatorCore);
         this.moveIndicatorOffset = new THREE.Vector3();
@@ -392,7 +496,13 @@ export class PlayerCharacter {
 
         setupXRay(this.bodyGroup);
         setupXRay(this.leftLeg);
+        setupXRay(this.leftLowerLeg);
         setupXRay(this.rightLeg);
+        setupXRay(this.rightLowerLeg);
+        setupXRay(this.leftArm);
+        setupXRay(this.leftForearm);
+        setupXRay(this.rightArm);
+        setupXRay(this.rightForearm);
         // --------------------------------------------------------------------------
 
         // Trajectory feature
@@ -405,14 +515,21 @@ export class PlayerCharacter {
 
         this.attackTimer = 0;
         this.isAttacking = false;
+        this.attackPhase = 'none'; // 'windup', 'recover'
+        this.windupDuration = 0.1;
+        this.recoverDuration = 0.2;
         this.lastMoveDirection = null;
         this.walkPhase = 0;
         this.smokeTrailDistance = 0;
     }
     
-    playAttack() { 
+    playAttack(windupDuration = 0.1, recoverDuration = 0.2, isSpecial = false) { 
         this.isAttacking = true; 
-        this.attackTimer = 0.2; 
+        this.attackPhase = 'windup';
+        this.attackTimer = windupDuration;
+        this.windupDuration = windupDuration;
+        this.recoverDuration = recoverDuration;
+        this.isSpecialAttack = isSpecial;
     }
 
     playCatch() {
@@ -446,10 +563,10 @@ export class PlayerCharacter {
             worldPosition.z + this.moveIndicatorOffset.z
         );
 
-        const alpha = 0.18 + magnitude * 0.82;
-        this.moveIndicatorGlow.material.opacity = 0.08 + alpha * 0.22;
-        this.moveIndicatorCore.material.opacity = 0.18 + alpha * 0.7;
-        const scale = CONFIG.playerScale * (0.65 + magnitude * 0.35); // 缩小整体尺寸的基准乘数
+        // Fixed opacity and scale regardless of distance
+        this.moveIndicatorGlow.material.opacity = 0.80;
+        this.moveIndicatorCore.material.opacity = 1.0;
+        const scale = CONFIG.playerScale; // Use player scale directly
         this.moveIndicator.scale.setScalar(scale);
     }
     
@@ -478,11 +595,21 @@ export class PlayerCharacter {
 
         if (this.isAttacking) { 
             this.attackTimer -= delta; 
-            if (this.attackTimer <= 0) this.isAttacking = false; 
-        }
+            if (this.attackTimer <= 0) {
+                if (this.attackPhase === 'windup') {
+                    this.attackPhase = 'recover';
+                    this.attackTimer = this.recoverDuration;
+                    // Provide a callback or let main.js poll for this phase change
+                } else {
+                    this.isAttacking = false; 
+                    this.attackPhase = 'none';
+                }
+            }
+        } 
         
         let speedMagnitude = 0;
         let isSharpTurning = false;
+        let wp = this.walkPhase;
 
         if (isMoving && currentVelocity) {
             speedMagnitude = currentVelocity.length();
@@ -507,49 +634,81 @@ export class PlayerCharacter {
 
             // 只有在非大幅度转身时才推进步伐相位，防止转身时抽搐
             if (!isSharpTurning) {
-                this.walkPhase += delta * animSpeed * 1.5;
+                const stepFreq = CONFIG.runStepFreq !== undefined ? CONFIG.runStepFreq : 1.5;
+                this.walkPhase += delta * animSpeed * stepFreq;
             }
             this.smokeTrailDistance += speedMagnitude * delta;
             
-            const legSwing = Math.sin(this.walkPhase) * 0.7 * (animSpeed / 10);
+            const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
+            const wp = this.walkPhase + burst * Math.sin(wp * 2.0);
+            
+            const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
+            wp = this.walkPhase + burst * Math.sin(wp * 2.0);
+            
+            const legSwingAmplitude = CONFIG.runLegSwing !== undefined ? CONFIG.runLegSwing : 0.7;
+            const legSwing = Math.sin(wp) * legSwingAmplitude * (animSpeed / 10);
             
             this.leftLeg.rotation.x = legSwing; 
             this.rightLeg.rotation.x = -legSwing;
             
+            // Add natural knee bending when walking
+            this.leftLowerLeg.rotation.x = Math.max(0, -legSwing * 1.5);
+            this.rightLowerLeg.rotation.x = Math.max(0, legSwing * 1.5);
+            
             let targetBodyRotX = 0.15;
+            let targetBodyRotY = 0; // New Y-axis torso rotation
             if (this.isAttacking) {
-                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
-                // 0.0 - 0.3: wind up (lean back)
-                // 0.3 - 0.7: throw (lean forward)
-                // 0.7 - 1.0: recover
-                if (attackProgress < 0.3) {
-                    targetBodyRotX = THREE.MathUtils.lerp(0.15, -0.2, attackProgress / 0.3);
-                } else if (attackProgress < 0.7) {
-                    targetBodyRotX = THREE.MathUtils.lerp(-0.2, 0.4, (attackProgress - 0.3) / 0.4);
-                } else {
-                    targetBodyRotX = THREE.MathUtils.lerp(0.4, 0.15, (attackProgress - 0.7) / 0.3);
+                const leanBackX = this.isSpecialAttack ? -0.5 : -0.3;
+                const twistBackY = this.isSpecialAttack ? -1.0 : -0.6;
+                const throwForwardX = this.isSpecialAttack ? 0.7 : 0.5;
+                const throwTwistY = this.isSpecialAttack ? 0.6 : 0.4;
+
+                if (this.attackPhase === 'windup') {
+                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
+                    targetBodyRotX = THREE.MathUtils.lerp(0.15, leanBackX, progress); // Lean back more
+                    targetBodyRotY = THREE.MathUtils.lerp(0, twistBackY, progress); // Twist right side back
+                } else if (this.attackPhase === 'recover') {
+                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
+                    if (progress < 0.3) {
+                        // Snap forward (throw)
+                        targetBodyRotX = THREE.MathUtils.lerp(leanBackX, throwForwardX, progress / 0.3);
+                        targetBodyRotY = THREE.MathUtils.lerp(twistBackY, throwTwistY, progress / 0.3); // Follow through twist
+                    } else {
+                        // Recover to normal
+                        targetBodyRotX = THREE.MathUtils.lerp(throwForwardX, 0.15, (progress - 0.3) / 0.7);
+                        targetBodyRotY = THREE.MathUtils.lerp(throwTwistY, 0, (progress - 0.3) / 0.7);
+                    }
                 }
             }
-            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20); 
+            if (!this.isAttacking) {
+                const upShake = CONFIG.runBodyUpShake !== undefined ? CONFIG.runBodyUpShake : 0.15;
+                const swayAmount = CONFIG.runBodySway !== undefined ? CONFIG.runBodySway : 0.15;
+                const twistAmount = CONFIG.runBodyTwist !== undefined ? CONFIG.runBodyTwist : 0.15;
+                
+                targetBodyRotX -= Math.abs(Math.sin(wp)) * upShake;
+                targetBodyRotY += Math.sin(wp) * twistAmount;
+                const bodySwayZ = Math.sin(wp) * swayAmount;
+                this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySwayZ, delta * 15);
+            } else {
+                const bodySwayZ = -Math.sin(wp) * 0.15;
+                this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySwayZ, delta * 15);
+            }
             
-            // 上半身左右摇晃和蹦蹦跳跳的弹跳感
-            // 摇晃与脚步匹配：当左脚向前(legSwing为正)时，重心/身体向左侧倾斜(负Z轴旋转)以保持平衡。
-            // 使用 Math.sin 同步腿部的相位，调整系数控制幅度
-            const bodySway = -Math.sin(this.walkPhase) * 0.15;
-            this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySway, delta * 15);
+            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20); 
+            this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, targetBodyRotY, delta * 20);
             
             // 大幅增强弹跳感：增加 bounce 的振幅。
             // 当进行大幅度转身时，强行将 bounce 压低至 0，使其贴近地面滑步转身
-            const targetBounce = isSharpTurning ? 0 : Math.abs(Math.sin(this.walkPhase)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
+            const targetBounce = isSharpTurning ? 0 : Math.abs(Math.sin(wp)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
             this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + targetBounce, delta * 20);
             
             // 让腿部跟随身体一起弹跳，避免脱节
-            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + targetBounce, delta * 20);
-            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + targetBounce, delta * 20);
+            // this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + targetBounce, delta * 20);
+            // this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + targetBounce, delta * 20);
             
-            // Tail wags when walking
-            if (this.tailGroup) {
-                this.tailGroup.rotation.y = Math.sin(this.walkPhase * 1.8) * 0.4;
+            // Let new physics tail handle walking wag
+            if (!this.tailSegments && this.tailGroup) {
+                this.tailGroup.rotation.y = Math.sin(wp * 1.8) * 0.4;
             }
 
             if (this.lastStepPhaseIndex === undefined) this.lastStepPhaseIndex = 0;
@@ -564,7 +723,7 @@ export class PlayerCharacter {
                     this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
                     this.bounceMonitorEl.style.transform = 'scale(1)';
                 } else {
-                    const intensity = Math.abs(Math.sin(this.walkPhase));
+                    const intensity = Math.abs(Math.sin(wp));
                     const r = Math.floor(100 + 155 * intensity);
                     const g = Math.floor(200 + 55 * intensity);
                     this.bounceMonitorEl.style.background = `rgb(${r}, ${g}, 50)`;
@@ -588,16 +747,30 @@ export class PlayerCharacter {
             const idleSpeed = 3;
             this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
             this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
+            this.leftLowerLeg.rotation.x = THREE.MathUtils.lerp(this.leftLowerLeg.rotation.x, 0, delta * 10);
+            this.rightLowerLeg.rotation.x = THREE.MathUtils.lerp(this.rightLowerLeg.rotation.x, 0, delta * 10);
             
             let targetBodyRotX = 0;
+            let targetBodyRotY = 0;
             if (this.isAttacking) {
-                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
-                if (attackProgress < 0.3) {
-                    targetBodyRotX = THREE.MathUtils.lerp(0, -0.2, attackProgress / 0.3);
-                } else if (attackProgress < 0.7) {
-                    targetBodyRotX = THREE.MathUtils.lerp(-0.2, 0.4, (attackProgress - 0.3) / 0.4);
-                } else {
-                    targetBodyRotX = THREE.MathUtils.lerp(0.4, 0, (attackProgress - 0.7) / 0.3);
+                const leanBackX = this.isSpecialAttack ? -0.5 : -0.3;
+                const twistBackY = this.isSpecialAttack ? -1.0 : -0.6;
+                const throwForwardX = this.isSpecialAttack ? 0.7 : 0.5;
+                const throwTwistY = this.isSpecialAttack ? 0.6 : 0.4;
+
+                if (this.attackPhase === 'windup') {
+                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
+                    targetBodyRotX = THREE.MathUtils.lerp(0, leanBackX, progress); 
+                    targetBodyRotY = THREE.MathUtils.lerp(0, twistBackY, progress); 
+                } else if (this.attackPhase === 'recover') {
+                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
+                    if (progress < 0.3) {
+                        targetBodyRotX = THREE.MathUtils.lerp(leanBackX, throwForwardX, progress / 0.3);
+                        targetBodyRotY = THREE.MathUtils.lerp(twistBackY, throwTwistY, progress / 0.3); 
+                    } else {
+                        targetBodyRotX = THREE.MathUtils.lerp(throwForwardX, 0, (progress - 0.3) / 0.7);
+                        targetBodyRotY = THREE.MathUtils.lerp(throwTwistY, 0, (progress - 0.3) / 0.7);
+                    }
                 }
             } else if (!this.isCatching) {
                 // If catching, the catch recoil animation handles X rotation below, so don't override it here
@@ -607,8 +780,10 @@ export class PlayerCharacter {
             // Only update rotation.x here if not catching, because catching recoil relies on this
             if (!this.isCatching && !this.isAttacking) {
                 this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
+                this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, 0, delta * 10);
             } else if (this.isAttacking) {
                 this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20);
+                this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, targetBodyRotY, delta * 20);
             }
             
             this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, 0, delta * 10);
@@ -622,8 +797,8 @@ export class PlayerCharacter {
                 this.bounceMonitorEl.style.transform = 'scale(1)';
             }
             
-            // Idle tail wag
-            if (this.tailGroup) {
+            // Let new physics tail handle idle wag
+            if (!this.tailSegments && this.tailGroup) {
                 this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
             }
             
@@ -631,8 +806,102 @@ export class PlayerCharacter {
             this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, targetIdleY, delta * 10);
             
             // 待机时腿部高度复位
-            this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15, delta * 10);
-            this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15, delta * 10);
+            // this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15, delta * 10);
+            // this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15, delta * 10);
+        }
+        
+        // Procedural IK Tail Update (World Space)
+        if (this.tailWorldGroup) {
+            // Check for config changes to rebuild dynamically
+            const targetSegLength = CONFIG.tailSegLength !== undefined ? CONFIG.tailSegLength : 0.07;
+            const targetRadius = CONFIG.tailRadius !== undefined ? CONFIG.tailRadius : 0.04;
+            if (this.tailSegLength !== targetSegLength || this.currentTailRadius !== targetRadius) {
+                this.tailSegLength = targetSegLength;
+                this.currentTailRadius = targetRadius;
+                // Rebuild geometries
+                for (let i = 0; i < this.numTailSegments; i++) {
+                    const mesh = this.tailMeshes[i];
+                    mesh.geometry.dispose();
+                    const geo = new THREE.CapsuleGeometry(this.currentTailRadius, this.tailSegLength, 8, 8);
+                    geo.rotateX(Math.PI / 2);
+                    mesh.geometry = geo;
+                }
+            }
+
+            // Ensure the world group is in the scene
+            if (!this.tailWorldGroup.parent && Globals.scene) {
+                Globals.scene.add(this.tailWorldGroup);
+            }
+            
+            // Sync visibility
+            this.tailWorldGroup.visible = this.mesh.visible;
+            
+            // Get base position in world space
+            this.bodyGroup.updateMatrixWorld();
+            const basePos = new THREE.Vector3(0, -0.01, -0.08);
+            this.bodyGroup.localToWorld(basePos);
+            
+            // Handle initialization or teleportation (if the player moved too far instantly)
+            if (!this.tailInitialized || this.tailPoints[0].distanceToSquared(basePos) > 4.0) {
+                for (let i = 0; i <= this.numTailSegments; i++) {
+                    this.tailPoints[i].copy(basePos);
+                }
+                this.tailInitialized = true;
+            }
+            
+            // Apply walking/idle wag to the attachment point
+            let wagOffset = new THREE.Vector3();
+            let rightDir = new THREE.Vector3(1, 0, 0);
+            rightDir.transformDirection(this.mesh.matrixWorld).normalize();
+            
+            if (isMoving) {
+                let wagAmount = Math.sin(wp * 2.0) * 0.08;
+                wagOffset.copy(rightDir).multiplyScalar(wagAmount);
+            } else {
+                let wagAmount = Math.sin(time * 2.5) * 0.02;
+                wagOffset.copy(rightDir).multiplyScalar(wagAmount);
+            }
+            
+            this.tailPoints[0].copy(basePos).add(wagOffset);
+            
+            // Inverse Kinematics / Distance Constraints
+            for (let i = 1; i <= this.numTailSegments; i++) {
+                let curr = this.tailPoints[i];
+                let prev = this.tailPoints[i - 1];
+                
+                let dir = new THREE.Vector3().subVectors(curr, prev);
+                let dist = dir.length();
+                
+                if (dist > 0.0001) {
+                    dir.normalize();
+                    
+                    // Add slight stiffness by blending the direction with the backward vector
+                    // This prevents the tail from whipping perfectly to the side instantly
+                    let playerBackward = new THREE.Vector3(0, 0, -1);
+                    playerBackward.transformDirection(this.mesh.matrixWorld).normalize();
+                    // Mix in some backward intent
+                    dir.lerp(playerBackward, 0.05);
+                    
+                    // Add tiny gravity droop
+                    dir.y -= 0.01;
+                    dir.normalize();
+                    
+                    // Enforce exact distance constraint
+                    curr.copy(prev).add(dir.multiplyScalar(this.tailSegLength));
+                }
+            }
+            
+            // Update Mesh positions and rotations
+            for (let i = 0; i < this.numTailSegments; i++) {
+                let p1 = this.tailPoints[i];
+                let p2 = this.tailPoints[i + 1];
+                let mesh = this.tailMeshes[i];
+                
+                // Position mesh precisely halfway between the joints
+                mesh.position.copy(p1).add(p2).multiplyScalar(0.5);
+                // Aim +Z axis towards the leading joint
+                mesh.lookAt(p1);
+            }
         }
         
         if (this.isCatching) {
@@ -681,19 +950,70 @@ export class PlayerCharacter {
         }
 
         if (isMoving) {
-            const targetArmL = -Math.sin(this.walkPhase) * 0.5;
-            const targetArmR = Math.sin(this.walkPhase) * 0.5;
+            const armSwing = CONFIG.runArmSwing !== undefined ? CONFIG.runArmSwing : 0.8;
+            const armSpread = CONFIG.runArmSpread !== undefined ? CONFIG.runArmSpread : 0.3;
+            const targetArmL = -Math.sin(wp) * armSwing;
+            const targetArmR = Math.sin(wp) * armSwing;
             this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
-            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0, delta * armSpeed);
-            
-            if (this.isAttacking) {
-                const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
-                const swingAngle = THREE.MathUtils.lerp(Math.PI * 0.7, -Math.PI * 0.6, attackProgress);
-                this.rightArm.rotation.x = swingAngle;
-                this.rightArm.rotation.z = -0.2;
+            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, armSpread, delta * armSpeed);
+            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, Math.max(0, -targetArmL), delta * armSpeed); // Add natural elbow bending
+
+                if (this.isAttacking) {
+                let swingAngleX = 0;
+                let swingAngleZ = 0;
+                let swingAngleY = 0;
+                let forearmAngleX = 0;
+
+                const armPullX = this.isSpecialAttack ? Math.PI * 0.9 : Math.PI * 0.75; // Much higher (over shoulder)
+                const armAngleZ = this.isSpecialAttack ? 0.3 : 0.2; // Less angle out, more straight up/back
+                const armThrowX = this.isSpecialAttack ? -Math.PI * 0.6 : -Math.PI * 0.5; // Throw forward downwards
+                const elbowBendPull = this.isSpecialAttack ? -Math.PI * 0.7 : -Math.PI * 0.6; // Bend elbow heavily during windup
+                const elbowBendThrow = this.isSpecialAttack ? -Math.PI * 0.1 : -Math.PI * 0.1; // Extend fully when throwing
+
+                if (this.attackPhase === 'windup') {
+                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
+                    // Pull arm back and raise spear OVER THE SHOULDER
+                    swingAngleX = THREE.MathUtils.lerp(this.rightArm.rotation.x, armPullX, progress); 
+                    swingAngleZ = THREE.MathUtils.lerp(this.rightArm.rotation.z, armAngleZ, progress); 
+                    swingAngleY = THREE.MathUtils.lerp(this.rightArm.rotation.y, Math.PI * 0.1, progress);
+                    forearmAngleX = THREE.MathUtils.lerp(0, elbowBendPull, progress);
+                } else if (this.attackPhase === 'recover') {
+                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
+                    if (progress < 0.25) {
+                        // Snap throw! Ultra fast
+                        const throwProgress = progress / 0.25;
+                        swingAngleX = THREE.MathUtils.lerp(armPullX, armThrowX, throwProgress);
+                        swingAngleZ = THREE.MathUtils.lerp(armAngleZ, -0.1, throwProgress);
+                        swingAngleY = THREE.MathUtils.lerp(Math.PI * 0.1, -0.1, throwProgress);
+                        forearmAngleX = THREE.MathUtils.lerp(elbowBendPull, elbowBendThrow, throwProgress);
+                    } else {
+                        // Slowly recover
+                        const recovProgress = (progress - 0.2) / 0.8;
+                        swingAngleX = THREE.MathUtils.lerp(armThrowX, targetArmR, recovProgress);
+                        swingAngleZ = THREE.MathUtils.lerp(-0.2, 0, recovProgress);
+                        swingAngleY = THREE.MathUtils.lerp(-0.1, 0, recovProgress);
+                        forearmAngleX = THREE.MathUtils.lerp(elbowBendThrow, 0, recovProgress);
+                    }
+                }
+                
+                // For instant snap, use high lerp or direct assignment for throwing phase
+                if (this.attackPhase === 'recover' && (1 - (this.attackTimer / this.recoverDuration)) < 0.25) {
+                     this.rightArm.rotation.x = swingAngleX;
+                     this.rightArm.rotation.z = swingAngleZ;
+                     this.rightArm.rotation.y = swingAngleY;
+                     this.rightForearm.rotation.x = forearmAngleX;
+                } else {
+                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, swingAngleX, delta * 30);
+                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, swingAngleZ, delta * 30);
+                    this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, swingAngleY, delta * 30);
+                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, forearmAngleX, delta * 30);
+                }
+
             } else {
                 this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
-                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, 0, delta * armSpeed);
+                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -armSpread, delta * armSpeed);
+                this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
+                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * armSpeed);
             }
         } else {
             if (this.isCatching) {
@@ -707,33 +1027,84 @@ export class PlayerCharacter {
                 if (catchProgress < 0.5) {
                     // Pull back quickly (recoil)
                     this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 20);
+                    this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * 20);
                     this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, Math.PI * 0.4, delta * 20); // Arm goes back
                     this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, Math.PI * 0.1, delta * 20);
+                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, -Math.PI * 0.3, delta * 20);
                 } else {
                     // Return to idle stance
                     this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 15);
+                    this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * 15);
                     this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * 15);
                     this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
+                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * 15);
                 }
             } else if (isRecallingAny && !this.isAttacking) {
                 // Standing still and recalling -> hands reach forward to catch
                 this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, -Math.PI * 0.4, delta * 15);
                 this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0.1, delta * 15);
+                this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, -Math.PI * 0.2, delta * 15);
                 
                 this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.4, delta * 15);
                 this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
+                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, -Math.PI * 0.2, delta * 15);
             } else {
                 this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
                 this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
+                this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * armSpeed);
                 
                 if (this.isAttacking) { 
-                    const attackProgress = 1 - (this.attackTimer / 0.2); // 0 to 1
-                    const swingAngle = THREE.MathUtils.lerp(Math.PI * 0.7, -Math.PI * 0.6, attackProgress);
-                    this.rightArm.rotation.x = swingAngle;
-                    this.rightArm.rotation.z = -0.2;
+                    let swingAngleX = 0;
+                    let swingAngleZ = 0;
+                    let swingAngleY = 0;
+                    let forearmAngleX = 0;
+
+                    const armPullX = this.isSpecialAttack ? Math.PI * 0.9 : Math.PI * 0.75; // Much higher
+                    const armAngleZ = this.isSpecialAttack ? 0.3 : 0.2; 
+                    const armThrowX = this.isSpecialAttack ? -Math.PI * 0.6 : -Math.PI * 0.5;
+                    const elbowBendPull = this.isSpecialAttack ? -Math.PI * 0.7 : -Math.PI * 0.6; // Bend elbow heavily during windup
+                    const elbowBendThrow = this.isSpecialAttack ? -Math.PI * 0.1 : -Math.PI * 0.1; // Extend fully when throwing
+
+                    if (this.attackPhase === 'windup') {
+                        const progress = 1 - (this.attackTimer / this.windupDuration); 
+                        swingAngleX = THREE.MathUtils.lerp(this.rightArm.rotation.x, armPullX, progress); 
+                        swingAngleZ = THREE.MathUtils.lerp(this.rightArm.rotation.z, armAngleZ, progress); 
+                        swingAngleY = THREE.MathUtils.lerp(this.rightArm.rotation.y, Math.PI * 0.1, progress);
+                        forearmAngleX = THREE.MathUtils.lerp(0, elbowBendPull, progress);
+                    } else if (this.attackPhase === 'recover') {
+                        const progress = 1 - (this.attackTimer / this.recoverDuration); 
+                        if (progress < 0.25) {
+                            const throwProgress = progress / 0.25;
+                            swingAngleX = THREE.MathUtils.lerp(armPullX, armThrowX, throwProgress);
+                            swingAngleZ = THREE.MathUtils.lerp(armAngleZ, -0.1, throwProgress);
+                            swingAngleY = THREE.MathUtils.lerp(Math.PI * 0.1, -0.1, throwProgress);
+                            forearmAngleX = THREE.MathUtils.lerp(elbowBendPull, elbowBendThrow, throwProgress);
+                        } else {
+                            const recovProgress = (progress - 0.2) / 0.8;
+                            swingAngleX = THREE.MathUtils.lerp(armThrowX, 0, recovProgress);
+                            swingAngleZ = THREE.MathUtils.lerp(-0.2, -0.1 - Math.sin(time * idleSpeed2) * 0.02, recovProgress);
+                            swingAngleY = THREE.MathUtils.lerp(-0.1, 0, recovProgress);
+                            forearmAngleX = THREE.MathUtils.lerp(elbowBendThrow, 0, recovProgress);
+                        }
+                    }
+
+                    if (this.attackPhase === 'recover' && (1 - (this.attackTimer / this.recoverDuration)) < 0.25) {
+                         this.rightArm.rotation.x = swingAngleX;
+                         this.rightArm.rotation.z = swingAngleZ;
+                         this.rightArm.rotation.y = swingAngleY;
+                         this.rightForearm.rotation.x = forearmAngleX;
+                    } else {
+                        this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, swingAngleX, delta * 30);
+                        this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, swingAngleZ, delta * 30);
+                        this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, swingAngleY, delta * 30);
+                        this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, forearmAngleX, delta * 30);
+                    }
+
                 } else { 
                     this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed); 
                     this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02; 
+                    this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
+                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * armSpeed);
                 }
             }
         }

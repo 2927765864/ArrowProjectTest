@@ -61,8 +61,32 @@
                     <div class="panel-row-header"><span>地面材质</span><span id="val-flm">纯色</span></div>
                     <button id="btn-flm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为格子</button>
                 </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🎥 相机设置</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>相机模式</span><span id="val-cam-mode">正交</span></div>
+                    <button id="btn-cam-mode" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为透视</button>
+                </div>
+                <div class="panel-row" id="row-cam-fov" style="display: none;">
+                    <div class="panel-row-header"><span>透视视角FOV</span><span id="val-cam-fov">45</span></div>
+                    <input type="range" id="inp-cam-fov" min="10" max="120" step="1" value="45">
+                </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>相机视野缩放</span><span id="val-cvs">1.0</span></div>
+                    <div class="panel-row-header"><span>相机距离</span><span id="val-cam-dist">60</span></div>
+                    <input type="range" id="inp-cam-dist" min="10" max="150" step="1" value="60">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>俯仰角(Pitch)</span><span id="val-cam-angx">55</span></div>
+                    <input type="range" id="inp-cam-angx" min="0" max="89" step="1" value="55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>偏航角(Yaw)</span><span id="val-cam-angy">0</span></div>
+                    <input type="range" id="inp-cam-angy" min="-180" max="180" step="1" value="0">
+                </div>
+                <div class="panel-row" id="row-cam-scale">
+                    <div class="panel-row-header"><span>正交视野缩放</span><span id="val-cvs">1.0</span></div>
                     <input type="range" id="inp-cvs" min="0.3" max="3.0" step="0.1" value="1.0">
                 </div>
                 <div class="panel-row">
@@ -96,10 +120,6 @@
                 <div class="panel-row">
                     <div class="panel-row-header"><span>移动转头模式</span><span id="val-mfm">移动/旋转解耦</span></div>
                     <button id="btn-mfm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为移动即朝向</button>
-                </div>
-                <div class="panel-row">
-                    <div class="panel-row-header"><span>蹦跳幅度 (Bounce)</span><span id="val-pbnc">0.18</span></div>
-                    <input type="range" id="inp-pbnc" min="0.0" max="0.5" step="0.01" value="0.18">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header">
@@ -147,6 +167,46 @@
                 </div>
             </details>
 
+
+            <details class="panel-group">
+                <summary>🕺 角色动画</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>步伐频率 (解决滑冰)</span><span id="val-rsf">2.50</span></div>
+                    <input type="range" id="inp-rsf" min="0.5" max="5.0" step="0.1" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动步幅 (腿部摆幅)</span><span id="val-rls">0.80</span></div>
+                    <input type="range" id="inp-rls" min="0.1" max="2.0" step="0.1" value="0.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>蹦跳幅度 (Bounce)</span><span id="val-pbnc">0.18</span></div>
+                    <input type="range" id="inp-pbnc" min="0.0" max="0.5" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动双手外展</span><span id="val-ras">0.30</span></div>
+                    <input type="range" id="inp-ras" min="0.0" max="1.5" step="0.05" value="0.30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动手臂摆幅</span><span id="val-rsw">0.80</span></div>
+                    <input type="range" id="inp-rsw" min="0.0" max="2.0" step="0.05" value="0.80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动上身仰晃</span><span id="val-rbu">0.15</span></div>
+                    <input type="range" id="inp-rbu" min="0.0" max="0.8" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动上身左右侧倾</span><span id="val-rbs">0.15</span></div>
+                    <input type="range" id="inp-rbs" min="-0.5" max="0.5" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动上身左右扭转</span><span id="val-rbt">0.15</span></div>
+                    <input type="range" id="inp-rbt" min="-0.5" max="0.5" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跑动爆发感 (Burst)</span><span id="val-rbb">0.20</span></div>
+                    <input type="range" id="inp-rbb" min="0.0" max="0.5" step="0.01" value="0.20">
+                </div>
+            </details>
             <details class="panel-group">
                 <summary>⚔️ 攻击与回收</summary>
                 <div class="panel-row" style="padding-top: 6px;">
@@ -154,8 +214,24 @@
                     <input type="range" id="inp-cd" min="0.1" max="1.5" step="0.05" value="0.35">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>射出飞行速度</span><span id="val-ds">40</span></div>
-                    <input type="range" id="inp-ds" min="10" max="60" step="1" value="40">
+                    <div class="panel-row-header"><span>射出初速度</span><span id="val-dis">60</span></div>
+                    <input type="range" id="inp-dis" min="10" max="150" step="1" value="60">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>射出减速阻力</span><span id="val-dfr">80</span></div>
+                    <input type="range" id="inp-dfr" min="0" max="200" step="1" value="80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>射出最低速度</span><span id="val-dms">15</span></div>
+                    <input type="range" id="inp-dms" min="0" max="60" step="1" value="15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>穿透后落点距离</span><span id="val-pdbd">1.5</span></div>
+                    <input type="range" id="inp-pdbd" min="0.1" max="10.0" step="0.1" value="1.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>扎地最终倾角 (度)</span><span id="val-gip">80</span></div>
+                    <input type="range" id="inp-gip" min="0" max="90" step="1" value="80">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>回收逐一间隔 (毫秒)</span><span id="val-ri">100</span></div>
