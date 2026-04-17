@@ -640,10 +640,7 @@ export class PlayerCharacter {
             this.smokeTrailDistance += speedMagnitude * delta;
             
             const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
-            const wp = this.walkPhase + burst * Math.sin(wp * 2.0);
-            
-            const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
-            wp = this.walkPhase + burst * Math.sin(wp * 2.0);
+            wp = this.walkPhase + burst * Math.sin(this.walkPhase * 2.0);
             
             const legSwingAmplitude = CONFIG.runLegSwing !== undefined ? CONFIG.runLegSwing : 0.7;
             const legSwing = Math.sin(wp) * legSwingAmplitude * (animSpeed / 10);
