@@ -1,6 +1,22 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { Globals } from '../utils.js';
+import { createWeaponModel } from './Feather.js';
+
+// ===== 模块级 scratch（所有 Player 实例共享，update 复用）=====
+// 仅 1 个 Player 实例，但 update 每帧调用 60 次，需要消除 GC 压力。
+const _UNIT_X = new THREE.Vector3(1, 0, 0);
+const _UNIT_Y = new THREE.Vector3(0, 1, 0);
+const _scratchEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const _scratchQYawInv = new THREE.Quaternion();
+const _scratchQTilt = new THREE.Quaternion();
+const _scratchQYaw = new THREE.Quaternion();
+const _scratchTailV1 = new THREE.Vector3();
+const _scratchTailV2 = new THREE.Vector3();
+const _scratchTailV3 = new THREE.Vector3();
+const _scratchTailV4 = new THREE.Vector3();
+const _scratchTailV5 = new THREE.Vector3();
+const _scratchHudVec = new THREE.Vector3();
 
 export class PlayerCharacter {
     constructor() {
@@ -25,16 +41,50 @@ export class PlayerCharacter {
         };
         [skinMat, shirtMat, limbMat, eyeMat, faceMat, backMat, detailMat, innerEarMat].forEach(applyStencilAndOrder);
 
+        // tiltGroup: 中间层，专门承载模型倾斜和高度偏移，不影响逻辑层(mesh)和动画层(bodyGroup)
+        this.tiltGroup = new THREE.Group();
+        this.mesh.add(this.tiltGroup);
+
+        // hipPivotGroup: 攻击时让【上半身 + 胯部视觉】围绕左脚转动的轴心层。
+        // 注意：双腿【不】挂在这里面（见下方的 legsAnchorGroup），所以脚根
+        // 不会被 hipPivotGroup 的扭转带走，满足"双脚站定"的需求。
+        this.hipPivotGroup = new THREE.Group();
+        this.hipPivotGroup.rotation.order = 'YXZ';
+        // 默认左脚大致在 bodyGroup 局部 (0.055, -0.25, 0)（左胯水平 + 站立高度下降）。
+        // 在 tiltGroup 局部下，地面即 y=0。
+        const leftFootPivotX = CONFIG.attackLeftFootPivotX ?? 0.055;
+        const leftFootPivotZ = CONFIG.attackLeftFootPivotZ ?? 0.0;
+        this.hipPivotGroup.position.set(leftFootPivotX, 0, leftFootPivotZ);
+        this.tiltGroup.add(this.hipPivotGroup);
+
         this.bodyGroup = new THREE.Group();
-        this.bodyGroup.position.y = 0.25; 
-        this.mesh.add(this.bodyGroup);
+        this.bodyGroup.rotation.order = 'YXZ';
+        // 反向偏移，使 bodyGroup 原点（身体正中/胯中）在 tiltGroup 局部仍
+        // 位于 (0, 0.25, 0)：效果上 idle 站姿保持不变。
+        this.bodyGroup.position.set(-leftFootPivotX, 0.25, -leftFootPivotZ);
+        this.hipPivotGroup.add(this.bodyGroup);
+
+        // legsAnchorGroup: 双腿的挂载锚点，直接挂在 tiltGroup 下，
+        // 【完全不受 hipPivotGroup 的攻击扭转 / bodyGroup 的 dip-lift 影响】。
+        // 原点设在原本 bodyGroup 的"胯部中心"等效位置 (0, 0.25, 0)，让
+        // leftLeg/rightLeg 保留它们在 bodyGroup 局部的 (±0.055, -0.05, 0) 位置。
+        // 这样 leg 根节点 (胯) 在 tiltGroup 局部为 (±0.055, 0.2, 0)，世界位置
+        // 固定不动。脚的站姿/攻击摆动只通过大腿/小腿的旋转实现。
+        this.legsAnchorGroup = new THREE.Group();
+        this.legsAnchorGroup.position.set(0, 0.25, 0);
+        this.tiltGroup.add(this.legsAnchorGroup);
+
+        this.upperBodyGroup = new THREE.Group();
+        this.upperBodyGroup.rotation.order = 'YXZ';
+        this.bodyGroup.add(this.upperBodyGroup);
         
         // Torso
         const torsoGeo = new THREE.CapsuleGeometry(0.12, 0.12, 4, 16);
         const torso = new THREE.Mesh(torsoGeo, backMat);
         torso.position.y = 0.08;
         torso.castShadow = true;
-        this.bodyGroup.add(torso);
+        torso.userData.partId = 1; // 躯干
+        this.upperBodyGroup.add(torso);
         
         // Head (Refined Cartoon Cat)
         this.headGroup = new THREE.Group();
@@ -45,6 +95,7 @@ export class PlayerCharacter {
         const cranium = new THREE.Mesh(craniumGeo, faceMat);
         cranium.scale.set(1.2, 0.8, 1.1);
         cranium.position.set(0, 0.06, 0.02);
+        cranium.userData.partId = 2; // 头部
         this.headGroup.add(cranium);
 
         // 2. Back of the head (Darker color for facing direction)
@@ -52,6 +103,7 @@ export class PlayerCharacter {
         const backHead = new THREE.Mesh(backHeadGeo, backMat);
         backHead.scale.set(1.25, 0.85, 1.1);
         backHead.position.set(0, 0.02, -0.04);
+        backHead.userData.partId = 2; // 头部
         this.headGroup.add(backHead);
 
         // 3. Cheeks / Jowls (Makes the face wide at the bottom)
@@ -59,11 +111,13 @@ export class PlayerCharacter {
         const cheekL = new THREE.Mesh(cheekGeo, faceMat);
         cheekL.scale.set(0.9, 0.75, 0.95);
         cheekL.position.set(0.09, -0.04, 0.05);
+        cheekL.userData.partId = 2; // 头部
         this.headGroup.add(cheekL);
         
         const cheekR = new THREE.Mesh(cheekGeo, faceMat);
         cheekR.scale.set(0.9, 0.75, 0.95);
         cheekR.position.set(-0.09, -0.04, 0.05);
+        cheekR.userData.partId = 2; // 头部
         this.headGroup.add(cheekR);
 
         // 4. Ears (Flattened cones with inner ear depth)
@@ -74,8 +128,10 @@ export class PlayerCharacter {
         earL.scale.set(1, 1, 0.5);
         earL.position.set(0.13, 0.16, -0.02);
         earL.rotation.set(-0.1, 0.15, -0.35);
+        earL.userData.partId = 2; // 头部
         const innerEarL = new THREE.Mesh(innerEarGeo, innerEarMat);
         innerEarL.position.set(0, -0.01, 0.03);
+        // innerEar 不参与 (partId=0)，保留 detail 颜色
         earL.add(innerEarL);
         this.headGroup.add(earL);
 
@@ -83,6 +139,7 @@ export class PlayerCharacter {
         earR.scale.set(1, 1, 0.5);
         earR.position.set(-0.13, 0.16, -0.02);
         earR.rotation.set(-0.1, -0.15, 0.35);
+        earR.userData.partId = 2; // 头部
         const innerEarR = new THREE.Mesh(innerEarGeo, innerEarMat);
         innerEarR.position.set(0, -0.01, 0.03);
         earR.add(innerEarR);
@@ -130,7 +187,7 @@ export class PlayerCharacter {
         wR3.rotation.set(0, 0, Math.PI / 2 - 0.15);
         this.headGroup.add(wR1, wR2, wR3);
 
-        this.bodyGroup.add(this.headGroup);
+        this.upperBodyGroup.add(this.headGroup);
 
         // --- NEW PROCEDURAL IK TAIL ---
         this.tailWorldGroup = new THREE.Group();
@@ -152,6 +209,7 @@ export class PlayerCharacter {
             const geo = new THREE.CapsuleGeometry(radius, this.tailSegLength, 8, 8);
             geo.rotateX(Math.PI / 2); // Align along Z axis for lookAt
             const mesh = new THREE.Mesh(geo, backMat);
+            mesh.userData.partId = 11; // 尾巴整体一个 ID
             this.tailMeshes.push(mesh);
             this.tailWorldGroup.add(mesh);
         }
@@ -160,17 +218,19 @@ export class PlayerCharacter {
         
         // Arms
         this.leftArm = new THREE.Group();
+        this.leftArm.rotation.order = 'YXZ';
         this.leftArm.position.set(0.105, 0.10, 0); // Moved inward from 0.16 to embed into torso
-        this.bodyGroup.add(this.leftArm);
+        this.upperBodyGroup.add(this.leftArm);
 
         // Left Upper Arm
         const upperArmGeoL = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16); // Slightly thicker & longer
         const upperArmMeshL = new THREE.Mesh(upperArmGeoL, faceMat);
         upperArmMeshL.position.y = -0.035;
         upperArmMeshL.castShadow = true;
+        upperArmMeshL.userData.partId = 3; // 左上臂
         this.leftArm.add(upperArmMeshL);
         
-        // Left Shoulder Joint
+        // Left Shoulder Joint （关节球作为缓冲带：partId=0）
         const shoulderJointGeo = new THREE.SphereGeometry(0.045, 16, 16);
         const shoulderJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.leftArm.add(shoulderJointL);
@@ -185,24 +245,41 @@ export class PlayerCharacter {
         const lowerArmMeshL = new THREE.Mesh(lowerArmGeoL, faceMat);
         lowerArmMeshL.position.y = -0.035;
         lowerArmMeshL.castShadow = true;
+        lowerArmMeshL.userData.partId = 4; // 左前臂
         this.leftForearm.add(lowerArmMeshL);
         
-        // Left Elbow Joint
+        // Left Elbow Joint （partId=0 缓冲）
         const elbowJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.leftForearm.add(elbowJointL);
 
+        // Left Held Weapon
+        this.heldWeaponLeft = new THREE.Group();
+        const leftWeaponModel = createWeaponModel(0.08);
+        // Reset the default position/rotation applied by createWeaponModel
+        // so we can use the old player arm positioning logic
+        leftWeaponModel.position.set(0, 0, 0);
+        leftWeaponModel.rotation.set(0, 0, 0);
+        this.heldWeaponLeft.add(leftWeaponModel);
+
+        this.heldWeaponLeft.position.set(0, -0.03, 0.1); 
+        this.heldWeaponLeft.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
+        this.heldWeaponLeft.visible = false;
+        this.leftForearm.add(this.heldWeaponLeft);
+
         this.rightArm = new THREE.Group();
+        this.rightArm.rotation.order = 'YXZ';
         this.rightArm.position.set(-0.105, 0.10, 0); 
-        this.bodyGroup.add(this.rightArm);
+        this.upperBodyGroup.add(this.rightArm);
 
         // Upper arm
         const upperArmGeo = new THREE.CapsuleGeometry(0.045, 0.07, 4, 16);
         const upperArmMesh = new THREE.Mesh(upperArmGeo, faceMat);
         upperArmMesh.position.y = -0.035;
         upperArmMesh.castShadow = true;
+        upperArmMesh.userData.partId = 5; // 右上臂
         this.rightArm.add(upperArmMesh);
         
-        // Right Shoulder Joint
+        // Right Shoulder Joint （partId=0 缓冲）
         const shoulderJointR = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.rightArm.add(shoulderJointR);
 
@@ -216,105 +293,47 @@ export class PlayerCharacter {
         const lowerArmMesh = new THREE.Mesh(lowerArmGeo, faceMat);
         lowerArmMesh.position.y = -0.035;
         lowerArmMesh.castShadow = true;
+        lowerArmMesh.userData.partId = 6; // 右前臂
         this.rightForearm.add(lowerArmMesh);
         
-        // Right Elbow Joint
+        // Right Elbow Joint （partId=0 缓冲）
         const elbowJointR = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.rightForearm.add(elbowJointR);
 
-        // Weapon Mesh (Spear)
-        this.weaponGroup = new THREE.Group();
-        const spearMat = new THREE.MeshBasicMaterial({ color: 0x91c53a });
-        const shaftGeo = new THREE.CylinderGeometry(0.12, 0.0, 7.0, 16, 128);
-        const posAttribute = shaftGeo.attributes.position;
-        for (let i = 0; i < posAttribute.count; i++) {
-            let x = posAttribute.getX(i); let y = posAttribute.getY(i); let z = posAttribute.getZ(i);
-            z *= 0.25;
-            const ht = (3.5 - y) / 7.0;
-            const twistAngle = ht * Math.PI * 2 * 28;
-            const nx = x * Math.cos(twistAngle) - z * Math.sin(twistAngle);
-            const nz = x * Math.sin(twistAngle) + z * Math.cos(twistAngle);
-            posAttribute.setXYZ(i, nx, y, nz);
-        }
-        shaftGeo.computeVertexNormals();
-        const shaft = new THREE.Mesh(shaftGeo, spearMat);
-        shaft.position.y = -3.5;
-        this.weaponGroup.add(shaft);
+        // Right Held Weapon
+        this.heldWeaponRight = new THREE.Group();
+        const rightWeaponModel = createWeaponModel(0.08);
+        rightWeaponModel.position.set(0, 0, 0);
+        rightWeaponModel.rotation.set(0, 0, 0);
+        this.heldWeaponRight.add(rightWeaponModel);
 
-        const ptsR = [
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0.3, 0.5, 0),
-            new THREE.Vector3(0.14, 0.8, 0),
-            new THREE.Vector3(0.28, 1.2, 0),
-            new THREE.Vector3(0.015, 6.0, 0)
-        ];
-        const widths = [0.12, 0.1, 0.1, 0.08, 0.01];
-        const buildProng = (points, side) => {
-            const group = new THREE.Group();
-            const sign = side === 'left' ? -1 : 1;
-            for(let i = 0; i < points.length; i++) {
-                const p = points[i].clone(); p.x *= sign;
-                const jointGeo = new THREE.SphereGeometry(widths[i], 16, 16);
-                const joint = new THREE.Mesh(jointGeo, spearMat);
-                joint.position.copy(p); joint.scale.z = 0.3; group.add(joint);
-                if (i < points.length - 1) {
-                    const pNext = points[i+1].clone(); pNext.x *= sign;
-                    const dist = p.distanceTo(pNext);
-                    const segGeo = new THREE.CylinderGeometry(widths[i+1], widths[i], dist, 16);
-                    const seg = new THREE.Mesh(segGeo, spearMat);
-                    const dir = new THREE.Vector3().subVectors(pNext, p).normalize();
-                    seg.position.copy(p).add(pNext).multiplyScalar(0.5);
-                    seg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-                    seg.scale.z = 0.3; group.add(seg);
-                }
-            }
-            return group;
-        };
-        this.weaponGroup.add(buildProng(ptsR, 'right'));
-        this.weaponGroup.add(buildProng(ptsR, 'left'));
-        
-        this.weaponGroup.scale.setScalar(0.08); // Reduced size
-        this.weaponGroup.position.set(0, -0.03, 0.1); // Attached slightly lower on forearm
-        this.weaponGroup.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
-        this.rightForearm.add(this.weaponGroup);
-        
-        // Also attach a weapon on the back for "sheathed" state (used during catch animation)
-        this.weaponBackGroup = this.weaponGroup.clone();
-        this.weaponBackGroup.scale.setScalar(0.08); // Reduced size
-        this.weaponBackGroup.position.set(0, 0.0, -0.16); // Move to lower back, push out slightly
-        this.weaponBackGroup.rotation.set(Math.PI / 2, 0, Math.PI / 4); // Slung flat across the back
-        this.weaponBackGroup.visible = false;
-        this.bodyGroup.add(this.weaponBackGroup);
+        this.heldWeaponRight.position.set(0, -0.03, 0.1); 
+        this.heldWeaponRight.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
+        this.heldWeaponRight.visible = false;
+        this.rightForearm.add(this.heldWeaponRight);
 
-        // 3 tiny weapons as pendants on the waist
-        this.backWeapons = [];
-        for (let i = 0; i < 3; i++) {
-            const backWeapon = this.weaponGroup.clone();
-            backWeapon.scale.setScalar(0.035); // Small pendant size
-            const offsetX = (i - 1) * 0.08; // Spread out horizontally
-            backWeapon.position.set(offsetX, -0.02, -0.14); // Lower back/waist level
-            // Pointing downwards, flat against the back, slightly fanned out
-            backWeapon.rotation.set(Math.PI - 0.15, 0, -offsetX * 3);
-            this.bodyGroup.add(backWeapon);
-            this.backWeapons.push(backWeapon);
-        }
+        // 已移除玩家手上、背上的所有武器模型显示（hand/back weapon meshes removed）
 
         this.catchTimer = 0;
         this.isCatching = false;
         
-        // Legs
+        // Legs — parented to legsAnchorGroup (NOT bodyGroup) so feet stay
+        // planted while the upper body does attack rotations. The y offset
+        // stays -0.05 to preserve the exact idle visual (leg root at the
+        // same world height as before).
         this.leftLeg = new THREE.Group();
-        this.leftLeg.position.set(0.055, -0.05, 0); // Moved inward and slightly up to embed in torso
-        this.bodyGroup.add(this.leftLeg);
+        this.leftLeg.position.set(0.055, -0.05, 0);
+        this.legsAnchorGroup.add(this.leftLeg);
 
         // Left Upper Leg (Thigh)
         const upperLegGeo = new THREE.CapsuleGeometry(0.05, 0.08, 4, 16); // Slightly longer to compensate for higher pivot
         const upperLegMeshL = new THREE.Mesh(upperLegGeo, limbMat);
         upperLegMeshL.position.y = -0.04;
         upperLegMeshL.castShadow = true;
+        upperLegMeshL.userData.partId = 7; // 左大腿
         this.leftLeg.add(upperLegMeshL);
         
-        // Left Hip Joint
+        // Left Hip Joint （partId=0 缓冲）
         const hipJointGeo = new THREE.SphereGeometry(0.05, 16, 16);
         const hipJointL = new THREE.Mesh(hipJointGeo, limbMat);
         this.leftLeg.add(hipJointL);
@@ -328,23 +347,25 @@ export class PlayerCharacter {
         const lowerLegMeshL = new THREE.Mesh(lowerLegGeo, limbMat);
         lowerLegMeshL.position.y = -0.04;
         lowerLegMeshL.castShadow = true;
+        lowerLegMeshL.userData.partId = 8; // 左小腿
         this.leftLowerLeg.add(lowerLegMeshL);
         
-        // Left Knee Joint
+        // Left Knee Joint （partId=0 缓冲）
         const kneeJointL = new THREE.Mesh(hipJointGeo, limbMat);
         this.leftLowerLeg.add(kneeJointL);
         
         this.rightLeg = new THREE.Group();
-        this.rightLeg.position.set(-0.055, -0.05, 0); 
-        this.bodyGroup.add(this.rightLeg);
+        this.rightLeg.position.set(-0.055, -0.05, 0);
+        this.legsAnchorGroup.add(this.rightLeg);
 
         // Right Upper Leg (Thigh)
         const upperLegMeshR = new THREE.Mesh(upperLegGeo, limbMat);
         upperLegMeshR.position.y = -0.04;
         upperLegMeshR.castShadow = true;
+        upperLegMeshR.userData.partId = 9; // 右大腿
         this.rightLeg.add(upperLegMeshR);
         
-        // Right Hip Joint
+        // Right Hip Joint （partId=0 缓冲）
         const hipJointR = new THREE.Mesh(hipJointGeo, limbMat);
         this.rightLeg.add(hipJointR);
 
@@ -356,14 +377,19 @@ export class PlayerCharacter {
         const lowerLegMeshR = new THREE.Mesh(lowerLegGeo, limbMat);
         lowerLegMeshR.position.y = -0.04;
         lowerLegMeshR.castShadow = true;
+        lowerLegMeshR.userData.partId = 10; // 右小腿
         this.rightLowerLeg.add(lowerLegMeshR);
         
-        // Right Knee Joint
+        // Right Knee Joint （partId=0 缓冲）
         const kneeJointR = new THREE.Mesh(hipJointGeo, limbMat);
         this.rightLowerLeg.add(kneeJointR);
 
         // Player Blob Shadow
-        const shadowGeo = new THREE.CircleGeometry(0.22, 32);
+        // 半径由 CONFIG.playerShadowRadius 控制，可在参数面板实时调整
+        // （运行时改半径会通过 ControlPanel 重建几何体替换 shadowMesh.geometry）。
+        this._shadowSegments = 32;
+        const shadowRadius = (CONFIG.playerShadowRadius !== undefined) ? CONFIG.playerShadowRadius : 0.22;
+        const shadowGeo = new THREE.CircleGeometry(shadowRadius, this._shadowSegments);
         const shadowMat = new THREE.MeshBasicMaterial({
             color: 0x000000,
             transparent: true,
@@ -395,13 +421,32 @@ export class PlayerCharacter {
             toneMapped: false
         });
 
-        // Player base ring indicator (blue dashed with dark base)
+        // Player base ring indicator (3 arcs + inner thick ring = weapon ammo gauge)
+        // The 3 arcs represent the first 3 normal weapons. The inner thick ring
+        // represents the final special weapon. A gap between the arcs is kept
+        // aligned with the player's facing direction (no continuous spin).
         this.baseRingGroup = new THREE.Group();
         this.baseRingGroup.position.y = 0.02;
         this.mesh.add(this.baseRingGroup);
 
-        const baseRadius = 0.45;
-        const bgGeo = new THREE.CircleGeometry(baseRadius * 0.95, 32);
+        // The inner (yellow) progress ring lives in a SEPARATE world-aligned
+        // group so it does NOT inherit the player mesh's facing rotation.
+        // The outer arcs (in baseRingGroup) still rotate with the player so
+        // their forward gap stays aimed where the player is looking; the
+        // inner ring's "9 o'clock" anchor must instead stay locked to the
+        // world (= screen) left edge regardless of facing.
+        // This group is parented to the scene by main.js right after the
+        // player itself is added (PlayerCharacter has no scene reference),
+        // and its XZ position is synced to the player every frame.
+        this.innerRingGroup = new THREE.Group();
+        this.innerRingGroup.position.copy(this.mesh.position);
+        this.innerRingGroup.position.y = 0.02;
+
+        // 淡紫色底盘：半径由 CONFIG.baseRingBgRadius 控制，可在参数面板实时调整
+        // （实际渲染半径 = baseRingBgRadius * 0.95，与原硬编码值 0.45 兼容）。
+        this._baseRingBgSegments = 32;
+        const baseRadius = (CONFIG.baseRingBgRadius !== undefined) ? CONFIG.baseRingBgRadius : 0.45;
+        const bgGeo = new THREE.CircleGeometry(baseRadius * 0.95, this._baseRingBgSegments);
         const bgMat = new THREE.MeshBasicMaterial({
             color: 0x5e55a2,
             transparent: true,
@@ -409,12 +454,10 @@ export class PlayerCharacter {
             depthWrite: false,
             toneMapped: false
         });
-        const bgMesh = new THREE.Mesh(bgGeo, bgMat);
-        bgMesh.rotation.x = -Math.PI / 2;
-        this.baseRingGroup.add(bgMesh);
-
-        this.dashRing = new THREE.Group();
-        this.baseRingGroup.add(this.dashRing);
+        this.baseRingBgMesh = new THREE.Mesh(bgGeo, bgMat);
+        this.baseRingBgMesh.rotation.x = -Math.PI / 2;
+        this.baseRingGroup.add(this.baseRingBgMesh);
+        this._baseRingGeomCacheBgRadius = baseRadius;
 
         // Debug Collision Mesh
         const collGeo = new THREE.CylinderGeometry(1, 1, 1, 16);
@@ -423,28 +466,24 @@ export class PlayerCharacter {
         this.collisionDebugMesh.visible = false;
         this.mesh.add(this.collisionDebugMesh);
 
-        const segmentCount = 6;
-        const dashThickness = 0.05;
-        const dashArc = (Math.PI * 2 * baseRadius / segmentCount) * 0.45;
-        const dashGeo = new THREE.BoxGeometry(dashArc, dashThickness, dashThickness);
-        const dashMat = new THREE.MeshBasicMaterial({
-            color: 0x91c53a,
-            transparent: true,
-            opacity: 0.85,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            toneMapped: false
-        });
-
-        for (let i = 0; i < segmentCount; i++) {
-            const dash = new THREE.Mesh(dashGeo, dashMat);
-            dash.layers.enable(1); 
-            const angle = (i / segmentCount) * Math.PI * 2;
-            dash.position.set(Math.cos(angle) * baseRadius, 0.01, Math.sin(angle) * baseRadius);
-            const tangent = new THREE.Vector3(-Math.sin(angle), 0, Math.cos(angle));
-            dash.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), tangent);
-            this.dashRing.add(dash);
-        }
+        // Ammo arcs + special ring are built by buildBaseRing(), which is also
+        // called whenever the geometry params (radius / thickness) change at
+        // runtime. Opacity & color are driven per-frame so each piece owns its
+        // own Material instance (no sharing).
+        this.ammoArcs = [];
+        this.specialRing = null;
+        // Per-piece animated state (opacity + rgb) and last-built params cache.
+        this._baseRingAnim = {
+            arcs: [],        // [{opacity, r, g, b}] x3
+            special: null,   // {opacity, r, g, b}
+        };
+        this._baseRingGeomCache = {
+            arcOuterR: -1,
+            arcThickness: -1,
+            innerRingOuterR: -1,
+            innerRingThickness: -1,
+        };
+        this.buildBaseRing();
 
         this.moveIndicator = new THREE.Group();
         this.moveIndicator.position.y = 0.05;
@@ -505,9 +544,16 @@ export class PlayerCharacter {
         setupXRay(this.rightForearm);
         // --------------------------------------------------------------------------
 
-        // Trajectory feature
-        this.trajectoryPoints = []; 
+        // Trajectory feature —— 预分配最大容量的 buffer，避免每帧 new Float32Array + new BufferAttribute。
+        // 每帧最多记录 1 个点，3 秒最多 3*60 = 180 个点；给 256 个余量。
+        this.trajectoryPoints = [];
+        this.TRAJECTORY_MAX_POINTS = 256;
         this.trajectoryLineGeo = new THREE.BufferGeometry();
+        this._trajectoryPositions = new Float32Array(this.TRAJECTORY_MAX_POINTS * 3);
+        this._trajectoryAttribute = new THREE.BufferAttribute(this._trajectoryPositions, 3);
+        this._trajectoryAttribute.setUsage(THREE.DynamicDrawUsage);
+        this.trajectoryLineGeo.setAttribute('position', this._trajectoryAttribute);
+        this.trajectoryLineGeo.setDrawRange(0, 0);
         this.trajectoryLineMat = new THREE.LineBasicMaterial({ color: 0xff0000, linewidth: 2 });
         this.trajectoryLine = new THREE.Line(this.trajectoryLineGeo, this.trajectoryLineMat);
         // Added to scene in main.js or here conditionally if scene exists
@@ -518,28 +564,362 @@ export class PlayerCharacter {
         this.attackPhase = 'none'; // 'windup', 'recover'
         this.windupDuration = 0.1;
         this.recoverDuration = 0.2;
+        this.attackFacingAngle = null;
+        this.attackHand = 'right';
+        this.nextAttackHand = 'right';
         this.lastMoveDirection = null;
         this.walkPhase = 0;
         this.smokeTrailDistance = 0;
+        this._attackCountInSequence = 0; // incremented per playAttack, reset by resetAttackSequence
+
+        // Foot-ring ammo indicator: reference count of in-flight weapons per
+        // slot. The field limit can exceed 4, so multiple deployed weapons
+        // can share the same slot. Each entry is incremented at
+        // throw time (main.js executeThrow) and decremented when the
+        // feather fully returns to hand (Feather.destroy). The indicator
+        // treats any nonzero count as "used". Indices: 0..2 = the three
+        // outer arcs (cycle position 0..2); 3 = inner special ring.
+        this.ammoSlotsInFlight = [0, 0, 0, 0];
+        // Cycle-position preview used by the foot-ring indicator.
+        // Range: 0..4 where:
+        //   0 = fully stocked
+        //   1..3 = first 1..3 normal pips consumed
+        //   4 = the 4th throw consumed the special ring as well
+        // The visual reset happens on the NEXT throw after 4, so throw 5
+        // shows "reset + first normal pip consumed" in one step. Movement
+        // does not reset it; the 4-throw cycle is global across stop/move.
+        this.indicatorCyclePos = 0;
+
+        // Foot-ring inner (yellow) progress driver. Set every frame from
+        // main.js. Decoupled from weapon state — purely a movement gauge.
+        // - progress (0..1): how full the ring should be drawn. Driven by
+        //   recallMoveDistanceSinceStop / threshold.
+        // - shown: whether the ring should be visible at all. Currently
+        //   simply == isMoving, so the ring fades out the instant the
+        //   player stops walking, regardless of whether the recall has
+        //   actually triggered.
+        this.indicatorRecallProgress = 0;
+        this.indicatorShown = false;
     }
-    
+
+    // Called once per frame (from main.js). Stashes the values; the
+    // per-frame visual update happens in _updateAnimation_shared.
+    setIndicatorRecallProgress(progress, shown) {
+        this.indicatorRecallProgress = Math.max(0, Math.min(1, progress || 0));
+        this.indicatorShown = !!shown;
+    }
+
+    // Build or rebuild the ammo gauge meshes (3 arcs + inner special ring)
+    // from current CONFIG radius/thickness values. Safe to call at runtime.
+    // Geometry alignment:
+    //   * RingGeometry lives in local XY, with theta=0 pointing at local +X.
+    //   * We rotate each mesh by -PI/2 around X to lay it flat in XZ.
+    //   * Player mesh's local forward is +Z (eyes/nose at +Z). After the
+    //     -PI/2 X-rotation, world +Z corresponds to the ring's original
+    //     local -Y in XY plane, i.e. theta = -PI/2.
+    //   So we center the forward gap on theta = -PI/2 so it aligns with
+    //   player.mesh's lower-body facing automatically (group is parented
+    //   to the mesh, no inversion).
+    buildBaseRing() {
+        if (!this.baseRingGroup) return;
+
+        // Dispose previous pieces if any
+        if (this.ammoArcs && this.ammoArcs.length) {
+            for (const arc of this.ammoArcs) {
+                this.baseRingGroup.remove(arc);
+                arc.geometry?.dispose();
+                arc.material?.dispose();
+            }
+        }
+        if (this.specialRing) {
+            // The inner ring lives under innerRingGroup (world-aligned),
+            // not baseRingGroup. Detach from whichever parent currently
+            // owns it (defensive against partial re-parenting during a
+            // hot rebuild).
+            this.specialRing.parent?.remove(this.specialRing);
+            this.specialRing.geometry?.dispose();
+            this.specialRing.material?.dispose();
+            this.specialRing = null;
+        }
+
+        const arcOuterR = Math.max(0.05, CONFIG.baseRingArcOuterR ?? 0.35);
+        const arcThickness = Math.max(0.005, CONFIG.baseRingArcThickness ?? 0.035);
+        const arcInnerR = Math.max(0.01, arcOuterR - arcThickness);
+
+        const innerOuterR = Math.max(0.02, CONFIG.baseRingInnerRingOuterR ?? 0.24);
+        const innerThickness = Math.max(0.005, CONFIG.baseRingInnerRingThickness ?? 0.065);
+        const innerInnerR = Math.max(0.005, innerOuterR - innerThickness);
+
+        const perGap = THREE.MathUtils.degToRad(22);
+        const arcLen = (Math.PI * 2 - perGap * 3) / 3;
+
+        // --- Outer: three arcs (ammo for the first 3 normal weapons) ---
+        this.ammoArcs = [];
+        this._baseRingAnim.arcs = [];
+        // Arc 0 starts right after the forward gap (going counter-clockwise in theta),
+        // i.e. theta = -PI/2 + perGap/2.
+        let cursor = -Math.PI / 2 + perGap / 2;
+        for (let i = 0; i < 3; i++) {
+            const arcGeo = new THREE.RingGeometry(arcInnerR, arcOuterR, 48, 1, cursor, arcLen);
+            // Per-arc material instance so each can fade independently.
+            const arcMat = new THREE.MeshBasicMaterial({
+                color: 0x91c53a,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+                side: THREE.DoubleSide
+            });
+            const arcMesh = new THREE.Mesh(arcGeo, arcMat);
+            arcMesh.rotation.x = -Math.PI / 2;
+            arcMesh.position.y = 0.01;
+            arcMesh.layers.enable(1);
+            this.baseRingGroup.add(arcMesh);
+            this.ammoArcs.push(arcMesh);
+            this._baseRingAnim.arcs.push({
+                opacity: arcMat.opacity,
+                r: arcMat.color.r, g: arcMat.color.g, b: arcMat.color.b
+            });
+            cursor += arcLen + perGap;
+        }
+
+        // --- Inner: progress arc that fills clockwise from the 9 o'clock
+        // position as the player walks toward the recall threshold. The arc
+        // geometry is rebuilt each frame in _updateAnimation_shared with the
+        // current progress thetaLength; here we just create an empty mesh
+        // and stash the radii for the per-frame rebuild.
+        // NormalBlending (not Additive) on purpose: see the spokes-artifact
+        // notes below in _rebuildInnerRingGeometry / the bloom-layer comment.
+        // Opacity is intentionally <1 so the ground/grass shows through —
+        // restores the "soft pale yellow" look the original Additive+Bloom
+        // version had, now that we no longer get a bloom boost.
+        const specialMat = new THREE.MeshBasicMaterial({
+            // Brighter, paler yellow than the original 0xffc84a so the ring
+            // reads clearly without the bloom boost (it's no longer on the
+            // bloom layer — see note further down on RingGeometry spokes).
+            color: 0xfff0a0,
+            transparent: true,
+            opacity: 0.85,
+            blending: THREE.NormalBlending,
+            depthWrite: false,
+            toneMapped: false,
+            side: THREE.DoubleSide
+        });
+        // Start with a full ring; per-frame code will swap in a partial-arc
+        // geometry whenever the progress isn't 1.
+        const specialGeo = new THREE.RingGeometry(innerInnerR, innerOuterR, 48);
+        this.specialRing = new THREE.Mesh(specialGeo, specialMat);
+        this.specialRing.rotation.x = -Math.PI / 2;
+        // innerRingGroup itself sits at y=0.02; keep the ring just below
+        // the outer arcs (which sit at baseRingGroup.y=0.02 + arc.y=0.01).
+        this.specialRing.position.y = 0;
+        // NOTE: Deliberately NOT calling this.specialRing.layers.enable(1).
+        // Layer 1 is the project-wide bloom layer (UnrealBloomPass). Bloom
+        // amplifies the per-segment radial seams of RingGeometry's
+        // triangulation into clearly visible "spokes" radiating from the
+        // centre — especially on a large, fully-lit ring like this one.
+        // The decorative outer arcs still bloom (small, narrow, fine);
+        // the progress ring stays unbloomed so it reads as a clean disc.
+        this.innerRingGroup.add(this.specialRing);
+        this._baseRingAnim.special = {
+            opacity: specialMat.opacity,
+            r: specialMat.color.r, g: specialMat.color.g, b: specialMat.color.b
+        };
+        // Track currently-baked progress so we don't regenerate the same
+        // geometry every frame (only when the visible fraction actually
+        // changes by a meaningful step). _bakedProgress = -1 forces the
+        // first build.
+        this._innerRingBakedProgress = -1;
+        this._innerRingRadii = { innerR: innerInnerR, outerR: innerOuterR };
+
+        // Cache params for change detection
+        this._baseRingGeomCache.arcOuterR = arcOuterR;
+        this._baseRingGeomCache.arcThickness = arcThickness;
+        this._baseRingGeomCache.innerRingOuterR = innerOuterR;
+        this._baseRingGeomCache.innerRingThickness = innerThickness;
+    }
+
+    // Rebuild the inner (yellow) ring geometry to display the given
+    // [0..1] progress, filling clockwise starting at the 9 o'clock
+    // position. progress<=0 -> empty, progress>=1 -> full ring.
+    // Reuses the previous geometry when the visible fraction hasn't
+    // meaningfully changed, to avoid per-frame churn.
+    _rebuildInnerRingGeometry(progress) {
+        if (!this.specialRing || !this._innerRingRadii) return;
+        const clamped = Math.max(0, Math.min(1, progress));
+        // Quantise to ~1° steps so we don't rebuild the geometry on every
+        // sub-pixel input change.
+        const quant = Math.round(clamped * 360) / 360;
+        if (quant === this._innerRingBakedProgress) return;
+        this._innerRingBakedProgress = quant;
+
+        const { innerR, outerR } = this._innerRingRadii;
+        const oldGeo = this.specialRing.geometry;
+
+        if (quant >= 1) {
+            // Full ring: use a true closed RingGeometry (no explicit
+            // thetaStart/thetaLength). A partial ring with thetaLength=2π
+            // still emits two coincident radial edges at thetaStart, which
+            // under AdditiveBlending paint a faint radial seam from center
+            // to rim — visible as a "spoke" artefact at the 9 o'clock
+            // anchor. The default constructor produces a ring whose first
+            // and last vertex columns are stitched together, eliminating
+            // that seam.
+            this.specialRing.geometry = new THREE.RingGeometry(innerR, outerR, 64);
+        } else {
+            // Partial ring. The inner ring lives in a world-aligned group,
+            // so its local axes match world axes (after the -PI/2 X-rotation).
+            // Local +X = world +X (screen right), local -X = world -X
+            // (screen left = "9 o'clock"). RingGeometry sweeps theta CCW
+            // in its local XY plane, but the -PI/2 X-rotation makes us see
+            // its back face from the top-down camera, so a positive
+            // thetaLength reads as CCW on screen. To fill clockwise we
+            // sweep with a NEGATIVE thetaLength from thetaStart=PI.
+            const thetaStart = Math.PI;
+            const thetaLength = -quant * Math.PI * 2;
+            // Scale segment count with the visible fraction so a sliver of
+            // arc still has enough subdivisions to look smooth without paying
+            // the cost of a 64-segment ring when only a few degrees show.
+            const segments = Math.max(8, Math.ceil(64 * Math.max(quant, 0.05)));
+            this.specialRing.geometry = new THREE.RingGeometry(
+                innerR, outerR, segments, 1, thetaStart, thetaLength
+            );
+        }
+        oldGeo?.dispose();
+    }
+
     playAttack(windupDuration = 0.1, recoverDuration = 0.2, isSpecial = false) { 
+        this.attackHand = 'right';
+        this.nextAttackHand = 'right';
         this.isAttacking = true; 
         this.attackPhase = 'windup';
         this.attackTimer = windupDuration;
         this.windupDuration = windupDuration;
         this.recoverDuration = recoverDuration;
         this.isSpecialAttack = isSpecial;
+        this._attackCountInSequence = (this._attackCountInSequence || 0) + 1;
+    }
+
+    // Reset the attack sequence counter (always uses right hand).
+    resetAttackSequence() {
+        this.nextAttackHand = 'right';
+        this._attackCountInSequence = 0;
+    }
+
+    // Abort the current recover (backswing) phase immediately so a new attack can start
+    // on the same frame. Only safe to call during 'recover' — windup must never be
+    // interrupted because that is when the weapon is actually thrown.
+    // Returns true if an interruption actually happened.
+    interruptRecover() {
+        if (this.isAttacking && this.attackPhase === 'recover') {
+            this.isAttacking = false;
+            this.attackPhase = 'none';
+            this.attackTimer = 0;
+            this.attackFacingAngle = null;
+            return true;
+        }
+        return false;
+    }
+
+    // Hard-snap the player out of any attack pose. Unlike interruptRecover(),
+    // which only flips state flags and lets the next-frame lerp unwind the
+    // pose smoothly, this method also resets every rotation/position that the
+    // attack branch manipulates directly to its neutral value — so on the
+    // very next animation frame the running branch starts blending from a
+    // clean T-pose rather than from the middle of a windup crouch. The
+    // caller is main.js at the moment the player switches from stationary
+    // to moving; we want zero visual overlap between attack and run.
+    //
+    // NOTE: this does NOT touch main.js's windupTimer / isWindupActive. Those
+    // are independent; if a throw was pending, main.js will either commit it
+    // (only if isMoving is false when the windup timer elapses) or cancel
+    // it via _cancelPendingThrow(). Resetting isAttacking here just makes
+    // _updateAnimation_main treat the player as "not attacking" from this
+    // frame onward so the running gait can own the pose.
+    snapOutOfAttackPose() {
+        const wasAttacking = this.isAttacking;
+        // Clear logical attack state.
+        this.isAttacking = false;
+        this.attackPhase = 'none';
+        this.attackTimer = 0;
+        this.attackFacingAngle = null;
+        this.isCatching = false;
+        this.catchTimer = 0;
+
+        if (!wasAttacking) return;
+
+        // Hard-reset all joints that the attack branch drives. Running
+        // branch will immediately start lerping these toward the gait
+        // targets, so a single frame of "T-pose" is functionally invisible
+        // and far better than the ugly cross-fade of attack→run poses.
+        this.upperBodyGroup.rotation.set(0, 0, 0);
+        this.hipPivotGroup.rotation.set(0, 0, 0);
+        this.bodyGroup.position.y = 0.25; // neutral standing height
+        this.legsAnchorGroup.position.y = 0.25; // keep hip anchor glued to body
+        this.legsAnchorGroup.rotation.set(0, 0, 0); // clear hip-follow twist/lean
+
+        this.leftArm.rotation.set(0, 0, 0);
+        this.rightArm.rotation.set(0, 0, 0);
+        this.leftForearm.rotation.set(0, 0, 0);
+        this.rightForearm.rotation.set(0, 0, 0);
+
+        // Also clear the fencing-stance leg rotations so the running gait
+        // doesn't briefly inherit the stance on the first moving frame.
+        // (Leg-root Z spread is left to the running branch to lerp back to
+        //  zero smoothly; snapping it here would pop the feet together.)
+        this.leftLeg.rotation.set(0, 0, 0);
+        this.rightLeg.rotation.set(0, 0, 0);
+        this.leftLowerLeg.rotation.set(0, 0, 0);
+        this.rightLowerLeg.rotation.set(0, 0, 0);
+
+        // 已移除手上、背上的武器模型组（无需再处理武器位姿）。
+    }
+
+    // Read attack-posture parameters from CONFIG for current attack variant (special vs normal).
+    // attackSide: +1 for right-hand throw, -1 for left-hand throw (mirrors Y twist / Z lean).
+    _getAttackPostureParams(attackSide) {
+        const s = this.isSpecialAttack;
+        return {
+            // Upper-body rotation targets (lerp'd onto upperBodyGroup.rotation)
+            leanBackX:    s ? (CONFIG.attackLeanBackXSpecial    ?? -0.95) : (CONFIG.attackLeanBackX    ?? -0.65),
+            twistBackY:  (s ? (CONFIG.attackTwistBackYSpecial   ?? -1.45) : (CONFIG.attackTwistBackY   ?? -1.05)) * attackSide,
+            leanSideZ:   (s ? (CONFIG.attackLeanSideZSpecial    ??  0.38) : (CONFIG.attackLeanSideZ    ??  0.28)) * attackSide,
+            throwForwardX:s ? (CONFIG.attackThrowForwardXSpecial ?? 1.18) : (CONFIG.attackThrowForwardX ?? 0.95),
+            throwTwistY: (s ? (CONFIG.attackThrowTwistYSpecial  ??  1.02) : (CONFIG.attackThrowTwistY  ??  0.78)) * attackSide,
+            throwSideZ:  (s ? (CONFIG.attackThrowSideZSpecial   ?? -0.30) : (CONFIG.attackThrowSideZ   ?? -0.22)) * attackSide,
+            burstRatio:   s ? (CONFIG.attackBurstRatioSpecial   ??  0.42) : (CONFIG.attackBurstRatio   ??  0.38),
+            // Body vertical dip/lift amplitudes (bodyGroup.y delta relative to 0.25)
+            bodyDipWindup: s ? (CONFIG.attackBodyDipWindupSpecial ?? 0.08) : (CONFIG.attackBodyDipWindup ?? 0.05),
+            bodyLiftThrow: s ? (CONFIG.attackBodyLiftThrowSpecial ?? 0.13) : (CONFIG.attackBodyLiftThrow ?? 0.08),
+            // Hip (bodyGroup) rotation: partial twist/lean that propagates to legs & tail
+            hipTwistBackY:  (s ? (CONFIG.attackHipTwistBackYSpecial  ?? -0.32) : (CONFIG.attackHipTwistBackY  ?? -0.22)) * attackSide,
+            hipLeanSideZ:   (s ? (CONFIG.attackHipLeanSideZSpecial   ??  0.15) : (CONFIG.attackHipLeanSideZ   ??  0.10)) * attackSide,
+            hipThrowTwistY: (s ? (CONFIG.attackHipThrowTwistYSpecial ??  0.25) : (CONFIG.attackHipThrowTwistY ??  0.18)) * attackSide,
+            hipThrowSideZ:  (s ? (CONFIG.attackHipThrowSideZSpecial  ?? -0.12) : (CONFIG.attackHipThrowSideZ  ?? -0.08)) * attackSide,
+        };
+    }
+
+    // Returns an eased 0..1 progress for the windup phase that:
+    // 1. Rapidly rises to 1 within the "rise" portion (1 - holdRatio)
+    // 2. Stays pinned at 1 during the final "hold" portion (holdRatio)
+    // This emphasizes the javelin-style held-high moment before the throw.
+    getWindupEased() {
+        const raw = 1 - (this.attackTimer / this.windupDuration);
+        const holdRatio = this.isSpecialAttack
+            ? (CONFIG.attackWindupHoldRatioSpecial ?? 0.55)
+            : (CONFIG.attackWindupHoldRatio ?? 0.45);
+        const riseEnd = Math.max(0.001, 1 - holdRatio);
+        if (raw >= riseEnd) return 1;
+        const riseProgress = raw / riseEnd;
+        // easeOutCubic on the rise portion (snappy climb)
+        return 1 - Math.pow(1 - riseProgress, 3);
     }
 
     playCatch() {
         this.isCatching = true;
-        this.catchTimer = 0.3; // Make it a snappy 0.3s reaction
-        // Store initial position slightly up and rotated back for recoil effect
-        if (this.bodyGroup) {
-            this.bodyGroup.position.y += 0.05; // tiny hop
-            this.bodyGroup.rotation.x = -0.15; // lean back slightly
-        }
+        this.catchTimer = 0.3; // 仅用于武器从手上切到背上的过渡时机
+        // 已移除"弹一下"接住反冲动画（身体上跳 + 上身后仰 + 接住手臂动作）
     }
 
     updateMoveIndicator(worldPosition, inputX, inputZ, delta) {
@@ -570,7 +950,48 @@ export class PlayerCharacter {
         this.moveIndicator.scale.setScalar(scale);
     }
     
+    // =======================================================================
+    // Public entry point for all per-frame character animation.
+    //
+    // Design:
+    //   * Player moves XOR attacks — they are mutually exclusive. Moving cancels
+    //     any in-flight attack (-> recall), and attacking fires only when stopped.
+    //   * Upper and lower body share one orientation (both face the locked enemy
+    //     while attacking, both face the joystick direction while moving).
+    //   * The attack animation is one unified gesture: body winds up (dip + lean
+    //     back), then snaps forward (lift + throw + lunging step), then settles.
+    //
+    // Flow:
+    //   1. _updateAnimation_preamble()  -> xray / collision debug visibility
+    //   2. _updateAnimation_main()      -> all gait / pose / arm / body logic
+    //   3. _updateAnimation_shared()    -> ammo ring / shadow / model tilt
+    // =======================================================================
     updateAnimation(delta, time, isMoving, currentVelocity) {
+        this._updateAnimation_preamble();
+        this._updateAnimation_main(delta, time, isMoving, currentVelocity);
+        this._updateAnimation_shared(delta, time);
+
+        // Update held weapon visibility and scale
+        const targetScale = this.isSpecialAttack ? 1.4 : 1.0;
+        
+        if (this.heldWeaponRight) {
+            this.heldWeaponRight.visible = this.isAttacking && this.attackPhase === 'windup' && this.attackHand === 'right';
+            if (this.heldWeaponRight.visible) {
+                this.heldWeaponRight.scale.setScalar(targetScale);
+            }
+        }
+        if (this.heldWeaponLeft) {
+            this.heldWeaponLeft.visible = this.isAttacking && this.attackPhase === 'windup' && this.attackHand === 'left';
+            if (this.heldWeaponLeft.visible) {
+                this.heldWeaponLeft.scale.setScalar(targetScale);
+            }
+        }
+    }
+
+    // Neutral helper: xray + collision-debug visibility. Reads only
+    // visual-debug CONFIG keys (xrayEnabled / showCollisionBox /
+    // useCustomCollision / customCollisionRadius / playerScale).
+    _updateAnimation_preamble() {
         if (this.xrayMeshes) {
             this.xrayMeshes.forEach(mesh => {
                 mesh.visible = !!CONFIG.xrayEnabled;
@@ -584,148 +1005,329 @@ export class PlayerCharacter {
             if (CONFIG.useCustomCollision) {
                 const r = CONFIG.customCollisionRadius;
                 this.collisionDebugMesh.scale.set(r, 0.4, r);
-                this.collisionDebugMesh.position.set(0, 0.2, 0); // Full cylinder centered at feet
+                this.collisionDebugMesh.position.set(0, 0.2, 0);
             } else {
                 const rx = 0.08 * CONFIG.playerScale;
                 const rz = 0.05 * CONFIG.playerScale;
                 this.collisionDebugMesh.scale.set(rx, 0.4, rz);
-                this.collisionDebugMesh.position.set(0, 0.2, rz / 2); // Shifted to match the lower half logic
+                this.collisionDebugMesh.position.set(0, 0.2, rz / 2);
+            }
+        }
+    }
+
+    // Neutral shared tail: ammo gauge ring + blob shadow + model tilt.
+    // Reads only visual / geometry CONFIG keys (showPlayerBaseRing,
+    // baseRing*, modelTiltAngle, modelHeightOffset). None of these are
+    // attack-mode-specific. Called after the active mode's animation.
+    _updateAnimation_shared(delta, time) {
+        // Ammo gauge ring: stays locked to player facing so the forward gap
+        // remains in front of the player automatically (group is parented to
+        // mesh and we DO NOT invert its rotation).
+        if (this.baseRingGroup) {
+            const visible = CONFIG.showPlayerBaseRing !== false;
+            this.baseRingGroup.visible = visible;
+            const ringScale = 1.0 + Math.sin(time * 4) * 0.03;
+            this.baseRingGroup.scale.set(ringScale, 1, ringScale);
+
+            // Keep the world-aligned inner-ring group glued to the player's
+            // XZ position. We DON'T copy mesh.quaternion onto it (that's the
+            // whole point: the inner ring must stay world-aligned so its
+            // 9 o'clock anchor stays at the screen-left side regardless of
+            // which way the player faces). We do copy the player's world
+            // scale so the ring scales together with playerScale config.
+            if (this.innerRingGroup) {
+                this.innerRingGroup.visible = visible;
+                this.innerRingGroup.position.x = this.mesh.position.x;
+                this.innerRingGroup.position.z = this.mesh.position.z;
+                // Y kept slightly above the ground, matching baseRingGroup.
+                this.innerRingGroup.position.y = this.mesh.position.y + 0.02 * (this.mesh.scale.y || 1);
+                const playerScaleX = this.mesh.scale.x || 1;
+                const playerScaleZ = this.mesh.scale.z || 1;
+                this.innerRingGroup.scale.set(
+                    ringScale * playerScaleX,
+                    1,
+                    ringScale * playerScaleZ
+                );
+            }
+
+            // Rebuild geometry if any radius/thickness CONFIG changed (live tuning).
+            const cache = this._baseRingGeomCache;
+            const liveArcOuterR = CONFIG.baseRingArcOuterR ?? 0.35;
+            const liveArcThick = CONFIG.baseRingArcThickness ?? 0.035;
+            const liveInnerOuterR = CONFIG.baseRingInnerRingOuterR ?? 0.24;
+            const liveInnerThick = CONFIG.baseRingInnerRingThickness ?? 0.065;
+            if (cache.arcOuterR !== liveArcOuterR ||
+                cache.arcThickness !== liveArcThick ||
+                cache.innerRingOuterR !== liveInnerOuterR ||
+                cache.innerRingThickness !== liveInnerThick) {
+                this.buildBaseRing();
+            }
+
+            // Live tuning of the underlying bg disc (lavender base plate) radius.
+            const liveBgRadius = CONFIG.baseRingBgRadius ?? 0.45;
+            if (this.baseRingBgMesh && this._baseRingGeomCacheBgRadius !== liveBgRadius) {
+                const segs = this._baseRingBgSegments || 32;
+                const oldGeo = this.baseRingBgMesh.geometry;
+                this.baseRingBgMesh.geometry = new THREE.CircleGeometry(liveBgRadius * 0.95, segs);
+                if (oldGeo && typeof oldGeo.dispose === 'function') oldGeo.dispose();
+                this._baseRingGeomCacheBgRadius = liveBgRadius;
+            }
+
+            // --- New foot-ring behaviour ---
+            // Outer 3 green arcs: pure decoration, always lit at full
+            // opacity. They no longer respond to the throw cycle.
+            // Inner yellow ring: behaves as a recall-progress gauge.
+            //   * No weapons deployed       -> full ring, fully lit (idle)
+            //   * Weapons deployed, progress=0 (standing still after throw)
+            //                               -> hidden
+            //   * 0 < progress < 1          -> fills clockwise from 9 o'clock
+            //   * progress >= 1             -> full ring (recall just triggered)
+
+            const fadeDur = Math.max(0.01, CONFIG.baseRingFadeDuration ?? 0.25);
+            const alpha = 1 - Math.exp(-delta / (fadeDur * 0.5));
+            const lerp = THREE.MathUtils.lerp;
+
+            const normalArcColor = new THREE.Color(0x91c53a);
+            const specialColor = new THREE.Color(0xfff0a0);
+            const activeOpacity = 0.9;
+            const activeSpecialOpacity = 0.85;
+
+            // Outer arcs: always at activeOpacity, green.
+            if (this.ammoArcs && this._baseRingAnim.arcs.length === this.ammoArcs.length) {
+                for (let i = 0; i < this.ammoArcs.length; i++) {
+                    const state = this._baseRingAnim.arcs[i];
+                    state.opacity = lerp(state.opacity, activeOpacity, alpha);
+                    state.r = lerp(state.r, normalArcColor.r, alpha);
+                    state.g = lerp(state.g, normalArcColor.g, alpha);
+                    state.b = lerp(state.b, normalArcColor.b, alpha);
+                    const mat = this.ammoArcs[i].material;
+                    mat.opacity = state.opacity;
+                    mat.color.setRGB(state.r, state.g, state.b);
+                    this.ammoArcs[i].visible = true;
+                }
+            }
+
+            // Inner ring: pure movement-progress gauge.
+            //   * shown    = main.js sends true while the player is moving
+            //   * progress = how full the arc is right now (0..1)
+            // When fading out (shown=false) we keep displaying the LAST
+            // drawn arc so the geometry doesn't snap back to 0% before the
+            // alpha envelope finishes; the next reveal naturally takes over.
+            if (this.specialRing && this._baseRingAnim.special) {
+                const shown = !!this.indicatorShown;
+                const progress = Math.max(0, Math.min(1, this.indicatorRecallProgress || 0));
+
+                let drawnProgress;
+                if (shown) {
+                    drawnProgress = progress;
+                } else {
+                    drawnProgress = this._innerRingBakedProgress > 0
+                        ? this._innerRingBakedProgress
+                        : progress;
+                }
+
+                this._rebuildInnerRingGeometry(drawnProgress);
+
+                // Smooth visibility envelope (0..1) using the same
+                // framerate-independent exponential lerp as the color/opacity
+                // channels, but with a slightly longer time-constant so the
+                // fade reads as deliberate rather than as a hidden lag.
+                const state = this._baseRingAnim.special;
+                if (state.visibility === undefined) {
+                    state.visibility = shown ? 1 : 0;
+                }
+                const visFadeDur = Math.max(0.01, (CONFIG.baseRingFadeDuration ?? 0.25) * 1.4);
+                const visAlpha = 1 - Math.exp(-delta / (visFadeDur * 0.5));
+                state.visibility = lerp(state.visibility, shown ? 1 : 0, visAlpha);
+
+                state.opacity = lerp(state.opacity, activeSpecialOpacity, alpha);
+                state.r = lerp(state.r, specialColor.r, alpha);
+                state.g = lerp(state.g, specialColor.g, alpha);
+                state.b = lerp(state.b, specialColor.b, alpha);
+
+                const mat = this.specialRing.material;
+                mat.opacity = state.opacity * state.visibility;
+                mat.color.setRGB(state.r, state.g, state.b);
+
+                // Cull the mesh once it's effectively invisible to avoid
+                // paying for a fully-transparent additive draw call.
+                this.specialRing.visible = state.visibility > 0.005;
             }
         }
 
-        if (this.isAttacking) { 
-            this.attackTimer -= delta; 
+        if (this.shadowMesh) {
+            // bodyGroup rests around 0.25 on Y axis.
+            // When bouncing, it goes higher. We use this height offset to scale the shadow.
+            const heightOffset = Math.max(0, this.bodyGroup.position.y - 0.25);
+            
+            // As height increases, shadow shrinks and becomes more transparent
+            const shadowScale = Math.max(0.4, 1.0 - heightOffset * 2.0);
+            const shadowOpacity = Math.max(0.05, 0.35 - heightOffset * 0.8);
+            
+            this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
+            this.shadowMesh.material.opacity = shadowOpacity;
+        }
+
+        // --- 模型倾斜（tiltGroup）：在世界空间中始终朝屏幕上方（-Z）方向倾斜，不随玩家Y轴旋转变化 ---
+        if (this.tiltGroup) {
+            const tiltDeg = CONFIG.modelTiltAngle || 0;
+            const heightOff = CONFIG.modelHeightOffset || 0;
+
+            if (tiltDeg !== 0) {
+                const tiltRad = THREE.MathUtils.degToRad(tiltDeg);
+                // 提取 mesh 的 Y 轴旋转角（yaw）；复用模块 scratch
+                _scratchEuler.setFromQuaternion(this.mesh.quaternion, 'YXZ');
+                const meshYaw = _scratchEuler.y;
+                _scratchQYawInv.setFromAxisAngle(_UNIT_Y, -meshYaw);
+                _scratchQTilt.setFromAxisAngle(_UNIT_X, tiltRad);
+                _scratchQYaw.setFromAxisAngle(_UNIT_Y, meshYaw);
+                this.tiltGroup.quaternion.copy(_scratchQYawInv).multiply(_scratchQTilt).multiply(_scratchQYaw);
+            } else {
+                this.tiltGroup.quaternion.identity();
+            }
+
+            // 模型离地高度偏移
+            this.tiltGroup.position.y = heightOff;
+        }
+    }
+
+    // =======================================================================
+    // Main per-frame character animation.
+    //
+    // Branches:
+    //   A) isMoving && !isAttacking  (running)
+    //      -> Gait loop (legs swing, body bob, arms pump). No attack overlay.
+    //   B) otherwise                 (stationary or attacking)
+    //      -> Idle or attack. Upper AND lower body drive the attack gesture:
+    //         windup: dip + lean back + plant-leg loads + rear leg plants
+    //         burst : snap forward + lift + plant leg straightens + rear
+    //                 leg kicks forward (lunging step)
+    //         settle: relax back to a neutral standing pose
+    //
+    // Moving and attacking are mutually exclusive by design (see main.js),
+    // so the two branches never run the same frame.
+    // =======================================================================
+    _updateAnimation_main(delta, time, isMoving, currentVelocity) {
+        // --- Attack-timer tick ---
+        if (this.isAttacking) {
+            this.attackTimer -= delta;
             if (this.attackTimer <= 0) {
                 if (this.attackPhase === 'windup') {
                     this.attackPhase = 'recover';
                     this.attackTimer = this.recoverDuration;
-                    // Provide a callback or let main.js poll for this phase change
                 } else {
-                    this.isAttacking = false; 
+                    this.isAttacking = false;
                     this.attackPhase = 'none';
+                    this.attackFacingAngle = null;
                 }
             }
-        } 
-        
-        let speedMagnitude = 0;
-        let isSharpTurning = false;
-        let wp = this.walkPhase;
+        }
 
-        if (isMoving && currentVelocity) {
-            speedMagnitude = currentVelocity.length();
-            
-            // 为了实现在原地“单点触发移动动画”，当速度极小时，强制给予一个虚拟的动画速度
-            let animSpeed = speedMagnitude;
-            if (animSpeed < 0.1) {
-                animSpeed = 8.0; 
-            }
-            
-            // 检查是否正在进行大幅度转身（比较当前的物理速度方向与摇杆的意图方向）
-            if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0 && speedMagnitude > 0.1) {
-                const currentDir = currentVelocity.clone().normalize();
-                const intendedDir = this.lastMoveDirection.clone().normalize();
-                const dot = currentDir.dot(intendedDir);
-                
-                // 如果实际运动方向和摇杆意图方向夹角大于 60 度 (dot < 0.5)，说明处于大幅度转弯或急停反转滑动阶段
-                if (dot < 0.5) {
-                    isSharpTurning = true;
+        const isRunning = isMoving && !this.isAttacking;
+
+        if (isRunning) {
+            // --- Advance walk phase with raw step frequency. ---
+            let speedMagnitude = 0;
+            let isSharpTurning = false;
+            const maxMoveAnimSpeed = ((CONFIG.maxMoveSpeedX ?? 8.0) + (CONFIG.maxMoveSpeedZ ?? 8.0)) * 0.5;
+            if (currentVelocity) {
+                speedMagnitude = currentVelocity.length();
+                let animSpeed = speedMagnitude;
+                if (animSpeed < 0.1) animSpeed = maxMoveAnimSpeed;
+
+                if (this.lastMoveDirection && this.lastMoveDirection.lengthSq() > 0 && speedMagnitude > 0.1) {
+                    const currentDir = currentVelocity.clone().normalize();
+                    const intendedDir = this.lastMoveDirection.clone().normalize();
+                    if (currentDir.dot(intendedDir) < 0.5) isSharpTurning = true;
                 }
+
+                if (!isSharpTurning) {
+                    const stepFreq = CONFIG.runStepFreq !== undefined ? CONFIG.runStepFreq : 1.5;
+                    this.walkPhase += delta * animSpeed * stepFreq;
+                }
+                this.smokeTrailDistance += speedMagnitude * delta;
+            } else {
+                // No velocity data: gentle phase advance so idle-walking
+                // doesn't freeze if called with null velocity.
+                this.walkPhase += delta * maxMoveAnimSpeed;
             }
 
-            // 只有在非大幅度转身时才推进步伐相位，防止转身时抽搐
-            if (!isSharpTurning) {
-                const stepFreq = CONFIG.runStepFreq !== undefined ? CONFIG.runStepFreq : 1.5;
-                this.walkPhase += delta * animSpeed * stepFreq;
-            }
-            this.smokeTrailDistance += speedMagnitude * delta;
-            
             const burst = CONFIG.runBurst !== undefined ? CONFIG.runBurst : 0.2;
-            wp = this.walkPhase + burst * Math.sin(this.walkPhase * 2.0);
-            
+            const wp = this.walkPhase + burst * Math.sin(this.walkPhase * 2.0);
             const sinVal = Math.sin(wp);
             const cosVal = Math.cos(wp);
-            const animScale = (animSpeed / 10);
-            
-            const forwardAmp = (CONFIG.runLegSwingForward !== undefined ? CONFIG.runLegSwingForward : 1.2) * animScale;
+            const animSpeedForScale = speedMagnitude < 0.1 ? maxMoveAnimSpeed : speedMagnitude;
+            const animScale = animSpeedForScale / 10;
+
+            const forwardAmp  = (CONFIG.runLegSwingForward  !== undefined ? CONFIG.runLegSwingForward  : 1.2) * animScale;
             const backwardAmp = (CONFIG.runLegSwingBackward !== undefined ? CONFIG.runLegSwingBackward : 0.5) * animScale;
-            
-            // Left leg
+
+            // --- Reset leg-root positions to default (no fencing stance while running) ---
+            // The stationary branch sets leftLeg/rightLeg.position.z to spread
+            // the feet front-to-back. When we start running those offsets
+            // are lerped back to 0 so the feet smoothly close rather than
+            // snapping together.
+            this.leftLeg.position.x = 0.055;
+            this.leftLeg.position.y = -0.05;
+            this.leftLeg.position.z = THREE.MathUtils.lerp(this.leftLeg.position.z, 0, delta * 18);
+            this.rightLeg.position.x = -0.055;
+            this.rightLeg.position.y = -0.05;
+            this.rightLeg.position.z = THREE.MathUtils.lerp(this.rightLeg.position.z, 0, delta * 18);
+
+            // --- Legs swing ---
             const legSwingL = (sinVal < 0 ? sinVal * forwardAmp : sinVal * backwardAmp);
             const kneeBendL = Math.max(0, -cosVal * 1.8 * animScale);
-            
-            // Right leg (phase + PI -> sin is inverted, cos is inverted)
-            const sinR = -sinVal;
-            const cosR = -cosVal;
+            const sinR = -sinVal, cosR = -cosVal;
             const legSwingR = (sinR < 0 ? sinR * forwardAmp : sinR * backwardAmp);
             const kneeBendR = Math.max(0, -cosR * 1.8 * animScale);
-            
-            this.leftLeg.rotation.x = legSwingL; 
+            this.leftLeg.rotation.x = legSwingL;
             this.rightLeg.rotation.x = legSwingR;
-            
-            // Add natural knee bending when swinging forward (cos < 0), straightens when planting (sin reaches ±1)
             this.leftLowerLeg.rotation.x = kneeBendL;
             this.rightLowerLeg.rotation.x = kneeBendR;
-            
-            let targetBodyRotX = 0.15;
-            let targetBodyRotY = 0; // New Y-axis torso rotation
-            if (this.isAttacking) {
-                const leanBackX = this.isSpecialAttack ? -0.5 : -0.3;
-                const twistBackY = this.isSpecialAttack ? -1.0 : -0.6;
-                const throwForwardX = this.isSpecialAttack ? 0.7 : 0.5;
-                const throwTwistY = this.isSpecialAttack ? 0.6 : 0.4;
 
-                if (this.attackPhase === 'windup') {
-                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
-                    targetBodyRotX = THREE.MathUtils.lerp(0.15, leanBackX, progress); // Lean back more
-                    targetBodyRotY = THREE.MathUtils.lerp(0, twistBackY, progress); // Twist right side back
-                } else if (this.attackPhase === 'recover') {
-                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
-                    if (progress < 0.3) {
-                        // Snap forward (throw)
-                        targetBodyRotX = THREE.MathUtils.lerp(leanBackX, throwForwardX, progress / 0.3);
-                        targetBodyRotY = THREE.MathUtils.lerp(twistBackY, throwTwistY, progress / 0.3); // Follow through twist
-                    } else {
-                        // Recover to normal
-                        targetBodyRotX = THREE.MathUtils.lerp(throwForwardX, 0.15, (progress - 0.3) / 0.7);
-                        targetBodyRotY = THREE.MathUtils.lerp(throwTwistY, 0, (progress - 0.3) / 0.7);
-                    }
-                }
+            // --- Upper body sway (running; no attack posture since !isAttacking) ---
+            const upShake    = CONFIG.runBodyUpShake !== undefined ? CONFIG.runBodyUpShake : 0.15;
+            const swayAmount = CONFIG.runBodySway   !== undefined ? CONFIG.runBodySway    : 0.15;
+            const twistAmt   = CONFIG.runBodyTwist  !== undefined ? CONFIG.runBodyTwist   : 0.15;
+            let targetBodyRotX = 0.15 - Math.abs(Math.sin(wp)) * upShake;
+            let targetBodyRotY = Math.sin(wp) * twistAmt;
+            let targetBodyRotZ = Math.sin(wp) * swayAmount;
+
+            if (!this.isCatching) {
+                this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.x, targetBodyRotX, delta * 20);
+                this.upperBodyGroup.rotation.y = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.y, targetBodyRotY, delta * 20);
+                this.upperBodyGroup.rotation.z = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.z, targetBodyRotZ, delta * 22);
             }
-            if (!this.isAttacking) {
-                const upShake = CONFIG.runBodyUpShake !== undefined ? CONFIG.runBodyUpShake : 0.15;
-                const swayAmount = CONFIG.runBodySway !== undefined ? CONFIG.runBodySway : 0.15;
-                const twistAmount = CONFIG.runBodyTwist !== undefined ? CONFIG.runBodyTwist : 0.15;
-                
-                targetBodyRotX -= Math.abs(Math.sin(wp)) * upShake;
-                targetBodyRotY += Math.sin(wp) * twistAmount;
-                const bodySwayZ = Math.sin(wp) * swayAmount;
-                this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySwayZ, delta * 15);
-            } else {
-                const bodySwayZ = -Math.sin(wp) * 0.15;
-                this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, bodySwayZ, delta * 15);
-            }
-            
-            this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20); 
-            this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, targetBodyRotY, delta * 20);
-            
-            // 大幅增强弹跳感：增加 bounce 的振幅。
-            // 当进行大幅度转身时，强行将 bounce 压低至 0，使其贴近地面滑步转身
-            // 使用 cos(wp) 因为当跨步最大（sin=±1）时身体最低，当双腿交替（cos=±1）时身体被顶起达到最高
+
+            // --- Bounce (body vertical) + reset hip pivot rotation from attack ---
             const targetBounce = isSharpTurning ? 0 : Math.abs(Math.cos(wp)) * (CONFIG.playerBounce !== undefined ? CONFIG.playerBounce : 0.18);
-            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + targetBounce, delta * 20);
-            
-            // 让腿部跟随身体一起弹跳，避免脱节
-            // this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15 + targetBounce, delta * 20);
-            // this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15 + targetBounce, delta * 20);
-            
-            // Let new physics tail handle walking wag
-            if (!this.tailSegments && this.tailGroup) {
-                this.tailGroup.rotation.y = Math.sin(wp * 1.8) * 0.4;
-            }
+            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25 + targetBounce, delta * 22);
+            // Keep legs glued to the body vertically so the pelvis doesn't
+            // gap open as the run bounce pushes the torso up and down.
+            this.legsAnchorGroup.position.y = this.bodyGroup.position.y;
+            this.hipPivotGroup.rotation.y = THREE.MathUtils.lerp(this.hipPivotGroup.rotation.y, 0, delta * 16);
+            this.hipPivotGroup.rotation.z = THREE.MathUtils.lerp(this.hipPivotGroup.rotation.z, 0, delta * 16);
+            // Also lerp legsAnchorGroup rotation back to 0 (may have been
+            // non-zero from the stationary branch's hip-follow coupling).
+            this.legsAnchorGroup.rotation.y = THREE.MathUtils.lerp(this.legsAnchorGroup.rotation.y, 0, delta * 16);
+            this.legsAnchorGroup.rotation.z = THREE.MathUtils.lerp(this.legsAnchorGroup.rotation.z, 0, delta * 16);
 
-            if (this.lastStepPhaseIndex === undefined) this.lastStepPhaseIndex = 0;
-            const currentStepIndex = Math.floor(this.walkPhase / Math.PI);
+            // --- Arms: run swing (no attack overlay) ---
+            const armSpeed = 8;
+            const armSwing  = CONFIG.runArmSwing  !== undefined ? CONFIG.runArmSwing  : 0.8;
+            const armSpread = CONFIG.runArmSpread !== undefined ? CONFIG.runArmSpread : 0.3;
+            const targetArmL = -Math.sin(wp) * armSwing;
+            const targetArmR =  Math.sin(wp) * armSwing;
+            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
+            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, armSpread, delta * armSpeed);
+            this.leftArm.rotation.y = THREE.MathUtils.lerp(this.leftArm.rotation.y, 0, delta * armSpeed);
+            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, Math.min(0, targetArmL * 0.8), delta * armSpeed);
+            this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
+            this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -armSpread, delta * armSpeed);
+            this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
+            this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, Math.min(0, targetArmR * 0.8), delta * armSpeed);
 
+            // Bounce indicator light (debug HUD)
             if (!this.bounceMonitorEl) {
                 this.bounceMonitorEl = document.getElementById('bounce-indicator-light');
             }
@@ -744,93 +1346,442 @@ export class PlayerCharacter {
                 }
             }
 
+            // Step dust puffs
+            if (this.lastStepPhaseIndex === undefined) this.lastStepPhaseIndex = 0;
+            const currentStepIndex = Math.floor(this.walkPhase / Math.PI);
             if (Globals.particleManager && speedMagnitude > 2.5 && currentStepIndex > this.lastStepPhaseIndex) {
                 const moveDir = currentVelocity.clone().normalize();
-                // 将烟团生成位置向玩家中心偏移拉近（从 -0.32 缩小到 -0.05），贴合脚底
                 const smokePos = this.mesh.position.clone()
                     .addScaledVector(moveDir, -0.05 * CONFIG.playerScale);
                 Globals.particleManager.spawnDustPuff(smokePos, moveDir, 0.5 * CONFIG.playerScale);
                 this.lastStepPhaseIndex = currentStepIndex;
             }
-        } else {
-            this.walkPhase = 0;
-            this.smokeTrailDistance = 0;
-            this.lastStepPhaseIndex = 0;
-            const idleSpeed = 3;
-            this.leftLeg.rotation.x = THREE.MathUtils.lerp(this.leftLeg.rotation.x, 0, delta * 10);
-            this.rightLeg.rotation.x = THREE.MathUtils.lerp(this.rightLeg.rotation.x, 0, delta * 10);
-            this.leftLowerLeg.rotation.x = THREE.MathUtils.lerp(this.leftLowerLeg.rotation.x, 0, delta * 10);
-            this.rightLowerLeg.rotation.x = THREE.MathUtils.lerp(this.rightLowerLeg.rotation.x, 0, delta * 10);
-            
-            let targetBodyRotX = 0;
-            let targetBodyRotY = 0;
-            if (this.isAttacking) {
-                const leanBackX = this.isSpecialAttack ? -0.5 : -0.3;
-                const twistBackY = this.isSpecialAttack ? -1.0 : -0.6;
-                const throwForwardX = this.isSpecialAttack ? 0.7 : 0.5;
-                const throwTwistY = this.isSpecialAttack ? 0.6 : 0.4;
 
-                if (this.attackPhase === 'windup') {
-                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
-                    targetBodyRotX = THREE.MathUtils.lerp(0, leanBackX, progress); 
-                    targetBodyRotY = THREE.MathUtils.lerp(0, twistBackY, progress); 
-                } else if (this.attackPhase === 'recover') {
-                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
-                    if (progress < 0.3) {
-                        targetBodyRotX = THREE.MathUtils.lerp(leanBackX, throwForwardX, progress / 0.3);
-                        targetBodyRotY = THREE.MathUtils.lerp(twistBackY, throwTwistY, progress / 0.3); 
-                    } else {
-                        targetBodyRotX = THREE.MathUtils.lerp(throwForwardX, 0, (progress - 0.3) / 0.7);
-                        targetBodyRotY = THREE.MathUtils.lerp(throwTwistY, 0, (progress - 0.3) / 0.7);
-                    }
-                }
-            } else if (!this.isCatching) {
-                // If catching, the catch recoil animation handles X rotation below, so don't override it here
-                targetBodyRotX = 0;
-            }
-            
-            // Only update rotation.x here if not catching, because catching recoil relies on this
-            if (!this.isCatching && !this.isAttacking) {
-                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 10);
-                this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, 0, delta * 10);
-            } else if (this.isAttacking) {
-                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, targetBodyRotX, delta * 20);
-                this.bodyGroup.rotation.y = THREE.MathUtils.lerp(this.bodyGroup.rotation.y, targetBodyRotY, delta * 20);
-            }
-            
-            this.bodyGroup.rotation.z = THREE.MathUtils.lerp(this.bodyGroup.rotation.z, 0, delta * 10);
-            
-            if (!this.bounceMonitorEl) {
-                this.bounceMonitorEl = document.getElementById('bounce-indicator-light');
-            }
-            if (this.bounceMonitorEl) {
-                this.bounceMonitorEl.style.background = '#444';
-                this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
-                this.bounceMonitorEl.style.transform = 'scale(1)';
-            }
-            
-            // Let new physics tail handle idle wag
-            if (!this.tailSegments && this.tailGroup) {
-                this.tailGroup.rotation.y = Math.sin(time * 2.5) * 0.15;
-            }
-            
-            const targetIdleY = 0.25 + Math.sin(time * idleSpeed) * 0.03;
-            this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, targetIdleY, delta * 10);
-            
-            // 待机时腿部高度复位
-            // this.leftLeg.position.y = THREE.MathUtils.lerp(this.leftLeg.position.y, 0.15, delta * 10);
-            // this.rightLeg.position.y = THREE.MathUtils.lerp(this.rightLeg.position.y, 0.15, delta * 10);
+            // Tail IK + catch timer + weapon visibility
+            this._updateAnimation_tail(delta, time, /*wasRunningBranch*/ true);
+            return;
         }
-        
-        // Procedural IK Tail Update (World Space)
+
+        // ================ STATIONARY BRANCH (attack / idle in place) ================
+
+        this.walkPhase = 0;
+        this.smokeTrailDistance = 0;
+        this.lastStepPhaseIndex = 0;
+
+        // --- Read posture params for current attack variant ---
+        const attackSide = this.attackHand === 'left' ? -1 : 1;
+        const posture = this._getAttackPostureParams(attackSide);
+
+        // Pre-compute phase helpers for later leg/body sections so we
+        // don't duplicate the progress math.
+        // phaseKind: 'idle' | 'windup' | 'burst' | 'settle'
+        // phaseT:    0..1 progress within the current phase
+        let phaseKind = 'idle';
+        let phaseT = 0;
+        if (this.isAttacking) {
+            if (this.attackPhase === 'windup') {
+                phaseKind = 'windup';
+                phaseT = this.getWindupEased();
+            } else if (this.attackPhase === 'recover') {
+                const progress = 1 - (this.attackTimer / this.recoverDuration);
+                if (progress < posture.burstRatio) {
+                    phaseKind = 'burst';
+                    phaseT = progress / posture.burstRatio;
+                } else {
+                    phaseKind = 'settle';
+                    phaseT = (progress - posture.burstRatio) / Math.max(0.001, 1 - posture.burstRatio);
+                }
+            }
+        }
+
+        // --- Legs: lunge stance with bent knees ---
+        //
+        // Design (per user spec):
+        //   1. Idle stance = forward lunge: FRONT thigh tilts forward and
+        //      its knee bends sharply, so the shin comes back down and the
+        //      foot lands forward of the hip. REAR thigh tilts slightly
+        //      back with mild knee bend; the rear foot rests behind. This
+        //      naturally produces a visible "bow stance" with clear knee
+        //      flexion (not two stiff sticks).
+        //   2. During attack, thighs and knees are allowed to move on top
+        //      of the stance base, BUT the extra amplitude is kept small
+        //      and the knee bends in lockstep with the thigh so the foot
+        //      only drifts by a small amount relative to the hip.
+        //   3. The leg root nodes stay at their rig defaults (±0.055, -0.05,
+        //      0). The visible front-back foot separation comes entirely
+        //      from thigh rotation, NOT from translating the hip sideways.
+        //
+        // plantLeg = leg opposite throwing hand = FRONT leg;
+        // rearLeg  = leg on throwing-hand side  = REAR leg.
+        const plantLegIsLeft = attackSide === 1;
+        const plantLeg       = plantLegIsLeft ? this.leftLeg : this.rightLeg;
+        const plantKnee      = plantLegIsLeft ? this.leftLowerLeg : this.rightLowerLeg;
+        const rearLeg        = plantLegIsLeft ? this.rightLeg : this.leftLeg;
+        const rearKnee       = plantLegIsLeft ? this.rightLowerLeg : this.leftLowerLeg;
+
+        // Leg root positions: back to rig defaults (no Z spread trick).
+        // Lerp position.z so stationary→running transitions smoothly if any
+        // residual Z offset exists from older animation state.
+        plantLeg.position.x = plantLegIsLeft ? 0.055 : -0.055;
+        plantLeg.position.y = -0.05;
+        plantLeg.position.z = THREE.MathUtils.lerp(plantLeg.position.z, 0, delta * 20);
+        rearLeg.position.x  = plantLegIsLeft ? -0.055 : 0.055;
+        rearLeg.position.y  = -0.05;
+        rearLeg.position.z  = THREE.MathUtils.lerp(rearLeg.position.z, 0, delta * 20);
+
+        // --- Stance base angles (idle posture) ---
+        //
+        // SIGN CONVENTION (user-facing, all params are positive = intuitive):
+        //   stanceFrontThigh > 0  → front foot goes forward
+        //   stanceFrontKnee  > 0  → front knee bends (shin folds back toward hip)
+        //   stanceRearThigh  > 0  → rear foot goes backward
+        //   stanceRearKnee   > 0  → rear knee bends (mild)
+        //
+        // In Three.js: leg.rotation.x > 0 rotates the leg so the FOOT ends up
+        // at -Z (i.e. BACKWARD, since the character faces +Z). So to make
+        // the front foot go forward, we apply a NEGATIVE rotation, and to
+        // make the rear foot go backward, we apply a POSITIVE rotation.
+        // The knee (lowerLeg) is the opposite: front knee bend needs the
+        // shin to rotate so its free end goes BACK toward the hip → positive
+        // rotation.x.
+        const stanceFrontThigh = CONFIG.attackStanceFrontThigh ?? 0.32;
+        const stanceFrontKnee  = CONFIG.attackStanceFrontKnee  ?? 0.55;
+        const stanceRearThigh  = CONFIG.attackStanceRearThigh  ?? 0.15;
+        const stanceRearKnee   = CONFIG.attackStanceRearKnee   ?? 0.25;
+
+        const plantBaseThigh = -stanceFrontThigh;  // foot forward  (-x rotation)
+        const plantBaseKnee  = +stanceFrontKnee;   // shin folds back toward hip
+        const rearBaseThigh  = +stanceRearThigh;   // foot backward (+x rotation)
+        const rearBaseKnee   = +stanceRearKnee;    // shin folds back toward hip (mild)
+
+        // --- Attack overlay deltas (user-facing sign convention) ---
+        //   windupThigh/Knee > 0  → weight shifts BACK + deeper coil (both knees bend more)
+        //   throwThigh/Knee  > 0  → weight drives FORWARD + knees straighten (extension push)
+        const windupThighD = CONFIG.attackLegWindupThigh ?? 0.08;
+        const windupKneeD  = CONFIG.attackLegWindupKnee  ?? 0.10;
+        const throwThighD  = CONFIG.attackLegThrowThigh  ?? 0.10;
+        const throwKneeD   = CONFIG.attackLegThrowKnee   ?? 0.18;
+
+        // weightShift: +1.0 = fully back (windup peak), -1.0 = fully forward (throw peak)
+        // kneeCoil:    +1.0 = deeply bent (windup peak), -1.0 = fully extended (throw peak)
+        let weightShift = 0, kneeCoil = 0;
+        if (phaseKind === 'windup') {
+            weightShift = THREE.MathUtils.lerp(0, +windupThighD, phaseT);
+            kneeCoil    = THREE.MathUtils.lerp(0, +windupKneeD,  phaseT);
+        } else if (phaseKind === 'burst') {
+            const eased = phaseT * (2 - phaseT);
+            weightShift = THREE.MathUtils.lerp(+windupThighD, -throwThighD, eased);
+            kneeCoil    = THREE.MathUtils.lerp(+windupKneeD,  -throwKneeD,  eased);
+        } else if (phaseKind === 'settle') {
+            const eased = phaseT * (2 - phaseT);
+            weightShift = THREE.MathUtils.lerp(-throwThighD, 0, eased);
+            kneeCoil    = THREE.MathUtils.lerp(-throwKneeD,  0, eased);
+        }
+
+        // Apply deltas:
+        //   weightShift > 0 (back) → front foot lifts a bit (thigh rotates
+        //     less negative = +x delta on plant thigh); rear foot digs in
+        //     (thigh rotates more positive = +x delta on rear thigh too).
+        //     So BOTH thighs shift in +x by weightShift.
+        //   kneeCoil > 0 (deeper) → both knees bend more = +x delta on both
+        //     lower legs (plant knee more positive, rear knee more positive).
+        const targetPlantThigh = plantBaseThigh + weightShift;
+        const targetPlantKnee  = plantBaseKnee  + kneeCoil;
+        const targetRearThigh  = rearBaseThigh  + weightShift;
+        const targetRearKnee   = rearBaseKnee   + kneeCoil * 0.5; // rear knee less reactive
+
+        const legLerp = (phaseKind === 'burst') ? 26 : 18;
+        plantLeg.rotation.x  = THREE.MathUtils.lerp(plantLeg.rotation.x,  targetPlantThigh, delta * legLerp);
+        plantKnee.rotation.x = THREE.MathUtils.lerp(plantKnee.rotation.x, targetPlantKnee,  delta * legLerp);
+        rearLeg.rotation.x   = THREE.MathUtils.lerp(rearLeg.rotation.x,   targetRearThigh,  delta * legLerp);
+        rearKnee.rotation.x  = THREE.MathUtils.lerp(rearKnee.rotation.x,  targetRearKnee,   delta * legLerp);
+
+        // --- Upper body rotation targets ---
+        let targetBodyRotX = 0;
+        let targetBodyRotY = 0;
+        let targetBodyRotZ = 0;
+
+        // --- Hip (bodyGroup) rotation targets: partial follow of upper-body twist/lean ---
+        // This drives the pelvis, which propagates to legs and tail base.
+        let targetHipRotY = 0;
+        let targetHipRotZ = 0;
+
+        if (phaseKind === 'windup') {
+            targetBodyRotX = THREE.MathUtils.lerp(0, posture.leanBackX, phaseT);
+            targetBodyRotY = THREE.MathUtils.lerp(0, posture.twistBackY, phaseT);
+            targetBodyRotZ = THREE.MathUtils.lerp(0, posture.leanSideZ, phaseT);
+            targetHipRotY  = THREE.MathUtils.lerp(0, posture.hipTwistBackY, phaseT);
+            targetHipRotZ  = THREE.MathUtils.lerp(0, posture.hipLeanSideZ, phaseT);
+        } else if (phaseKind === 'burst') {
+            const eased = phaseT * phaseT;
+            targetBodyRotX = THREE.MathUtils.lerp(posture.leanBackX, posture.throwForwardX, eased);
+            targetBodyRotY = THREE.MathUtils.lerp(posture.twistBackY, posture.throwTwistY, eased);
+            targetBodyRotZ = THREE.MathUtils.lerp(posture.leanSideZ, posture.throwSideZ, eased);
+            targetHipRotY  = THREE.MathUtils.lerp(posture.hipTwistBackY, posture.hipThrowTwistY, eased);
+            targetHipRotZ  = THREE.MathUtils.lerp(posture.hipLeanSideZ, posture.hipThrowSideZ, eased);
+        } else if (phaseKind === 'settle') {
+            const eased = phaseT * (2 - phaseT);
+            targetBodyRotX = THREE.MathUtils.lerp(posture.throwForwardX, 0, eased);
+            targetBodyRotY = THREE.MathUtils.lerp(posture.throwTwistY, 0, eased);
+            targetBodyRotZ = THREE.MathUtils.lerp(posture.throwSideZ, 0, eased);
+            targetHipRotY  = THREE.MathUtils.lerp(posture.hipThrowTwistY, 0, eased);
+            targetHipRotZ  = THREE.MathUtils.lerp(posture.hipThrowSideZ, 0, eased);
+        }
+        // else idle: stays at 0.
+
+        // Apply upper-body rotation (catch recoil takes over rotation.x in catching branch below)
+        if (!this.isCatching) {
+            this.upperBodyGroup.rotation.x = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.x, targetBodyRotX, delta * 20);
+            this.upperBodyGroup.rotation.y = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.y, targetBodyRotY, delta * 20);
+            this.upperBodyGroup.rotation.z = THREE.MathUtils.lerp(this.upperBodyGroup.rotation.z, targetBodyRotZ, delta * 22);
+        }
+
+        // Apply hip rotation on the hipPivotGroup: twist and side-lean that carries
+        // upper body, legs & tail — pivoting around the LEFT FOOT (planted foot),
+        // not the body center. This produces a more natural throwing motion.
+        // Also keep pivot offset synced with runtime CONFIG (so it stays tunable).
+        const lfx = CONFIG.attackLeftFootPivotX ?? 0.055;
+        const lfz = CONFIG.attackLeftFootPivotZ ?? 0.0;
+        if (this.hipPivotGroup.position.x !== lfx || this.hipPivotGroup.position.z !== lfz) {
+            this.hipPivotGroup.position.x = lfx;
+            this.hipPivotGroup.position.z = lfz;
+            // counter-translate bodyGroup so neutral pose is unchanged
+            this.bodyGroup.position.x = -lfx;
+            this.bodyGroup.position.z = -lfz;
+        }
+        this.hipPivotGroup.rotation.y = THREE.MathUtils.lerp(this.hipPivotGroup.rotation.y, targetHipRotY, delta * 16);
+        this.hipPivotGroup.rotation.z = THREE.MathUtils.lerp(this.hipPivotGroup.rotation.z, targetHipRotZ, delta * 16);
+
+        // --- Body vertical: subtle idle breathing, plus attack pose dip/lift ---
+        const idleShakeY   = CONFIG.idleBodyShakeY   ?? 0.03;
+        const idleShakeSpd = CONFIG.idleBodyShakeSpeed ?? 3.0;
+        let targetBodyY = 0.25 + Math.sin(time * idleShakeSpd) * idleShakeY;
+        if (phaseKind === 'windup') {
+            targetBodyY -= THREE.MathUtils.lerp(0.01, posture.bodyDipWindup, phaseT);
+        } else if (phaseKind === 'burst') {
+            // Lift during burst (eased, peaks near end of burst).
+            const liftT = phaseT * (2 - phaseT);
+            targetBodyY += THREE.MathUtils.lerp(0.025, posture.bodyLiftThrow, liftT);
+        } else if (phaseKind === 'settle') {
+            // Return to ground level smoothly.
+            const eased = phaseT * (2 - phaseT);
+            targetBodyY += THREE.MathUtils.lerp(posture.bodyLiftThrow, 0, eased);
+        }
+        this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, targetBodyY, delta * 10);
+
+        // Keep the legs' hip anchor glued to the body vertically so the
+        // pelvis doesn't gap open when the body breathes / dips / lifts.
+        this.legsAnchorGroup.position.y = this.bodyGroup.position.y;
+
+        // --- Hip follow: partial rotation coupling between upper body and legs ---
+        // Without this, the upper body twists / leans but the legs stay
+        // locked → the waist visually snaps apart. With full 1.0 coupling
+        // the feet would get swept around by the hip rotation (the original
+        // problem we fixed by separating legsAnchorGroup). The fix is a
+        // partial follow factor: the leg anchor inherits a FRACTION of the
+        // hip's twist/lean. Feet trace a small arc (feels like the pelvis
+        // delivering force down to the ground) but don't slide visibly.
+        //
+        // We also initialize rotation.order='YXZ' on legsAnchorGroup the
+        // first time we touch it so Y-twist composes cleanly with Z-lean
+        // (same convention as hipPivotGroup).
+        if (this.legsAnchorGroup.rotation.order !== 'YXZ') {
+            this.legsAnchorGroup.rotation.order = 'YXZ';
+        }
+        const hipFollowY = CONFIG.attackHipFollowY ?? 0.40; // how much the pelvis twists with the upper body
+        const hipFollowZ = CONFIG.attackHipFollowZ ?? 0.35; // how much the pelvis side-leans with the upper body
+        const targetAnchorY = this.hipPivotGroup.rotation.y * hipFollowY;
+        const targetAnchorZ = this.hipPivotGroup.rotation.z * hipFollowZ;
+        // Lerp so the anchor eases into / out of the rotation instead of
+        // snapping, which further softens the foot arc.
+        this.legsAnchorGroup.rotation.y = THREE.MathUtils.lerp(
+            this.legsAnchorGroup.rotation.y, targetAnchorY, delta * 14
+        );
+        this.legsAnchorGroup.rotation.z = THREE.MathUtils.lerp(
+            this.legsAnchorGroup.rotation.z, targetAnchorZ, delta * 14
+        );
+
+        // --- Bounce indicator: no gait bounce while stationary, keep dim ---
+        if (!this.bounceMonitorEl) {
+            this.bounceMonitorEl = document.getElementById('bounce-indicator-light');
+        }
+        if (this.bounceMonitorEl) {
+            this.bounceMonitorEl.style.background = '#444';
+            this.bounceMonitorEl.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)';
+            this.bounceMonitorEl.style.transform = 'scale(1)';
+        }
+
+        // --- Tail IK + catch timer + weapon visibility ---
+        const isRecallingAny = this._updateAnimation_tail(delta, time, /*wasRunningBranch*/ false);
+
+        // --- Arms ---
+        const armSpeed = this.isAttacking ? 20 : 10;
+        const idleSpeed2 = 3;
+
+        // 已移除 isCatching 期间的"弹一下"回弹动画（身体回落 + 接住手臂姿态）
+        if (isRecallingAny && !this.isAttacking) {
+            // Recall pose (hands reach forward to catch)
+            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, -Math.PI * 0.4, delta * 15);
+            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0.1, delta * 15);
+            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, -Math.PI * 0.2, delta * 15);
+            this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.4, delta * 15);
+            this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
+            this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, -Math.PI * 0.2, delta * 15);
+        } else if (this.isAttacking) {
+            const throwArm = attackSide === 1 ? this.rightArm : this.leftArm;
+            const throwForearm = attackSide === 1 ? this.rightForearm : this.leftForearm;
+            const supportArm = attackSide === 1 ? this.leftArm : this.rightArm;
+            const supportForearm = attackSide === 1 ? this.leftForearm : this.rightForearm;
+            const supportIdleZ = attackSide * (0.1 + Math.sin(time * idleSpeed2) * 0.02);
+            const throwIdleZ = -supportIdleZ;
+
+            // Javelin wind-up tuning (Solved inversely from mesh-space targets):
+            //   The body is heavily twisted during windup (~60deg Y rotation), so the arm's
+            //   local rotations must COMPENSATE for that twist to achieve the desired pose
+            //   in the CHARACTER-FACING frame.
+            //   Target (in mesh/character frame, facing -Z):
+            //     upper arm   = (-1, 0, 0)        - horizontal, pointing to character's right
+            //                                       (parallel to the body's front plane, outward)
+            //     forearm     = (0, 0.71, 0.71)   - at 90deg to upper arm, pointing upper-back
+            //                                       (obtuse angle with forward face direction)
+            //   These rotations were solved numerically with the YXZ + XYZ composition.
+            //   Exposed through CONFIG.attackArmPull* for runtime tuning.
+            const armPullX = this.isSpecialAttack
+                ? (CONFIG.attackArmPullXSpecial ?? -Math.PI * 0.25)
+                : (CONFIG.attackArmPullX        ?? -Math.PI * 0.17);
+            const armPullY = (this.isSpecialAttack
+                ? (CONFIG.attackArmPullYSpecial ??  Math.PI * 0.42)
+                : (CONFIG.attackArmPullY        ??  Math.PI * 0.36)) * attackSide;
+            const armPullZ = (this.isSpecialAttack
+                ? (CONFIG.attackArmPullZSpecial ?? -Math.PI * 0.28)
+                : (CONFIG.attackArmPullZ        ?? -Math.PI * 0.39)) * attackSide;
+
+            const armThrowX = this.isSpecialAttack ? -Math.PI * 0.7 : -Math.PI * 0.58;
+            const armThrowZ = -0.16 * attackSide;
+            const armThrowY = -0.2 * attackSide;
+
+            // Elbow bend (forearm perpendicular to upper arm); tunable via CONFIG.
+            const elbowBendPull = this.isSpecialAttack
+                ? (CONFIG.attackElbowBendPullSpecial ?? -Math.PI * 0.5)
+                : (CONFIG.attackElbowBendPull        ?? -Math.PI * 0.5);
+            const elbowBendThrow = 0.12;
+
+            // --- Support arm (non-throwing hand) windup + throw-back poses ---
+            // Solved inversely so that in the CHARACTER mesh frame:
+            //   WINDUP: upper arm points forward, forearm horizontal across chest
+            //   THROW : upper arm swings back behind the torso, forearm trails
+            // Sign convention: the shoulder side of the support arm is always opposite the
+            // throwing side. Y and Z rotations are mirrored via (-attackSide); X is symmetric.
+            const suppWindX = this.isSpecialAttack
+                ? (CONFIG.attackSupportArmWindupXSpecial ?? 0.09)
+                : (CONFIG.attackSupportArmWindupX        ?? 0.0);
+            const suppWindY = (this.isSpecialAttack
+                ? (CONFIG.attackSupportArmWindupYSpecial ?? 0.0)
+                : (CONFIG.attackSupportArmWindupY        ?? 0.0)) * (-attackSide);
+            const suppWindZ = (this.isSpecialAttack
+                ? (CONFIG.attackSupportArmWindupZSpecial ?? -1.31)
+                : (CONFIG.attackSupportArmWindupZ        ?? -1.48)) * (-attackSide);
+            const suppWindElbow = this.isSpecialAttack
+                ? (CONFIG.attackSupportElbowWindupSpecial ?? -1.73)
+                : (CONFIG.attackSupportElbowWindup        ?? -1.73);
+
+            const suppThrowX = this.isSpecialAttack
+                ? (CONFIG.attackSupportArmThrowXSpecial ?? -0.35)
+                : (CONFIG.attackSupportArmThrowX        ?? 0.0);
+            const suppThrowY = (this.isSpecialAttack
+                ? (CONFIG.attackSupportArmThrowYSpecial ?? 0.0)
+                : (CONFIG.attackSupportArmThrowY        ?? 0.09)) * (-attackSide);
+            const suppThrowZ = (this.isSpecialAttack
+                ? (CONFIG.attackSupportArmThrowZSpecial ?? -0.87)
+                : (CONFIG.attackSupportArmThrowZ        ?? -1.22)) * (-attackSide);
+            const suppThrowElbow = this.isSpecialAttack
+                ? (CONFIG.attackSupportElbowThrowSpecial ?? -0.94)
+                : (CONFIG.attackSupportElbowThrow        ?? -0.94);
+
+            let supportArmX = 0, supportArmY = 0, supportArmZ = 0, supportForearmX = 0;
+            let swingAngleX = 0, swingAngleZ = 0, swingAngleY = 0, forearmAngleX = 0;
+
+            if (this.attackPhase === 'windup') {
+                const eased = this.getWindupEased();
+                supportArmX = THREE.MathUtils.lerp(0, suppWindX, eased);
+                supportArmY = THREE.MathUtils.lerp(0, suppWindY, eased);
+                supportArmZ = THREE.MathUtils.lerp(supportIdleZ, suppWindZ, eased);
+                supportForearmX = THREE.MathUtils.lerp(0, suppWindElbow, eased);
+                swingAngleX = THREE.MathUtils.lerp(throwArm.rotation.x, armPullX, eased);
+                swingAngleZ = THREE.MathUtils.lerp(throwArm.rotation.z, armPullZ, eased);
+                swingAngleY = THREE.MathUtils.lerp(throwArm.rotation.y, armPullY, eased);
+                forearmAngleX = THREE.MathUtils.lerp(throwForearm.rotation.x, elbowBendPull, eased);
+            } else {
+                const progress = 1 - (this.attackTimer / this.recoverDuration);
+                if (progress < 0.14) {
+                    const bp = progress / 0.14;
+                    const eased = bp * bp;
+                    const whip = Math.pow(bp, 3);
+                    // Burst phase: support arm snaps from windup pose to throw-back pose
+                    supportArmX = THREE.MathUtils.lerp(suppWindX, suppThrowX, bp);
+                    supportArmY = THREE.MathUtils.lerp(suppWindY, suppThrowY, bp);
+                    supportArmZ = THREE.MathUtils.lerp(suppWindZ, suppThrowZ, bp);
+                    supportForearmX = THREE.MathUtils.lerp(suppWindElbow, suppThrowElbow, bp);
+                    swingAngleX = THREE.MathUtils.lerp(armPullX, armThrowX, eased);
+                    swingAngleZ = THREE.MathUtils.lerp(armPullZ, armThrowZ, eased);
+                    swingAngleY = THREE.MathUtils.lerp(armPullY, armThrowY, eased);
+                    forearmAngleX = THREE.MathUtils.lerp(elbowBendPull, elbowBendThrow, whip);
+                } else {
+                    const sp = (progress - 0.14) / 0.86;
+                    // Settle phase: ease support arm back to idle
+                    supportArmX = THREE.MathUtils.lerp(suppThrowX, 0, sp);
+                    supportArmY = THREE.MathUtils.lerp(suppThrowY, 0, sp);
+                    supportArmZ = THREE.MathUtils.lerp(suppThrowZ, supportIdleZ, sp);
+                    supportForearmX = THREE.MathUtils.lerp(suppThrowElbow, 0, sp);
+                    swingAngleX = THREE.MathUtils.lerp(armThrowX, 0, sp);
+                    swingAngleZ = THREE.MathUtils.lerp(armThrowZ, throwIdleZ, sp);
+                    swingAngleY = THREE.MathUtils.lerp(armThrowY, 0, sp);
+                    forearmAngleX = THREE.MathUtils.lerp(elbowBendThrow, 0, sp);
+                }
+            }
+
+            supportArm.rotation.x = THREE.MathUtils.lerp(supportArm.rotation.x, supportArmX, delta * 24);
+            supportArm.rotation.y = THREE.MathUtils.lerp(supportArm.rotation.y, supportArmY, delta * 24);
+            supportArm.rotation.z = THREE.MathUtils.lerp(supportArm.rotation.z, supportArmZ, delta * 24);
+            supportForearm.rotation.x = THREE.MathUtils.lerp(supportForearm.rotation.x, supportForearmX, delta * 24);
+
+            if (this.attackPhase === 'recover' && (1 - (this.attackTimer / this.recoverDuration)) < 0.14) {
+                throwArm.rotation.x = swingAngleX;
+                throwArm.rotation.z = swingAngleZ;
+                throwArm.rotation.y = swingAngleY;
+                throwForearm.rotation.x = forearmAngleX;
+            } else {
+                throwArm.rotation.x = THREE.MathUtils.lerp(throwArm.rotation.x, swingAngleX, delta * 34);
+                throwArm.rotation.z = THREE.MathUtils.lerp(throwArm.rotation.z, swingAngleZ, delta * 34);
+                throwArm.rotation.y = THREE.MathUtils.lerp(throwArm.rotation.y, swingAngleY, delta * 34);
+                throwForearm.rotation.x = THREE.MathUtils.lerp(throwForearm.rotation.x, forearmAngleX, delta * 36);
+            }
+        } else {
+            // Idle: relaxed arms at sides with soft breathing sway
+            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
+            this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
+            this.leftArm.rotation.y = THREE.MathUtils.lerp(this.leftArm.rotation.y, 0, delta * armSpeed);
+            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * armSpeed);
+            this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed);
+            this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02;
+            this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
+            this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * armSpeed);
+        }
+    }
+
+    // Shared tail helper: tail IK + catch-recoil timer + weapon visibility.
+    // Called from both branches of _updateAnimation_main. `isRunning`
+    // selects the tail wag mode (true = walk-cycle wag, false = idle wag).
+    // Returns whether any feather is currently recalling (used by the
+    // stationary arm-animation branch to pick the recall pose).
+    _updateAnimation_tail(delta, time, isRunning) {
+        // --- Procedural IK Tail update ---
         if (this.tailWorldGroup) {
-            // Check for config changes to rebuild dynamically
             const targetSegLength = CONFIG.tailSegLength !== undefined ? CONFIG.tailSegLength : 0.07;
             const targetRadius = CONFIG.tailRadius !== undefined ? CONFIG.tailRadius : 0.04;
             if (this.tailSegLength !== targetSegLength || this.currentTailRadius !== targetRadius) {
                 this.tailSegLength = targetSegLength;
                 this.currentTailRadius = targetRadius;
-                // Rebuild geometries
                 for (let i = 0; i < this.numTailSegments; i++) {
                     const mesh = this.tailMeshes[i];
                     mesh.geometry.dispose();
@@ -839,311 +1790,82 @@ export class PlayerCharacter {
                     mesh.geometry = geo;
                 }
             }
-
-            // Ensure the world group is in the scene
             if (!this.tailWorldGroup.parent && Globals.scene) {
                 Globals.scene.add(this.tailWorldGroup);
             }
-            
-            // Sync visibility
             this.tailWorldGroup.visible = this.mesh.visible;
-            
-            // Get base position in world space
+
             this.bodyGroup.updateMatrixWorld();
-            const basePos = new THREE.Vector3(0, -0.01, -0.08);
+            // 复用模块 scratch 替代每帧 new Vector3
+            const basePos = _scratchTailV1.set(0, -0.01, -0.08);
             this.bodyGroup.localToWorld(basePos);
-            
-            // Handle initialization or teleportation (if the player moved too far instantly)
+
             if (!this.tailInitialized || this.tailPoints[0].distanceToSquared(basePos) > 4.0) {
-                for (let i = 0; i <= this.numTailSegments; i++) {
-                    this.tailPoints[i].copy(basePos);
-                }
+                for (let i = 0; i <= this.numTailSegments; i++) this.tailPoints[i].copy(basePos);
                 this.tailInitialized = true;
             }
-            
-            // Apply walking/idle wag to the attachment point
-            let wagOffset = new THREE.Vector3();
-            let rightDir = new THREE.Vector3(1, 0, 0);
-            rightDir.transformDirection(this.mesh.matrixWorld).normalize();
-            
-            if (isMoving) {
-                let wagAmount = Math.sin(wp * 2.0) * 0.08;
-                wagOffset.copy(rightDir).multiplyScalar(wagAmount);
-            } else {
-                let wagAmount = Math.sin(time * 2.5) * 0.02;
-                wagOffset.copy(rightDir).multiplyScalar(wagAmount);
-            }
-            
+
+            // Wag amount: walk-cycle-driven when running, gentle time-based when idle.
+            const wagOffset = _scratchTailV2;
+            const rightDir = _scratchTailV3.set(1, 0, 0).transformDirection(this.mesh.matrixWorld).normalize();
+            const wagAmount = isRunning
+                ? Math.sin(this.walkPhase * 2.0) * 0.08
+                : Math.sin(time * 2.5) * 0.02;
+            wagOffset.copy(rightDir).multiplyScalar(wagAmount);
             this.tailPoints[0].copy(basePos).add(wagOffset);
-            
-            // Inverse Kinematics / Distance Constraints
+
+            // playerBackward 在循环内是常量（mesh.matrixWorld 在循环内不变）→ 提到循环外
+            const playerBackward = _scratchTailV4.set(0, 0, -1).transformDirection(this.mesh.matrixWorld).normalize();
+            const tailSegLength = this.tailSegLength;
             for (let i = 1; i <= this.numTailSegments; i++) {
-                let curr = this.tailPoints[i];
-                let prev = this.tailPoints[i - 1];
-                
-                let dir = new THREE.Vector3().subVectors(curr, prev);
-                let dist = dir.length();
-                
+                const curr = this.tailPoints[i];
+                const prev = this.tailPoints[i - 1];
+                const dir = _scratchTailV5.subVectors(curr, prev);
+                const dist = dir.length();
                 if (dist > 0.0001) {
-                    dir.normalize();
-                    
-                    // Add slight stiffness by blending the direction with the backward vector
-                    // This prevents the tail from whipping perfectly to the side instantly
-                    let playerBackward = new THREE.Vector3(0, 0, -1);
-                    playerBackward.transformDirection(this.mesh.matrixWorld).normalize();
-                    // Mix in some backward intent
+                    dir.multiplyScalar(1 / dist);
                     dir.lerp(playerBackward, 0.05);
-                    
-                    // Add tiny gravity droop
                     dir.y -= 0.01;
                     dir.normalize();
-                    
-                    // Enforce exact distance constraint
-                    curr.copy(prev).add(dir.multiplyScalar(this.tailSegLength));
+                    curr.copy(prev).addScaledVector(dir, tailSegLength);
                 }
             }
-            
-            // Update Mesh positions and rotations
             for (let i = 0; i < this.numTailSegments; i++) {
-                let p1 = this.tailPoints[i];
-                let p2 = this.tailPoints[i + 1];
-                let mesh = this.tailMeshes[i];
-                
-                // Position mesh precisely halfway between the joints
+                const p1 = this.tailPoints[i];
+                const p2 = this.tailPoints[i + 1];
+                const mesh = this.tailMeshes[i];
                 mesh.position.copy(p1).add(p2).multiplyScalar(0.5);
-                // Aim +Z axis towards the leading joint
                 mesh.lookAt(p1);
             }
         }
-        
+
+        // --- Catch-recoil timer ---
+        // 仅保留计时状态推进，武器模型已移除，故无需切换可见性
         if (this.isCatching) {
             this.catchTimer -= delta;
             if (this.catchTimer <= 0) {
                 this.isCatching = false;
-                this.weaponBackGroup.visible = false;
-                this.weaponGroup.visible = true;
             }
         }
 
-        const idleSpeed2 = 3;
-        const armSpeed = this.isAttacking ? 20 : (isMoving ? 8 : 10);
-        
         const isRecallingAny = Globals.feathers && Globals.feathers.some(f => f.phase === 'recalling');
-        const activeFeathersCount = Globals.feathers ? Globals.feathers.length : 0;
-        const weaponsInInventory = Math.max(0, 4 - activeFeathersCount);
-        const hasWeaponInHand = weaponsInInventory > 0;
-        const weaponsOnBackCount = Math.max(0, weaponsInInventory - 1);
-        
-        // Hide weapon in hand during catching animation (if we put it on back)
-        if (CONFIG.hideVisualDistractors) {
-            this.weaponGroup.visible = false;
-            this.weaponBackGroup.visible = false;
-            if (this.backWeapons) {
-                for (let i = 0; i < 3; i++) {
-                    this.backWeapons[i].visible = false;
-                }
-            }
-        } else {
-            if (this.isCatching && this.catchTimer < 0.2) {
-                this.weaponGroup.visible = false;
-                this.weaponBackGroup.visible = true;
-            } else if (!this.isCatching) {
-                this.weaponGroup.visible = hasWeaponInHand;
-                this.weaponBackGroup.visible = false;
-            }
+        return isRecallingAny;
+    }
 
-            // Update back weapons visibility
-            if (this.backWeapons) {
-                for (let i = 0; i < 3; i++) {
-                    // Determine if this pendant should be visible based on inventory
-                    this.backWeapons[i].visible = (i < weaponsOnBackCount);
-                }
-            }
-        }
-
-        if (isMoving) {
-            const armSwing = CONFIG.runArmSwing !== undefined ? CONFIG.runArmSwing : 0.8;
-            const armSpread = CONFIG.runArmSpread !== undefined ? CONFIG.runArmSpread : 0.3;
-            const targetArmL = -Math.sin(wp) * armSwing;
-            const targetArmR = Math.sin(wp) * armSwing;
-            this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetArmL, delta * armSpeed);
-            this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, armSpread, delta * armSpeed);
-            // 手臂向前摆动时（rotation.x 为负），小臂应该向内弯曲（rotation.x 也为负，因为肘部是向前曲的）
-            this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, Math.min(0, targetArmL * 0.8), delta * armSpeed);
-
-                if (this.isAttacking) {
-                let swingAngleX = 0;
-                let swingAngleZ = 0;
-                let swingAngleY = 0;
-                let forearmAngleX = 0;
-
-                const armPullX = this.isSpecialAttack ? Math.PI * 0.9 : Math.PI * 0.75; // Much higher (over shoulder)
-                const armAngleZ = this.isSpecialAttack ? 0.3 : 0.2; // Less angle out, more straight up/back
-                const armThrowX = this.isSpecialAttack ? -Math.PI * 0.6 : -Math.PI * 0.5; // Throw forward downwards
-                const elbowBendPull = this.isSpecialAttack ? -Math.PI * 0.7 : -Math.PI * 0.6; // Bend elbow heavily during windup
-                const elbowBendThrow = this.isSpecialAttack ? -Math.PI * 0.1 : -Math.PI * 0.1; // Extend fully when throwing
-
-                if (this.attackPhase === 'windup') {
-                    const progress = 1 - (this.attackTimer / this.windupDuration); // 0 to 1
-                    // Pull arm back and raise spear OVER THE SHOULDER
-                    swingAngleX = THREE.MathUtils.lerp(this.rightArm.rotation.x, armPullX, progress); 
-                    swingAngleZ = THREE.MathUtils.lerp(this.rightArm.rotation.z, armAngleZ, progress); 
-                    swingAngleY = THREE.MathUtils.lerp(this.rightArm.rotation.y, Math.PI * 0.1, progress);
-                    forearmAngleX = THREE.MathUtils.lerp(0, elbowBendPull, progress);
-                } else if (this.attackPhase === 'recover') {
-                    const progress = 1 - (this.attackTimer / this.recoverDuration); // 0 to 1
-                    if (progress < 0.25) {
-                        // Snap throw! Ultra fast
-                        const throwProgress = progress / 0.25;
-                        swingAngleX = THREE.MathUtils.lerp(armPullX, armThrowX, throwProgress);
-                        swingAngleZ = THREE.MathUtils.lerp(armAngleZ, -0.1, throwProgress);
-                        swingAngleY = THREE.MathUtils.lerp(Math.PI * 0.1, -0.1, throwProgress);
-                        forearmAngleX = THREE.MathUtils.lerp(elbowBendPull, elbowBendThrow, throwProgress);
-                    } else {
-                        // Slowly recover
-                        const recovProgress = (progress - 0.2) / 0.8;
-                        swingAngleX = THREE.MathUtils.lerp(armThrowX, targetArmR, recovProgress);
-                        swingAngleZ = THREE.MathUtils.lerp(-0.2, 0, recovProgress);
-                        swingAngleY = THREE.MathUtils.lerp(-0.1, 0, recovProgress);
-                        forearmAngleX = THREE.MathUtils.lerp(elbowBendThrow, 0, recovProgress);
-                    }
-                }
-                
-                // For instant snap, use high lerp or direct assignment for throwing phase
-                if (this.attackPhase === 'recover' && (1 - (this.attackTimer / this.recoverDuration)) < 0.25) {
-                     this.rightArm.rotation.x = swingAngleX;
-                     this.rightArm.rotation.z = swingAngleZ;
-                     this.rightArm.rotation.y = swingAngleY;
-                     this.rightForearm.rotation.x = forearmAngleX;
-                } else {
-                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, swingAngleX, delta * 30);
-                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, swingAngleZ, delta * 30);
-                    this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, swingAngleY, delta * 30);
-                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, forearmAngleX, delta * 30);
-                }
-
-            } else {
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, targetArmR, delta * armSpeed);
-                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -armSpread, delta * armSpeed);
-                this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
-                // 右臂跟随奔跑自然弯曲
-                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, Math.min(0, targetArmR * 0.8), delta * armSpeed);
-            }
-        } else {
-            if (this.isCatching) {
-                // Animation of absorbing/catching weapon
-                const catchProgress = 1 - (this.catchTimer / 0.3); // 0 to 1
-                
-                // Body recoil recovery
-                this.bodyGroup.position.y = THREE.MathUtils.lerp(this.bodyGroup.position.y, 0.25, delta * 15);
-                this.bodyGroup.rotation.x = THREE.MathUtils.lerp(this.bodyGroup.rotation.x, 0, delta * 15);
-
-                if (catchProgress < 0.5) {
-                    // Pull back quickly (recoil)
-                    this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 20);
-                    this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * 20);
-                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, Math.PI * 0.4, delta * 20); // Arm goes back
-                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, Math.PI * 0.1, delta * 20);
-                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, -Math.PI * 0.3, delta * 20);
-                } else {
-                    // Return to idle stance
-                    this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * 15);
-                    this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * 15);
-                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * 15);
-                    this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
-                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * 15);
-                }
-            } else if (isRecallingAny && !this.isAttacking) {
-                // Standing still and recalling -> hands reach forward to catch
-                this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, -Math.PI * 0.4, delta * 15);
-                this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, 0.1, delta * 15);
-                this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, -Math.PI * 0.2, delta * 15);
-                
-                this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, -Math.PI * 0.4, delta * 15);
-                this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, -0.1, delta * 15);
-                this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, -Math.PI * 0.2, delta * 15);
-            } else {
-                this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, 0, delta * armSpeed);
-                this.leftArm.rotation.z = 0.1 + Math.sin(time * idleSpeed2) * 0.02;
-                this.leftForearm.rotation.x = THREE.MathUtils.lerp(this.leftForearm.rotation.x, 0, delta * armSpeed);
-                
-                if (this.isAttacking) { 
-                    let swingAngleX = 0;
-                    let swingAngleZ = 0;
-                    let swingAngleY = 0;
-                    let forearmAngleX = 0;
-
-                    const armPullX = this.isSpecialAttack ? Math.PI * 0.9 : Math.PI * 0.75; // Much higher
-                    const armAngleZ = this.isSpecialAttack ? 0.3 : 0.2; 
-                    const armThrowX = this.isSpecialAttack ? -Math.PI * 0.6 : -Math.PI * 0.5;
-                    const elbowBendPull = this.isSpecialAttack ? -Math.PI * 0.7 : -Math.PI * 0.6; // Bend elbow heavily during windup
-                    const elbowBendThrow = this.isSpecialAttack ? -Math.PI * 0.1 : -Math.PI * 0.1; // Extend fully when throwing
-
-                    if (this.attackPhase === 'windup') {
-                        const progress = 1 - (this.attackTimer / this.windupDuration); 
-                        swingAngleX = THREE.MathUtils.lerp(this.rightArm.rotation.x, armPullX, progress); 
-                        swingAngleZ = THREE.MathUtils.lerp(this.rightArm.rotation.z, armAngleZ, progress); 
-                        swingAngleY = THREE.MathUtils.lerp(this.rightArm.rotation.y, Math.PI * 0.1, progress);
-                        forearmAngleX = THREE.MathUtils.lerp(0, elbowBendPull, progress);
-                    } else if (this.attackPhase === 'recover') {
-                        const progress = 1 - (this.attackTimer / this.recoverDuration); 
-                        if (progress < 0.25) {
-                            const throwProgress = progress / 0.25;
-                            swingAngleX = THREE.MathUtils.lerp(armPullX, armThrowX, throwProgress);
-                            swingAngleZ = THREE.MathUtils.lerp(armAngleZ, -0.1, throwProgress);
-                            swingAngleY = THREE.MathUtils.lerp(Math.PI * 0.1, -0.1, throwProgress);
-                            forearmAngleX = THREE.MathUtils.lerp(elbowBendPull, elbowBendThrow, throwProgress);
-                        } else {
-                            const recovProgress = (progress - 0.2) / 0.8;
-                            swingAngleX = THREE.MathUtils.lerp(armThrowX, 0, recovProgress);
-                            swingAngleZ = THREE.MathUtils.lerp(-0.2, -0.1 - Math.sin(time * idleSpeed2) * 0.02, recovProgress);
-                            swingAngleY = THREE.MathUtils.lerp(-0.1, 0, recovProgress);
-                            forearmAngleX = THREE.MathUtils.lerp(elbowBendThrow, 0, recovProgress);
-                        }
-                    }
-
-                    if (this.attackPhase === 'recover' && (1 - (this.attackTimer / this.recoverDuration)) < 0.25) {
-                         this.rightArm.rotation.x = swingAngleX;
-                         this.rightArm.rotation.z = swingAngleZ;
-                         this.rightArm.rotation.y = swingAngleY;
-                         this.rightForearm.rotation.x = forearmAngleX;
-                    } else {
-                        this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, swingAngleX, delta * 30);
-                        this.rightArm.rotation.z = THREE.MathUtils.lerp(this.rightArm.rotation.z, swingAngleZ, delta * 30);
-                        this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, swingAngleY, delta * 30);
-                        this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, forearmAngleX, delta * 30);
-                    }
-
-                } else { 
-                    this.rightArm.rotation.x = THREE.MathUtils.lerp(this.rightArm.rotation.x, 0, delta * armSpeed); 
-                    this.rightArm.rotation.z = -0.1 - Math.sin(time * idleSpeed2) * 0.02; 
-                    this.rightArm.rotation.y = THREE.MathUtils.lerp(this.rightArm.rotation.y, 0, delta * armSpeed);
-                    this.rightForearm.rotation.x = THREE.MathUtils.lerp(this.rightForearm.rotation.x, 0, delta * armSpeed);
-                }
-            }
-        }
-        
-        // Ensure base ring stays flat despite player rotation
-        if (this.baseRingGroup) {
-            this.baseRingGroup.visible = !CONFIG.hideVisualDistractors;
-            this.baseRingGroup.quaternion.copy(this.mesh.quaternion).invert();
-            if (this.dashRing) this.dashRing.rotation.y += delta * 1.5;
-            const ringScale = 1.0 + Math.sin(time * 4) * 0.03;
-            this.baseRingGroup.scale.set(ringScale, 1, ringScale);
-        }
-
-        if (this.shadowMesh) {
-            // bodyGroup rests around 0.25 on Y axis.
-            // When bouncing, it goes higher. We use this height offset to scale the shadow.
-            const heightOffset = Math.max(0, this.bodyGroup.position.y - 0.25);
-            
-            // As height increases, shadow shrinks and becomes more transparent
-            const shadowScale = Math.max(0.4, 1.0 - heightOffset * 2.0);
-            const shadowOpacity = Math.max(0.05, 0.35 - heightOffset * 0.8);
-            
-            this.shadowMesh.scale.set(shadowScale, shadowScale, shadowScale);
-            this.shadowMesh.material.opacity = shadowOpacity;
-        }
+    // Reset all transient attack / animation state. Safe to call after
+    // any interruption so the next frame starts from a clean slate.
+    resetAttackState() {
+        this.isAttacking = false;
+        this.attackPhase = 'none';
+        this.attackTimer = 0;
+        this.attackFacingAngle = null;
+        this.attackHand = 'right';
+        this.nextAttackHand = 'right';
+        this.isSpecialAttack = false;
+        this._attackCountInSequence = 0;
+        this.walkPhase = 0;
+        this.smokeTrailDistance = 0;
+        this.lastStepPhaseIndex = 0;
     }
 
     updateTrajectory(delta) {
@@ -1163,24 +1885,32 @@ export class PlayerCharacter {
 
         this.trajectoryTime = (this.trajectoryTime || 0) + delta;
 
-        // Record current position
+        // Record current position（push 仍 new 一个对象，但每帧 1 次远比每帧整数组分配代价低；
+        // 真正大头是下面写 BufferAttribute——已改为 in-place 写入预分配 buffer）
         const p = this.mesh.position.clone();
-        p.y = 0.05; // Slightly above ground
+        p.y = 0.05;
         this.trajectoryPoints.push({ pos: p, time: this.trajectoryTime });
 
         // Remove points older than 3 seconds
         while (this.trajectoryPoints.length > 0 && this.trajectoryTime - this.trajectoryPoints[0].time > 3.0) {
             this.trajectoryPoints.shift();
         }
-
-        // Update geometry
-        const positions = new Float32Array(this.trajectoryPoints.length * 3);
-        for (let i = 0; i < this.trajectoryPoints.length; i++) {
-            positions[i * 3] = this.trajectoryPoints[i].pos.x;
-            positions[i * 3 + 1] = this.trajectoryPoints[i].pos.y;
-            positions[i * 3 + 2] = this.trajectoryPoints[i].pos.z;
+        // 安全限制：超出预分配上限时强制 drop 头部
+        while (this.trajectoryPoints.length > this.TRAJECTORY_MAX_POINTS) {
+            this.trajectoryPoints.shift();
         }
-        this.trajectoryLineGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        // Update geometry —— in-place 写入预分配 Float32Array，仅 needsUpdate + setDrawRange
+        const positions = this._trajectoryPositions;
+        const n = this.trajectoryPoints.length;
+        for (let i = 0; i < n; i++) {
+            const tp = this.trajectoryPoints[i].pos;
+            positions[i * 3]     = tp.x;
+            positions[i * 3 + 1] = tp.y;
+            positions[i * 3 + 2] = tp.z;
+        }
+        this._trajectoryAttribute.needsUpdate = true;
+        this.trajectoryLineGeo.setDrawRange(0, n);
         this.trajectoryLineGeo.computeBoundingSphere();
     }
 }
