@@ -2001,6 +2001,21 @@
                     <div class="panel-row-header"><span>羽毛 UI 倍率</span><span id="val-hsz">1.0</span></div>
                     <input type="range" id="inp-hsz" min="0.3" max="3.0" step="0.1" value="1.0">
                 </div>
+                <!-- 伤害数字 text-shadow 三层强度（驱动 CSS --dmg-sh-a1/a2/a3）：
+                     仅调透明度，颜色/模糊半径在 CSS 里固定，避免风格漂移；调到 0 即禁用该层。
+                     初值与 :root 默认对齐；运行时由 ControlPanel.js 从 CONFIG 同步覆盖。 -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>伤害阴影 · 字身柔光</span><span id="val-dsh1">0.35</span></div>
+                    <input type="range" id="inp-dsh1" min="0" max="1" step="0.01" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>伤害阴影 · 大柔光晕</span><span id="val-dsh2">0.20</span></div>
+                    <input type="range" id="inp-dsh2" min="0" max="1" step="0.01" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>伤害阴影 · 底部软投影</span><span id="val-dsh3">0.30</span></div>
+                    <input type="range" id="inp-dsh3" min="0" max="1" step="0.01" value="0.30">
+                </div>
             </details>
 
             <details class="panel-group">

@@ -424,6 +424,10 @@ export const SHIPPING_PRESET = {
     slashFlashRevealRatio: 0.18,
     slashFlashFadeStart: 0.32,
     damageTextScale: 0.6,
+    // 伤害数字 text-shadow 三层 alpha（与 DEFAULT_CONFIG 同值，留出口以便发布版独立微调）
+    dmgShadowAlphaTight: 0.35,
+    dmgShadowAlphaGlow:  0.20,
+    dmgShadowAlphaDrop:  0.30,
     hudScale: 1,
     shakeIntensityThrow: 0.2,
     shakeDurationThrow: 0.13,

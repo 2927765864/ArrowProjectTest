@@ -2,6 +2,15 @@
     --dmg-scale: 1.0;
     --hud-scale: 1.0;
     --panel-opacity: 1;
+    /* 伤害数字 text-shadow 三层 alpha（由参数面板 UI 与界面 → 阴影强度系列控制）：
+       --dmg-sh-a1: 紧贴字身柔光（0/0/3px 暖紫）
+       --dmg-sh-a2: 大范围柔光晕（0/0/8px 暖紫）
+       --dmg-sh-a3: 底部软投影     （0/2px/3px 黑）
+       默认偏弱（网页端目视几乎不可见），让 iOS 等多平台都从"轻微"起调，
+       想要更立体的字根，把对应那层调大即可。 */
+    --dmg-sh-a1: 0.35;
+    --dmg-sh-a2: 0.20;
+    --dmg-sh-a3: 0.30;
 }
 
 /* 左上角"测试"文字：连续点击三次可呼出参数面板 */
@@ -242,17 +251,12 @@ body {
     display: inline-flex;
     align-items: center;
     line-height: 1;
-    /* ★ 多层 text-shadow 叠加（完全去描边版）：
-       1) 0/0/3px 紧贴字身的暖紫柔光——加深字根边缘对比，让字与背景分离（替代描边的"勾轮廓"作用）
-       2) 0/0/8px 大范围柔光晕——让字"漂浮"在场景上的环境光感
-       3) 0/2px/3px 半透明软投影——把数字轻轻"压"在画面里，立体而非贴片
-       说明：彻底去掉所有方向硬描边，可读性完全由"双层柔光 + 软投影"承担。
-       注意：在极亮的纯色背景下可能略糊，但游戏场景里 3D 物体颜色丰富，柔光足够拉开层次。
-    */
-    text-shadow:
-         0 0 3px rgba(30, 16, 42, 0.95),
-         0 0 8px rgba(30, 16, 42, 0.65),
-         0 2px 3px rgba(0, 0, 0, 0.45);
+    /* ★ 关于 text-shadow：
+       由于 utils.js 的 splitFloatingTextChars 把这里的整条文字拆成了一堆
+       <span class="dmg-char">单字</span>，外层 .floating-text 自己已经没有任何
+       TextNode 了，把 text-shadow 写在这里反而不会显示（没有字给它投影）。
+       所以 text-shadow 改为定义在 .dmg-char 上（见下方），每个字符各画一份，
+       行为跨平台一致。 */
 }
 
 /* 纯色伤害数字：去掉黑描边和投影，依靠"颜色 + 字号 + 动效"区分等级。
@@ -313,28 +317,26 @@ body {
    - 行内 style 会覆盖 transform 用于动画；transform 不影响文档流尺寸 ——
      字符 scale=0 时仍占据排版位置，整条文字宽度从一开始就稳定，避免"逐字出现时整体抖动"。
 
-   ★ text-shadow: none 关键修复（iOS Safari/WebKit）：
-     外层 .floating-text 上的 text-shadow 是为整条跳字设计的"一次性"柔光+软投影。
-     但 utils.js 的 splitFloatingTextChars 把文本拆成了一堆 <span class="dmg-char">
-     单字符 span，CSS 继承会让每个子 span 各自再画一遍 text-shadow。
-     - Chrome/Blink（网页端）会做层合并，多份 shadow alpha 不会 1:1 叠加，看起来很浅；
-     - iOS Safari/WebKit 会按每个 inline-block 子层独立绘制 shadow，相邻字符的阴影
-       互相覆盖叠加 → 数字部分阴影"特别重"。
-     而内层 <span class="dmg-pen"> 在 WebKit 上因 inline-flex 创建了独立合成上下文，
-     里面的"贯穿"两字 shadow 渲染路径不同，反而保持了正常浅阴影 —— 这就解释了
-     "iOS 上数字阴影很重、贯穿两字却正常"的现象。
-     这里把所有子级 shadow 干掉，整条只在最外层 .floating-text 画一次，跨平台一致。 */
+   ★ text-shadow 必须画在这里（不能画在 .floating-text）：
+     splitFloatingTextChars 把整条文字拆成 <span class="dmg-char">单字</span>，
+     外层 div 已经没有 TextNode，把 text-shadow 写在 .floating-text 不会显示。
+     这里给每个单字 span 各画一份；三层 alpha 由 :root 上的 --dmg-sh-a1/a2/a3 驱动，
+     参数面板 UI 与界面 → "伤害阴影 · *" 三个滑块实时写入。
+     颜色与模糊半径固定，仅调强度，避免风格漂移；调到 0 即视觉禁用对应那一层。
+
+   ★ 关于 iOS 上"数字阴影特别重而'贯穿'正常"：
+     根本原因不是字符之间的 shadow 互相叠加，而是 iOS Safari/WebKit 对
+     `-webkit-font-smoothing: antialiased` 字体在多层 text-shadow 下的绘制权重
+     与 Chrome 不同。把 alpha 暴露成可调参数后，用户可在面板上把强度调低
+     （例如 0.4 / 0.3 / 0.25）来抵消 iOS 上的过重感，无需依赖各平台默认值的猜测。 */
 .dmg-char {
     display: inline-block;
     transform-origin: 50% 50%;
     will-change: transform;
-    text-shadow: none;
-}
-
-/* 同理：.dmg-pen 是 "X3贯穿" 后缀的内层容器，也属于 .floating-text 的子级，
-   它本身（以及它内部的 .dmg-char）都不该再画一份 shadow —— 全部交给最外层。 */
-.dmg-pen {
-    text-shadow: none;
+    text-shadow:
+         0 0 3px rgba(30, 16, 42, var(--dmg-sh-a1)),
+         0 0 8px rgba(30, 16, 42, var(--dmg-sh-a2)),
+         0 2px 3px rgba(0, 0, 0,  var(--dmg-sh-a3));
 }
 
 #control-panel {

@@ -1083,6 +1083,29 @@ export function setupControlPanel() {
         });
     }
 
+    // 伤害数字 text-shadow 三层 alpha：CONFIG ↔ CSS 变量 --dmg-sh-a1/a2/a3
+    // 颜色/模糊半径在 style.css .floating-text 里固定，这里只控制强度。
+    // 调到 0 即视觉禁用对应那一层，便于在 iOS / 网页端按需对齐效果。
+    const bindShadowAlpha = (inputId, valId, configKey, cssVar) => {
+        const inp = document.getElementById(inputId);
+        if (!inp) return;
+        const lbl = document.getElementById(valId);
+        if (CONFIG[configKey] !== undefined) {
+            inp.value = CONFIG[configKey];
+            if (lbl) lbl.innerText = Number(CONFIG[configKey]).toFixed(2);
+            document.documentElement.style.setProperty(cssVar, CONFIG[configKey]);
+        }
+        inp.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG[configKey] = val;
+            if (lbl) lbl.innerText = val.toFixed(2);
+            document.documentElement.style.setProperty(cssVar, val);
+        });
+    };
+    bindShadowAlpha('inp-dsh1', 'val-dsh1', 'dmgShadowAlphaTight', '--dmg-sh-a1');
+    bindShadowAlpha('inp-dsh2', 'val-dsh2', 'dmgShadowAlphaGlow',  '--dmg-sh-a2');
+    bindShadowAlpha('inp-dsh3', 'val-dsh3', 'dmgShadowAlphaDrop',  '--dmg-sh-a3');
+
     // ===== 伤害数字动效 · 主动攻击组 =====
     bindSlider('inp-dmg-atk-life', 'val-dmg-atk-life', 'dmgAtkLife',          true);
     bindSlider('inp-dmg-atk-mt',   'val-dmg-atk-mt',   'dmgAtkMoveTimeRatio', true);

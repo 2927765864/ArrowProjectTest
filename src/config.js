@@ -707,6 +707,15 @@ export const DEFAULT_CONFIG = {
     slashFlashFadeStart:       0.55,    // 淡出起点（0~1 进度）。值越大整体可视时间越长，但末段会更急促
 
     damageTextScale: 1.0,
+    // 伤害数字 text-shadow 三层 alpha（驱动 style.css 中 :root 的 --dmg-sh-a1/a2/a3）：
+    //   1) 紧贴字身柔光（0/0/3px 暖紫）—— 加深字根边缘对比，让字与背景分离
+    //   2) 大范围柔光晕（0/0/8px 暖紫）—— "漂浮"在场景上的环境光感
+    //   3) 底部软投影     （0/2px/3px 黑）—— 把数字轻轻"压"在画面里
+    // 颜色与模糊半径在 CSS 里固定，只调 alpha 强度，避免风格漂移；0 = 视觉禁用对应那一层。
+    // 默认偏弱（"网页端几乎看不到"水平），iOS 起调感同样轻，想加深时由面板拖大。
+    dmgShadowAlphaTight: 0.35,
+    dmgShadowAlphaGlow:  0.20,
+    dmgShadowAlphaDrop:  0.30,
     hudScale: 1.0,
     // ===== 震动 · 穿刺事件（主动攻击飞行穿刺 + 回收穿刺，各自独立）=====
     // 主动攻击穿刺（羽毛飞行中命中敌人）
