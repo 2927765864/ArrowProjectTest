@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-11T03:39:26.723Z
+// 生成时间: 2026-05-11T04:21:32.520Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778470766;
+export const SHIPPING_PRESET_VERSION = 1778473292;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -159,7 +159,7 @@ export const SHIPPING_PRESET = {
     recallCourierWeaponBaseRotZ: 0,
     recallCourierWeaponWindupRotX: 86,
     recallCourierWeaponThrowRotX: 57,
-    sceneMode: "dummy",
+    sceneMode: "obstacles",
     wave4Count: 4,
     wave4RespawnDelay: 0.6,
     floorStyle: "solid",
@@ -167,12 +167,12 @@ export const SHIPPING_PRESET = {
     maxMoveSpeedZ: 9,
     showPlayerTrajectory: false,
     showCollisionBox: false,
-    showFps: true,
+    showFps: false,
     useCustomCollision: true,
     customCollisionRadius: 0.15,
     cameraMode: "perspective",
     cameraFov: 30,
-    cameraDist: 38,
+    cameraDist: 60,
     cameraAngleX: 41,
     cameraAngleY: 0,
     cameraViewScale: 0.7,
@@ -220,7 +220,7 @@ export const SHIPPING_PRESET = {
     hitDeformStretchPinch: 0.44,
     hitDeformDentDepth: 0.65,
     hitDeformDentRadius: 0.7,
-    hitKnockbackForce: 20,
+    hitKnockbackForce: 10,
     hitStunDuration: 0.15,
     hitBendEnabled: true,
     hitBendStiffness: 164,
@@ -251,7 +251,7 @@ export const SHIPPING_PRESET = {
     critEnabled: true,
     critChance: 0.5,
     critDamage: 480,
-    critKnockbackForce: 20,
+    critKnockbackForce: 15,
     critBurstScale: 1,
     critBurstMergeCount: 1,
     dmgCritAtkMoveTimeRatio: 0.4,
