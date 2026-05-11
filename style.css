@@ -62,6 +62,84 @@
     -webkit-user-select: none;
 }
 #fps-display.is-visible { display: block; }
+
+/* 屏幕正上方"持续移动以回收武器"提示：
+   - 场上存在已扔出的武器（Globals.feathers.length > 0）时显示，呼吸式淡入淡出
+   - 全部武器回收后由 JS 切换隐藏（移除 .is-visible）
+   - 视觉风格沿用项目主色：暖绿 #c8ea75 字 + 绿色光晕 + 黑色软投影增强可读性。
+   - 字体复用伤害数字的 Lilita One + Noto Sans SC 900，圆润且可读
+   - 纯文字呈现，无外框/无底，与场景融合不突兀
+
+   ★ 动画分层（避免 transition 与 animation 抢同一个属性）：
+     - opacity：由 CSS transition 控制，负责"渐入/渐出"
+     - transform: scale + text-shadow + filter: brightness：由 keyframes 控制，
+       负责"呼吸"。这两路用不同属性通道，互不打架。
+*/
+#recall-hint {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    left: 50%;
+    /* 注意：transform 由呼吸动画接管，包含 translateX(-50%) 居中 + scale。
+       这里给一个静态兜底，防止动画未启动时偏到左上角。 */
+    transform: translateX(-50%);
+    z-index: 30;
+    font-family: 'Lilita One', 'Noto Sans SC', 'Segoe UI', Tahoma, sans-serif;
+    font-weight: 900;
+    font-size: 15px;
+    letter-spacing: 0.14em;
+    color: #c8ea75;
+    text-shadow:
+        0 0 6px rgba(145, 197, 58, 0.55),
+        0 0 14px rgba(145, 197, 58, 0.28),
+        0 1px 3px rgba(0, 0, 0, 0.85),
+        0 2px 6px rgba(0, 0, 0, 0.55);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+    white-space: nowrap;
+    /* 默认隐藏：透明，等 JS 加 .is-visible 后透明度过渡至可见并启动呼吸。
+       visibility 与 opacity 同时过渡，避免淡出完成前 hidden 突变。 */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.55s ease, visibility 0.55s ease;
+}
+#recall-hint.is-visible {
+    opacity: 1;
+    visibility: visible;
+    animation: recall-hint-breathe 1.8s ease-in-out infinite;
+}
+
+/* 呼吸效果：用 transform: scale + text-shadow + filter: brightness 模拟"在呼吸"的节奏感。
+   1.8 秒一轮；★ 不动 opacity，把整体透明度让给 fade-in/out transition，
+   两条动画通道分离，渐入/渐出与呼吸不会互相打架。 */
+@keyframes recall-hint-breathe {
+    0%, 100% {
+        transform: translateX(-50%) scale(0.97);
+        filter: brightness(0.85);
+        text-shadow:
+            0 0 6px rgba(145, 197, 58, 0.40),
+            0 0 12px rgba(145, 197, 58, 0.16),
+            0 1px 3px rgba(0, 0, 0, 0.85),
+            0 2px 6px rgba(0, 0, 0, 0.55);
+    }
+    50% {
+        transform: translateX(-50%) scale(1.04);
+        filter: brightness(1.15);
+        text-shadow:
+            0 0 8px rgba(200, 234, 117, 0.75),
+            0 0 18px rgba(145, 197, 58, 0.45),
+            0 1px 3px rgba(0, 0, 0, 0.85),
+            0 2px 6px rgba(0, 0, 0, 0.55);
+    }
+}
+
+@media (max-width: 460px) {
+    #recall-hint {
+        font-size: 13.5px;
+        letter-spacing: 0.12em;
+    }
+}
+
 body {
     margin: 0;
     overflow: hidden;

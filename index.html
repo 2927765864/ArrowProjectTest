@@ -2583,6 +2583,10 @@
             <div id="joystick-knob"></div>
         </div>
         <button id="btn-mode-switch" type="button" style="display:none;">进入木桩模式</button>
+        <!-- 屏幕正上方"持续移动以回收武器"提示：
+             场上存在已扔出的武器时显示（带呼吸效果），武器全部回收后自动隐藏。
+             更新逻辑见 src/main.js 的 updateRecallHint()，由 animate() 每帧调用。 -->
+        <div id="recall-hint" aria-hidden="true">持续移动以回收武器</div>
         <div id="ui-layer"></div>
     </div>
 

@@ -2141,6 +2141,49 @@ function updatePlayerHUD() {
 // 仅在 CONFIG.showFps 为真时才更新文本，DOM 显隐由 ControlPanel 切换 .is-visible。
 const _fpsState = { acc: 0, frames: 0, el: null };
 
+// 屏幕正上方"持续移动以回收武器"提示控制：
+// - 场上存在已扔出的武器（任何 phase：shooting / deployed / recalling）时显示
+// - 全部回收后（Globals.feathers.length === 0）隐藏
+// - DOM 缓存避免每帧 getElementById；用 visible 缓存只在状态变化时操作 classList
+//
+// ★ 新手引导限次：
+//   - 每完成一次"出现 → 消失"的完整循环算 1 次触发（在 visible: true → false 的下降沿 +1）
+//   - 达到 RECALL_HINT_MAX_TRIGGERS 次后，本次启动游戏不再显示这条提示
+//   - 计数仅存在内存里，不写入 localStorage —— 每次重新启动游戏会重置（用户当前需求即是
+//     "每次启动游戏后…3 次"，意味着这是按会话计数，不跨会话持久化）
+const RECALL_HINT_MAX_TRIGGERS = 3;
+const _recallHintState = {
+    el: null,
+    visible: false,
+    /** 已完成的"出现→消失"次数。达到 RECALL_HINT_MAX_TRIGGERS 后永久禁用本次会话的提示。 */
+    triggeredCount: 0,
+    /** 计数器是否已封顶（封顶后即使有武器在场也不会再亮起）。 */
+    locked: false,
+};
+
+function updateRecallHint() {
+    if (!_recallHintState.el) {
+        _recallHintState.el = document.getElementById('recall-hint');
+        if (!_recallHintState.el) return;
+    }
+    // Globals.feathers 在 Feather.destroy() 完成回收返回后会 splice 出去，
+    // 因此 length > 0 等价于"场上还有未回收的武器"。
+    // locked 之后 shouldShow 永远为 false，等同于"这条提示彻底退出本次会话"。
+    const shouldShow = !_recallHintState.locked && Globals.feathers.length > 0;
+    if (shouldShow !== _recallHintState.visible) {
+        // ★ 下降沿（true → false）= 一次完整的"出现-消失"循环完成，计数 +1。
+        //   注意要在更新 visible 之前判断旧值。
+        if (_recallHintState.visible && !shouldShow) {
+            _recallHintState.triggeredCount++;
+            if (_recallHintState.triggeredCount >= RECALL_HINT_MAX_TRIGGERS) {
+                _recallHintState.locked = true;
+            }
+        }
+        _recallHintState.visible = shouldShow;
+        _recallHintState.el.classList.toggle('is-visible', shouldShow);
+    }
+}
+
 function animate() {
     const delta = Globals.clock.getDelta(), time = Globals.clock.getElapsedTime();
 
@@ -2179,6 +2222,7 @@ function animate() {
     Globals.player.updateTrajectory(delta);
     Telemetry.update(currentVelocity.length(), Globals.player.mesh.position.x, Globals.player.mesh.position.y, Globals.player.mesh.position.z);
     updatePlayerHUD(); 
+    updateRecallHint();
     updatePendingEnemySpawns(delta);
     updateFloatingTexts(delta);
     
