@@ -1,6 +1,6 @@
 {
   "type": "arrowProjectPreset",
-  "name": "稳定打击感v2.6",
+  "name": "稳定版本1.0",
   "config": {
     "shootCooldown": 0.7,
     "playerAttackDamage": 240,
@@ -132,7 +132,7 @@
     "recallCourierWeaponBaseRotZ": 0,
     "recallCourierWeaponWindupRotX": 86,
     "recallCourierWeaponThrowRotX": 57,
-    "sceneMode": "dummy",
+    "sceneMode": "obstacles",
     "wave4Count": 4,
     "wave4RespawnDelay": 0.6,
     "floorStyle": "solid",
