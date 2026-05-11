@@ -94,6 +94,10 @@ export class Feather {
         this.recallIntroActive = false;
         this.recallCourierEffect = null;
         this.recallPending = false;
+        // 回收小猫"完整生命周期"标志：从 startRecall 开始，到 RecallCourierEffect.destroy()
+        // （fade 也走完）才置 false。用于让落点指示器(deploymentRing)在小猫主动画 + fade
+        // 全部演完之前继续显示，并跟随小猫一起渐隐，而不是回收一启动就立刻消失。
+        this.recallCourierActive = false;
 
         this.deploymentRing = new THREE.Group();
         this.deploymentRing.visible = false;
@@ -107,12 +111,17 @@ export class Feather {
             opacity: isSpecial ? CONFIG.deployRingOpacitySpecial : CONFIG.deployRingOpacityNormal,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
+            // 关闭深度测试 + 高 renderOrder，让指示器始终绘制在地上"小猫黑影"
+            // （回收特效里的 mound / hole / dirtClumps，颜色 0x0e0b1c）之上，
+            // 不会再被它们遮挡。与 Player.moveIndicator 的层级处理保持一致。
+            depthTest: false,
             side: THREE.DoubleSide,
             toneMapped: false
         });
         
         const ringMesh = new THREE.Mesh(ringGeo, this.deploymentRingMaterial);
         ringMesh.rotation.x = -Math.PI / 2;
+        ringMesh.renderOrder = 999;
         this.deploymentRing.add(ringMesh);
 
         this.arrowContainer = new THREE.Group();
@@ -131,6 +140,8 @@ export class Feather {
             opacity: CONFIG.deployArrowOpacity,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
+            // 同 ring：关闭深度测试，绘制顺序拔高，避免被小猫地面阴影/土堆遮挡
+            depthTest: false,
             side: THREE.DoubleSide,
             toneMapped: false
         });
@@ -138,6 +149,7 @@ export class Feather {
         this.arrowMesh.rotation.x = -Math.PI / 2;
         this.arrowMesh.position.z = radius; // Place on the edge of the ring
         this.arrowMesh.scale.set(CONFIG.deployArrowScale, CONFIG.deployArrowScale * CONFIG.deployArrowLength, 1);
+        this.arrowMesh.renderOrder = 1000; // 略高于 ring，保证箭头压在 ring 上而不是被 ring 自身遮
         
         this.arrowContainer.add(this.arrowMesh);
         this.deploymentRing.add(this.arrowContainer);
@@ -188,14 +200,57 @@ export class Feather {
         this.traveledDistance = 0;
         this.startY = pt.y;
 
+        // === 解析"穿透后落点距离"：支持基于玩家-敌人距离的动态映射 ===
+        // 在投出瞬间一次性计算并缓存到实例上，保证整段飞行使用同一落点距离，
+        // 避免参数面板中途调节或玩家移动影响已经发出的武器。
+        this._resolvedPierceDistBeforeDrop = this._resolvePierceDistBeforeDrop(this.distanceToTarget);
+
         this.javelinVfx = new JavelinVFX();
         this.javelinVfx.start(this.mesh.position, this.direction);
-        this.modelGroup.visible = false;
+        // 飞行期间同时显示实体武器模型（三叉戟）+ JavelinVFX 特效
+        this.modelGroup.visible = true;
 
         // 武器尖端在 modelGroup 内部的 Y 坐标（见几何定义：ptsR 末点 (0.015, 6.0, 0)）
         // 经过 modelGroup 的 scale 与 rotation.set(PI/2,0,0) 变换后，映射到 this.mesh 局部的 +Z 方向
         // 再叠加 modelGroup.position.z = 0.35 得到尖端在 this.mesh 局部坐标系的 Z 距离
         this._weaponTipLocalZ = 6.0 * this.baseModelScale + 0.35;
+    }
+
+    /**
+     * 根据玩家与目标敌人的距离，解析本次穿透后的落点距离（世界单位）。
+     * - 未启用动态时，返回 CONFIG.pierceDistBeforeDrop（向后兼容）。
+     * - 启用动态时：玩家越近敌人 → 落点越远；越远 → 落点越近。
+     *
+     *   d = distToEnemy（玩家到目标敌人的水平距离）
+     *   d ≤ pierceTriggerNearDist  →  pierceDistMax （最远落点，玩家近时落得远）
+     *   d ≥ pierceTriggerFarDist   →  pierceDistMin （最近落点，玩家远时落得近）
+     *   两者之间在 [pierceDistMax → pierceDistMin] 之间线性插值
+     */
+    _resolvePierceDistBeforeDrop(distToEnemy) {
+        if (!CONFIG.pierceDistDynamicEnabled) {
+            return Math.max(0.1, CONFIG.pierceDistBeforeDrop ?? 1.5);
+        }
+
+        const nearTrig = CONFIG.pierceTriggerNearDist ?? 2.0;
+        const farTrig = CONFIG.pierceTriggerFarDist ?? 12.0;
+        const dropMax = CONFIG.pierceDistMax ?? 4.0; // 玩家近时使用
+        const dropMin = CONFIG.pierceDistMin ?? 1.0; // 玩家远时使用
+
+        // 退化保护：若两个阈值反了或相等，按"<= 中点取最大、否则取最小"处理
+        const span = farTrig - nearTrig;
+        let drop;
+        if (span <= 1e-4) {
+            drop = distToEnemy <= nearTrig ? dropMax : dropMin;
+        } else if (distToEnemy <= nearTrig) {
+            drop = dropMax;
+        } else if (distToEnemy >= farTrig) {
+            drop = dropMin;
+        } else {
+            // 线性插值：t=0 时取 dropMax（近端），t=1 时取 dropMin（远端）
+            const t = (distToEnemy - nearTrig) / span;
+            drop = THREE.MathUtils.lerp(dropMax, dropMin, t);
+        }
+        return Math.max(0.1, drop);
     }
 
     _getConfiguredModelScale() {
@@ -215,6 +270,12 @@ export class Feather {
     
     update(delta) {
         this._syncConfiguredModelScale();
+        // 飞行 (shooting) 阶段叠加 vfxFlightModelScale 倍率，仅影响实体武器模型外观；
+        // 其它阶段（deployed/recalling）保持 baseModelScale，不影响落地三叉戟与召回缩小动画。
+        if (this.phase === 'shooting') {
+            const flightScale = Math.max(0.001, CONFIG.vfxFlightModelScale ?? 1.0);
+            this.modelGroup.scale.setScalar(this.baseModelScale * flightScale);
+        }
         let stepDelta = delta;
         if (this.hitStopTimer > 0) {
             const pausedDelta = Math.min(stepDelta, this.hitStopTimer);
@@ -247,7 +308,8 @@ export class Feather {
 
             if (postPierceDist > 0) {
                 // 已穿透敌人，开始进入落地滑行/下坠抛物线
-                const maxPostDist = Math.max(0.1, CONFIG.pierceDistBeforeDrop);
+                // 使用投出瞬间已解析好的落点距离（支持动态映射），保证飞行中不受参数变化干扰
+                const maxPostDist = Math.max(0.1, this._resolvedPierceDistBeforeDrop ?? CONFIG.pierceDistBeforeDrop);
                 const t = Math.min(1.0, postPierceDist / maxPostDist);
                 
                 // Y轴插值：平滑下降，随进度呈平方加速 (抛物线效果)
@@ -284,6 +346,8 @@ export class Feather {
                 if (t >= 1.0) {
                     this.phase = 'deployed';
                     this.modelGroup.visible = true;
+                    // 落地：撤销飞行期间的 vfxFlightModelScale 倍率，恢复为基础尺寸
+                    this.modelGroup.scale.setScalar(this.baseModelScale);
                     if (this.javelinVfx) {
                         // 武器落地：分离特效，让它自己播完
                         this.javelinVfx.detach();
@@ -314,7 +378,10 @@ export class Feather {
         } else if (this.phase === 'recalling') {
             if (this.recallIntroActive) {
                 this.mesh.visible = false;
-                this.deploymentRing.visible = false;
+                // recallIntroActive 期间小猫正在演 emerge→windup→throw→hold。
+                // 落点指示器保持显示，并实时更新箭头指向玩家位置。
+                // 真正的隐藏交给 RecallCourierEffect.destroy() 在 fade 走完后执行。
+                this._syncDeploymentRingWithCourier();
                 return;
             }
 
@@ -354,7 +421,10 @@ export class Feather {
                 this.mesh.position.addScaledVector(dir, step);
             }
             // this.updateTetherLine();
-            this.deploymentRing.visible = false;
+            // recallIntroActive 已结束，但 RecallCourierEffect 可能还在 fade。
+            // 此时 feather 实体已开始飞回玩家，落点指示器仍要继续陪着小猫的 fade
+            // 一起渐隐，直到 RecallCourierEffect.destroy() 把它彻底隐藏。
+            this._syncDeploymentRingWithCourier();
             let dmg = CONFIG.playerRecallDamage, type = 'high';
             if (this.isSpecial) { dmg = CONFIG.playerRecallDamageSpecial; type = 'special'; }
             this.checkCollision(type, dmg);
@@ -403,13 +473,69 @@ export class Feather {
         this.deploymentRing.visible = true;
     }
 
+    /**
+     * 回收期间同步落点指示器与小猫的演出节奏：
+     * - 小猫主动画阶段（emerge→windup→throw→hold）：完整不透明度显示，箭头实时指向玩家
+     * - 小猫 fade 阶段：ring/箭头不透明度按相同进度从基础值线性降到 0
+     * - 小猫已 destroy / 不再活跃：直接隐藏
+     *
+     * 由 update() 在 recalling 分支调用，不直接复用 updateDeploymentRing()，
+     * 因为后者每帧会把 opacity 重置回 CONFIG 配置值，覆盖我们想做的渐隐插值。
+     */
+    _syncDeploymentRingWithCourier() {
+        const courier = this.recallCourierEffect;
+        // 兜底：标志没置或者小猫已 destroy → 直接隐藏。
+        if (!this.recallCourierActive || !courier || courier.destroyed) {
+            this.deploymentRing.visible = false;
+            return;
+        }
+
+        // 跟着武器实际位置走（fade 期间武器可能已经在飞回玩家）。
+        this.deploymentRing.position.set(this.mesh.position.x, 0.08, this.mesh.position.z);
+
+        // 按 CONFIG 同步几何/外观（与 updateDeploymentRing 等价的部分）。
+        const currentRadius = this.isSpecial ? CONFIG.deployRingRadiusSpecial : CONFIG.deployRingRadiusNormal;
+        const baseRingOpacity = this.isSpecial ? CONFIG.deployRingOpacitySpecial : CONFIG.deployRingOpacityNormal;
+        const baseArrowOpacity = CONFIG.deployArrowOpacity;
+        this.arrowMesh.scale.set(CONFIG.deployArrowScale, CONFIG.deployArrowScale * CONFIG.deployArrowLength, 1);
+        if (this.baseRingRadius !== currentRadius) {
+            const ringGeo = new THREE.RingGeometry(currentRadius - 0.04, currentRadius + 0.04, 64);
+            this.deploymentRing.children[0].geometry.dispose();
+            this.deploymentRing.children[0].geometry = ringGeo;
+            this.baseRingRadius = currentRadius;
+            this.arrowMesh.position.z = currentRadius;
+        }
+
+        // 计算渐隐系数：小猫还没进入 fade → 1；fade 中 → (1 - fadeElapsed/fadeDur)。
+        let fadeFactor = 1;
+        if (courier.fading) {
+            const fadeDur = Math.max(0.001, CONFIG.recallCourierFadeDur);
+            const t = Math.min(1, Math.max(0, (courier.fadeElapsed || 0) / fadeDur));
+            fadeFactor = 1 - t;
+        }
+
+        this.deploymentRingMaterial.opacity = baseRingOpacity * fadeFactor;
+        this.deploymentArrowMaterial.opacity = baseArrowOpacity * fadeFactor;
+
+        // 箭头继续实时指向玩家（用户要求保留这个语义）。
+        if (Globals.player && Globals.player.mesh) {
+            this.arrowContainer.lookAt(Globals.player.mesh.position.x, 0.08, Globals.player.mesh.position.z);
+        }
+
+        this.deploymentRing.visible = true;
+    }
+
     // Removed ensureTetherSegments and ensureDeploymentRingSegments
 
     
     checkCollision(damageType, damageAmount) {
+        const isRecallType = (damageType === 'high' || damageType === 'special');
         for (let i = Globals.enemies.length - 1; i >= 0; i--) {
             const enemy = Globals.enemies[i]; 
             if (enemy.isDead) continue;
+            // 濒死缓冲期：仅"回收命中"可继续穿过吸收命中（用于贯穿数字 / 爆体合并）；
+            // 主动攻击 (low) 把濒死敌人视作已死，避免在死亡视觉上再扣血/再播受击反馈。
+            if (enemy.isPendingDeath && !isRecallType) continue;
             
             if (this.mesh.position.distanceTo(enemy.mesh.position) < 1.5) {
                 if (!this.hitEnemies.has(enemy)) {
@@ -441,13 +567,32 @@ export class Feather {
                         .copy(enemy.mesh.position)
                         .addScaledVector(currentDir, clampedAlong);
                     sparkHitPoint.y = tipPos.y;
-                    enemy.takeDamage(damageAmount, damageType, currentDir, hitPointWorld);
-                    
+                    // ---- 暴击 roll：仅作用于"主动攻击"（damageType='low'），不影响回收 ----
+                    // 在 takeDamage 之前决定 isCrit 与最终伤害值，让伤害数字、伤害结算
+                    // 都用同一份数据，避免显示与逻辑割裂。
+                    // 斩杀保底：若敌人当前 HP 已不超过暴击伤害，则必定暴击直接斩杀
+                    // （Infinity HP 的木桩/dummy 永远不会满足条件，无需额外判断）。
+                    let finalDamage = damageAmount;
+                    let isCrit = false;
+                    if (damageType === 'low' && CONFIG.critEnabled !== false) {
+                        const critDmg = CONFIG.critDamage ?? 480;
+                        const lethalCrit = enemy.hp > 0 && enemy.hp <= critDmg;
+                        if (lethalCrit || Math.random() < (CONFIG.critChance ?? 0)) {
+                            isCrit = true;
+                            finalDamage = critDmg;
+                        }
+                    }
+                    enemy.takeDamage(finalDamage, damageType, currentDir, hitPointWorld, isCrit);
+
                     if (damageType === 'low') {
                         // 主动攻击 · 飞行穿刺（前三根普通 / 第4根特殊各自独立）
                         triggerHaptic('hit');
                         Globals.audioManager?.playHit('low');
-                        enemy.applyKnockback(currentDir, CONFIG.hitKnockbackForce ?? 10);
+                        // 暴击使用独立的击退力度；普通主动攻击保持 hitKnockbackForce
+                        const knockForce = isCrit
+                            ? (CONFIG.critKnockbackForce ?? 30)
+                            : (CONFIG.hitKnockbackForce ?? 10);
+                        enemy.applyKnockback(currentDir, knockForce);
                         this.hitStopTimer = this.isSpecial
                             ? (CONFIG.attackHitVisualPauseSpecial ?? 0.03)
                             : (CONFIG.attackHitVisualPause ?? 0.02);
@@ -463,6 +608,23 @@ export class Feather {
                                 reverseDir: !!CONFIG.hitSparkReverseDir
                             }
                         ));
+
+                        // ---- 暴击附加：复用"回收命中爆体特效"（EnemyHitBurstEffect）----
+                        // 只有敌人未被击杀时才生成（与回收路径同样的"击杀豁免"原则：
+                        // 死亡爆体由 Enemy.die() 自己生成，避免视觉过载）。
+                        // 完全独立于 enemy._recallBurstMerge 状态——暴击是单次独立爆点，
+                        // 不参与回收命中的同帧合并。
+                        if (isCrit && !enemy.isDead) {
+                            const enemyBaseColor = enemy.materials?.[0]?.userData?.baseColor;
+                            const burst = new EnemyHitBurstEffect(
+                                enemy.mesh.position.clone(),
+                                enemyBaseColor,
+                                { scale: CONFIG.critBurstScale ?? 1.0 }
+                            );
+                            const mc = Math.max(1, Math.floor(CONFIG.critBurstMergeCount ?? 1));
+                            if (mc > 1) burst.addBurst(mc);
+                            Globals.enemyHitBurstEffects.push(burst);
+                        }
                     } else {
                         // 回收 · 穿刺（普通 high / 特殊 special 各自独立）
                         const isSpec = damageType === 'special';
@@ -527,7 +689,12 @@ export class Feather {
         this.phase = 'recalling'; 
         this.index = index; 
         this.hitEnemies.clear(); 
-        this.deploymentRing.visible = false;
+        // 注意：这里不再立刻隐藏 deploymentRing。
+        // 落点指示器需要陪着回收小猫演出整个生命周期（emerge→windup→throw→hold→fade）
+        // 完整结束后再消失，并在 fade 阶段跟随小猫同步降低 opacity。
+        // 由 update() 里的 recalling 分支负责保持/同步显示，
+        // 由 RecallCourierEffect.destroy() 负责最终隐藏。
+        this.recallCourierActive = true;
         this.restoreRecallVisuals();
         if (this.isSpecial) { 
             this.mesh.scale.set(2.2, 2.2, 2.2); 
@@ -548,7 +715,10 @@ export class Feather {
     releaseFromCourier(worldPosition) {
         if (this.phase !== 'recalling') return;
         this.recallIntroActive = false;
-        this.recallCourierEffect = null;
+        // 注意：这里不再立刻把 recallCourierEffect 置 null。
+        // 落点指示器需要继续读取 courier.fading / fadeElapsed 来跟随小猫一起渐隐，
+        // 所以必须保留引用，直到 RecallCourierEffect.destroy() 自己把它清掉
+        // （destroy 内部已有 `if (this.feather?.recallCourierEffect === this) ... = null`）。
         this.restoreRecallVisuals();
         this.mesh.visible = true;
         this.mesh.position.copy(worldPosition);
@@ -572,9 +742,20 @@ export class Feather {
         }
         this.recallPending = false;
         this.recallIntroActive = false;
+        this.recallCourierActive = false;
         if (this.recallCourierEffect) {
             this.recallCourierEffect.destroy();
             this.recallCourierEffect = null;
+        }
+        // 兜底：把落点指示器隐掉并重置 opacity（避免下次复用材质时残留淡出值）。
+        if (this.deploymentRing) this.deploymentRing.visible = false;
+        if (this.deploymentRingMaterial) {
+            this.deploymentRingMaterial.opacity = this.isSpecial
+                ? CONFIG.deployRingOpacitySpecial
+                : CONFIG.deployRingOpacityNormal;
+        }
+        if (this.deploymentArrowMaterial) {
+            this.deploymentArrowMaterial.opacity = CONFIG.deployArrowOpacity;
         }
         // 释放整把矛模型 (shaftGeo + 2×prong joints/segments + 所有材质)。
         // 这是历史上最大的内存泄漏点：每丢一发就漏 ~50 个 geometry。

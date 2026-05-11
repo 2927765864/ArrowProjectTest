@@ -2,11 +2,35 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>弓箭传说：横向电弧 (WebGPU)</title>
-    <link rel="icon" href="data:,">
+
+    <!-- ===== PWA / iOS 元数据 =====
+         配合 manifest.webmanifest 让本项目可"添加到主屏幕"作为独立 App 启动。
+         iOS Safari 不读取 manifest 里的所有字段，必须额外提供 apple-mobile-web-app-* 系列声明。 -->
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#1a1532">
+    <meta name="color-scheme" content="dark">
+
+    <!-- iOS PWA：声明可独立运行 / 主屏幕标题 / 状态栏样式 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="弓箭传说">
+
+    <!-- iOS 主屏图标：必须 180×180 -->
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png">
+
     <link rel="stylesheet" href="./style.css">
-    
+
+    <!-- 伤害数字字体：Lilita One（圆胖卡通数字/西文）+ Noto Sans SC 900（中文兜底，如"贯穿"）。
+         display=swap 确保字体未加载完时先用系统字渲染，不阻塞首屏，加载完后无感切换。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Noto+Sans+SC:wght@900&display=swap" rel="stylesheet">
+
     <script type="importmap">
         {
             "imports": {
@@ -17,11 +41,16 @@
     </script>
 </head>
 <body>
-    <div id="control-panel">
+    <div id="panel-trigger" role="button" tabindex="0" aria-label="测试">测试</div>
+    <!-- 屏幕右上角实时帧率显示。display 通过 CONFIG.showFps 控制（参数面板 → UI 与界面 → 显示帧率）。 -->
+    <div id="fps-display" aria-hidden="true">FPS --</div>
+    <div id="control-panel" style="display: none;">
         <div id="panel-header">
             <span>⚙️ 调节面板 <span id="panel-version"></span></span>
-            <button id="toggle-panel">收起</button>
+            <button id="toggle-panel">隐藏</button>
         </div>
+        <div id="panel-body">
+        <div id="panel-tabs" aria-label="参数分类"></div>
         <div id="panel-content">
             <div class="panel-row" style="margin-bottom: 10px;">
                 <button id="btn-save-cfg" style="width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">将当前参数设置为默认参数</button>
@@ -47,9 +76,11 @@
                     <button id="btn-import-preset" style="flex: 1; background: #ffc107; color: black; border: none; padding: 6px; border-radius: 4px; cursor: pointer;">从文件导入存档</button>
                     <input type="file" id="inp-import-preset" accept=".json" style="display: none;">
                 </div>
+                <div class="panel-row" style="margin-top: 8px; border-top: 1px dashed #555; padding-top: 8px;">
+                    <button id="btn-export-shipping" style="width: 100%; background: #fd7e14; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">📦 导出当前参数为包体默认 (shipping.js)</button>
+                    <div style="font-size: 11px; color: #aaa; margin-top: 4px; line-height: 1.4;">下载得到的 <code style="color:#fd7e14;">shipping.js</code> 文件直接放入 <code style="color:#fd7e14;">src/presets/</code> 替换旧文件即可。打包后的 APK 首次启动就会使用这套参数。</div>
+                </div>
             </details>
-
-            <div id="panel-tabs" aria-label="参数分类"></div>
 
             <details class="panel-group" open>
                 <summary>🎮 游戏与模式</summary>
@@ -93,6 +124,26 @@
                     <div class="panel-row-header"><span>相机跟随</span><span id="val-cfl">开</span></div>
                     <button id="btn-cfl" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">关闭相机跟随</button>
                 </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>跟随缓动</span><span id="val-cfsm">开</span></div>
+                    <button id="btn-cfsm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">关闭跟随缓动</button>
+                </div>
+                <div class="panel-row" id="row-cfst">
+                    <div class="panel-row-header"><span>缓动时间(秒)</span><span id="val-cfst">0.18</span></div>
+                    <input type="range" id="inp-cfst" min="0.00" max="1.00" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row" id="row-cfms">
+                    <div class="panel-row-header"><span>跟随最大速度</span><span id="val-cfms">40</span></div>
+                    <input type="range" id="inp-cfms" min="0" max="200" step="1" value="40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>上死区(屏幕上)</span><span id="val-cdzt">6.0</span></div>
+                    <input type="range" id="inp-cdzt" min="0" max="40" step="0.1" value="6.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>下死区(屏幕下)</span><span id="val-cdzb">6.0</span></div>
+                    <input type="range" id="inp-cdzb" min="0" max="40" step="0.1" value="6.0">
+                </div>
             </details>
 
             <details class="panel-group">
@@ -110,6 +161,14 @@
                     <input type="range" id="inp-tns" min="5" max="60" step="1" value="18">
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>攻击打断转向速度</span><span id="val-abts">18</span></div>
+                    <input type="range" id="inp-abts" min="1" max="60" step="1" value="18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动转攻击转向速度</span><span id="val-m2ats">18</span></div>
+                    <input type="range" id="inp-m2ats" min="1" max="60" step="1" value="18">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>移动加速</span><span id="val-mva">25</span></div>
                     <input type="range" id="inp-mva" min="5" max="80" step="1" value="25">
                 </div>
@@ -118,8 +177,12 @@
                     <input type="range" id="inp-mvf" min="5" max="50" step="1" value="12">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>移动转头模式</span><span id="val-mfm">移动/旋转解耦</span></div>
-                    <button id="btn-mfm" style="background: #333; color: #fff; border: 1px solid #666; padding: 4px; border-radius: 4px; cursor: pointer; margin-top: 2px;">切换为移动即朝向</button>
+                    <div class="panel-row-header"><span>蹭墙滑动基础系数</span><span id="val-wsbm">0.3</span></div>
+                    <input type="range" id="inp-wsbm" min="0" max="1" step="0.05" value="0.3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>蹭墙滑动角度乘数</span><span id="val-wsam">0.7</span></div>
+                    <input type="range" id="inp-wsam" min="0" max="2" step="0.05" value="0.7">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header">
@@ -130,12 +193,44 @@
                     </div>
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>关闭移动视觉干扰</span><span id="val-hvd">关</span></div>
+                    <div class="panel-row-header"><span>关闭武器模型干扰</span><span id="val-hvd">关</span></div>
                     <input type="checkbox" id="inp-hvd">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>显示脚底武器环</span><span id="val-spbr">开</span></div>
+                    <input type="checkbox" id="inp-spbr" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·底盘半径</span><span id="val-brbg">0.45</span></div>
+                    <input type="range" id="inp-brbg" min="0.10" max="1.50" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·弧外径</span><span id="val-brao">0.35</span></div>
+                    <input type="range" id="inp-brao" min="0.15" max="0.70" step="0.01" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·弧厚度</span><span id="val-brat">0.035</span></div>
+                    <input type="range" id="inp-brat" min="0.005" max="0.15" step="0.005" value="0.035">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·内环外径</span><span id="val-brio">0.24</span></div>
+                    <input type="range" id="inp-brio" min="0.05" max="0.60" step="0.01" value="0.24">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·内环厚度</span><span id="val-brit">0.065</span></div>
+                    <input type="range" id="inp-brit" min="0.005" max="0.20" step="0.005" value="0.065">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底环·渐变时长</span><span id="val-brfd">0.25</span></div>
+                    <input type="range" id="inp-brfd" min="0.05" max="1.00" step="0.05" value="0.25">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>标记3秒内行动轨迹</span><span id="val-spt">关</span></div>
                     <input type="checkbox" id="inp-spt">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>禁用玩家攻击</span><span id="val-pad">关</span></div>
+                    <input type="checkbox" id="inp-pad">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>显示碰撞范围</span><span id="val-scb">关</span></div>
@@ -154,6 +249,10 @@
                     <input type="range" id="inp-ps" min="0.3" max="5.0" step="0.1" value="2.5">
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>脚底阴影半径</span><span id="val-psr">0.22</span></div>
+                    <input type="range" id="inp-psr" min="0.00" max="1.50" step="0.01" value="0.22">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>指示器最大延伸身位</span><span id="val-imr">0.6</span></div>
                     <input type="range" id="inp-imr" min="0.2" max="2.0" step="0.1" value="0.6">
                 </div>
@@ -167,10 +266,747 @@
                 </div>
             </details>
 
+            <details class="panel-group">
+                <summary>👾 敌人</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>血量</span></div>
+                    <input type="number" id="inp-ehp" class="panel-number" min="0" max="10000" step="1" value="160">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>敌人移动速度·基础</span><span id="val-emsb">2.50</span></div>
+                    <input type="range" id="inp-emsb" min="0" max="15" step="0.1" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>敌人移动速度·随机幅度</span><span id="val-emsr">1.50</span></div>
+                    <input type="range" id="inp-emsr" min="0" max="10" step="0.1" value="1.5">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>💥 敌人受击反馈（统一影响所有敌人，包括木桩）</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>闪白·持续时间 (秒)</span><span id="val-hfd">0.12</span></div>
+                    <input type="range" id="inp-hfd" min="0" max="0.6" step="0.01" value="0.12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>闪白·强度</span><span id="val-hfi">1.00</span></div>
+                    <input type="range" id="inp-hfi" min="0" max="1" step="0.01" value="1.0">
+                </div>
+
+                <!-- ===== 弹簧节奏（控制"压扁→拉长→平静"的时序与振荡次数）===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·回弹刚度 (节奏快慢)</span><span id="val-hds">260</span></div>
+                    <input type="range" id="inp-hds" min="40" max="800" step="5" value="260">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·阻尼 (越小越q弹)</span><span id="val-hdm">6.0</span></div>
+                    <input type="range" id="inp-hdm" min="0" max="40" step="0.2" value="6.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·兜底持续时间 (秒)</span><span id="val-hdu">1.20</span></div>
+                    <input type="range" id="inp-hdu" min="0.1" max="3.0" step="0.01" value="1.2">
+                </div>
+
+                <!-- ===== Squash 阶段（被压扁，s>0）===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>压扁·沿命中轴缩短幅度</span><span id="val-hdsa">0.50</span></div>
+                    <input type="range" id="inp-hdsa" min="0" max="0.95" step="0.01" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>压扁·垂直方向鼓起幅度</span><span id="val-hdsb">0.50</span></div>
+                    <input type="range" id="inp-hdsb" min="0" max="2.0" step="0.01" value="0.5">
+                </div>
+
+                <!-- ===== Stretch 阶段（弹簧过冲，s<0：拉长）===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>拉长·沿命中轴拉伸幅度</span><span id="val-hdta">0.60</span></div>
+                    <input type="range" id="inp-hdta" min="0" max="3.0" step="0.01" value="0.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>拉长·垂直方向收缩幅度</span><span id="val-hdtp">0.30</span></div>
+                    <input type="range" id="inp-hdtp" min="0" max="0.95" step="0.01" value="0.3">
+                </div>
+
+                <!-- ===== 局部凹陷（仅球形/柱状 shader 顶点细节，叠加在整体缩放之上）===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>局部凹陷·深度 (打击点细节)</span><span id="val-hddd">0.18</span></div>
+                    <input type="range" id="inp-hddd" min="0" max="1.0" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>局部凹陷·影响半径</span><span id="val-hddr">0.70</span></div>
+                    <input type="range" id="inp-hddr" min="0.05" max="2.0" step="0.01" value="0.7">
+                </div>
+
+                <!-- ===== 击退/眩晕 ===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退力 (主动命中)</span><span id="val-hkf">10.00</span></div>
+                    <input type="range" id="inp-hkf" min="0" max="40" step="0.5" value="10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>眩晕时长 (回收命中, 秒)</span><span id="val-hsd">0.15</span></div>
+                    <input type="range" id="inp-hsd" min="0" max="1.5" step="0.01" value="0.15">
+                </div>
+
+                <!-- ===== Bend 弯曲（被击退时的方向性弯曲，与 squash 独立通道）===== -->
+                <!-- ★ 主要分量 = 钟形位移（中间凸出、两端因惯性滞后）。游戏里命中方向 = 击退方向，
+                     所以 bulge 是唯一明显生效的视觉分量。想看到惯性形变请重点调它和 ImpulseMax。 -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·弹簧刚度</span><span id="val-hbs">180.00</span></div>
+                    <input type="range" id="inp-hbs" min="5" max="2000" step="1" value="180">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·阻尼</span><span id="val-hbm">9.00</span></div>
+                    <input type="range" id="inp-hbm" min="0" max="100" step="0.1" value="9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·兜底时长 (秒)</span><span id="val-hbu">1.00</span></div>
+                    <input type="range" id="inp-hbu" min="0.05" max="6" step="0.05" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·力归一化参考</span><span id="val-hbfr">10.00</span></div>
+                    <input type="range" id="inp-hbfr" min="0.5" max="80" step="0.5" value="10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·初值上限</span><span id="val-hbim">1.40</span></div>
+                    <input type="range" id="inp-hbim" min="0.05" max="10" step="0.05" value="1.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>★ 击退弯曲·钟形凸出 (惯性主分量)</span><span id="val-hbbg">0.45</span></div>
+                    <input type="range" id="inp-hbbg" min="0" max="3.0" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·二次弯曲 (侧击 C 形)</span><span id="val-hbcv">0.00</span></div>
+                    <input type="range" id="inp-hbcv" min="0" max="3.0" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·线性剪切幅度</span><span id="val-hbsh">0.20</span></div>
+                    <input type="range" id="inp-hbsh" min="0" max="2.0" step="0.01" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·命中处反凹</span><span id="val-hbpi">0.18</span></div>
+                    <input type="range" id="inp-hbpi" min="0" max="2.0" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退弯曲·命中轴归一化半长</span><span id="val-hbal">0.50</span></div>
+                    <input type="range" id="inp-hbal" min="0.05" max="3.0" step="0.01" value="0.5">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>✨ 击中流星火花特效</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>初速度·下限</span><span id="val-hsv1">14.00</span></div>
+                    <input type="range" id="inp-hsv1" min="1" max="40" step="0.5" value="14">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>初速度·上限</span><span id="val-hsv2">26.00</span></div>
+                    <input type="range" id="inp-hsv2" min="1" max="60" step="0.5" value="26">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>空气阻力 (drag)</span><span id="val-hsdr">1.60</span></div>
+                    <input type="range" id="inp-hsdr" min="0" max="10" step="0.1" value="1.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>重力 (向下加速度)</span><span id="val-hsgr">9.00</span></div>
+                    <input type="range" id="inp-hsgr" min="0" max="40" step="0.5" value="9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>喷射圆锥半角 (度)</span><span id="val-hsca">28.00</span></div>
+                    <input type="range" id="inp-hsca" min="5" max="90" step="1" value="28">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>纵向阻尼 (y 方向)</span><span id="val-hsvd">0.55</span></div>
+                    <input type="range" id="inp-hsvd" min="0" max="1" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>上扬偏移 (y bias)</span><span id="val-hsub">0.05</span></div>
+                    <input type="range" id="inp-hsub" min="-0.5" max="0.5" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生命周期 (秒)</span><span id="val-hslt">0.45</span></div>
+                    <input type="range" id="inp-hslt" min="0.1" max="1.5" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消散开始进度 (0~1)</span><span id="val-hsvs">0.55</span></div>
+                    <input type="range" id="inp-hsvs" min="0.05" max="0.95" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星条数</span><span id="val-hssc">14</span></div>
+                    <input type="range" id="inp-hssc" min="1" max="40" step="1" value="14">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>飘散光点数 (embers)</span><span id="val-hsec">6</span></div>
+                    <input type="range" id="inp-hsec" min="0" max="20" step="1" value="6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星头粗细基准</span><span id="val-hsth">0.085</span></div>
+                    <input type="range" id="inp-hsth" min="0.01" max="0.3" step="0.005" value="0.085">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星拖尾长度基准</span><span id="val-hsln">1.00</span></div>
+                    <input type="range" id="inp-hsln" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向反转 (1=朝敌人后 / 0=朝玩家)</span><span id="val-hsrv">1</span></div>
+                    <input type="range" id="inp-hsrv" min="0" max="1" step="1" value="1">
+                </div>
+            </details>
+
+            <!-- ✨ 玩家攻击瞬间流星火花特效（出手瞬间）。
+                 复用 HitSparkEffect 渲染管线，参数完全独立。
+                 默认参数 = 与"敌人受击流星火花"一致（参考 arrow_config_1776913826436.json 的击中流星火花特效，
+                 即沿用 config.js 默认）。 -->
+            <details class="panel-group">
+                <summary>🌠 出手瞬间流星火花特效</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>总开关 (1=开 / 0=关)</span><span id="val-asen">1</span></div>
+                    <input type="range" id="inp-asen" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向反转 (1=朝敌人 / 0=朝玩家身后)</span><span id="val-asrv">0</span></div>
+                    <input type="range" id="inp-asrv" min="0" max="1" step="1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>整体缩放 (普通)</span><span id="val-assc">1.00</span></div>
+                    <input type="range" id="inp-assc" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>整体缩放 (特殊)</span><span id="val-asscs">1.25</span></div>
+                    <input type="range" id="inp-asscs" min="0.1" max="3.0" step="0.05" value="1.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>初速度·下限</span><span id="val-asv1">14.00</span></div>
+                    <input type="range" id="inp-asv1" min="1" max="40" step="0.5" value="14">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>初速度·上限</span><span id="val-asv2">26.00</span></div>
+                    <input type="range" id="inp-asv2" min="1" max="60" step="0.5" value="26">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>空气阻力 (drag)</span><span id="val-asdr">1.60</span></div>
+                    <input type="range" id="inp-asdr" min="0" max="10" step="0.1" value="1.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>重力 (向下加速度)</span><span id="val-asgr">9.00</span></div>
+                    <input type="range" id="inp-asgr" min="0" max="40" step="0.5" value="9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>喷射圆锥半角 (度)</span><span id="val-asca">28.00</span></div>
+                    <input type="range" id="inp-asca" min="5" max="90" step="1" value="28">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>纵向阻尼 (y 方向)</span><span id="val-asvd">0.55</span></div>
+                    <input type="range" id="inp-asvd" min="0" max="1" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>上扬偏移 (y bias)</span><span id="val-asub">0.05</span></div>
+                    <input type="range" id="inp-asub" min="-0.5" max="0.5" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生命周期 (秒)</span><span id="val-aslt">0.45</span></div>
+                    <input type="range" id="inp-aslt" min="0.1" max="1.5" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消散开始进度 (0~1)</span><span id="val-asvs">0.55</span></div>
+                    <input type="range" id="inp-asvs" min="0.05" max="0.95" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星条数</span><span id="val-asssc">14</span></div>
+                    <input type="range" id="inp-asssc" min="1" max="40" step="1" value="14">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>飘散光点数 (embers)</span><span id="val-asec">6</span></div>
+                    <input type="range" id="inp-asec" min="0" max="20" step="1" value="6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星头粗细基准</span><span id="val-asth">0.085</span></div>
+                    <input type="range" id="inp-asth" min="0.01" max="0.3" step="0.005" value="0.085">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>流星拖尾长度基准</span><span id="val-asln">1.00</span></div>
+                    <input type="range" id="inp-asln" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>💥 回收命中爆体特效</summary>
+                <!-- 玩家回收武器命中敌人时，从敌人身体中心爆发的两层粒子。
+                     双端点参数化：每个参数有 @1（单把命中）和 @max（≥CountForMax 把同时命中）两个值，
+                     合并命中数介于 1~CountForMax 间按曲线插值。
+                     第一层（Low*）：低位密集"爆体飞溅"
+                     第二层（High*）：高位稀疏冲击粒子，飞过敌人头顶 -->
+
+                <!-- ===== 共用 ===== -->
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>总开关 (1=开 / 0=关)</span><span id="val-rhben">1</span></div>
+                    <input type="range" id="inp-rhben" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>整体缩放</span><span id="val-rhbsc">1.00</span></div>
+                    <input type="range" id="inp-rhbsc" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>起爆点垂直偏移 Y</span><span id="val-rhboy">0.40</span></div>
+                    <input type="range" id="inp-rhboy" min="0" max="2.0" step="0.05" value="0.4">
+                </div>
+
+                <!-- ===== 合并机制（控制 @1 → @max 双端点的插值）===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#ffd966;">— 合并机制 —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>同时命中合并窗口 (秒)</span><span id="val-rhbmw">0.05</span></div>
+                    <input type="range" id="inp-rhbmw" min="0" max="0.5" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>触发 @max 所需命中数</span><span id="val-rhbcm">10</span></div>
+                    <input type="range" id="inp-rhbcm" min="1" max="20" step="1" value="10">
+                </div>
+                <div class="panel-row" data-burst-mode="legacy">
+                    <div class="panel-row-header"><span>命中数曲线 (0 线性 / 1 smooth / 2 smoother / 3 easeOut)</span><span id="val-rhbcv">0</span></div>
+                    <input type="range" id="inp-rhbcv" min="0" max="3" step="1" value="0">
+                </div>
+
+                <!-- ===== 曲线模式（方案 B：3 根语义曲线整合 52 个 *AtMax 参数）===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#cbe88b;">— 曲线模式 (整合 52 个 @max 参数) —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>启用曲线模式 (1=曲线 / 0=旧滑条)</span><span id="val-rhbuc">1</span></div>
+                    <input type="range" id="inp-rhbuc" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <button id="btn-rhb-test" style="width: 100%; background: #28a745; color: white; border: none; padding: 8px; border-radius: 4px; cursor: pointer; font-weight: bold;">🎯 测试爆发（玩家位置触发 @max 端点）</button>
+                    <div style="font-size: 10px; color: rgba(255,255,255,0.55); margin-top: 4px; line-height: 1.4;">
+                        提示：曲线模式开 → 由 3 根曲线 + @1 端点驱动（startScale/endScale 决定 @1→@max 的成长）。<br>
+                        曲线模式关 → 用旧逻辑：@1 + @max 双滑条 + 命中数曲线插值。<br>
+                        点击此按钮可在玩家位置触发一次"满命中数"爆发，立即看到 @max 端点 / endScale 的效果。
+                    </div>
+                </div>
+                <div class="panel-row" data-burst-mode="curves">
+                    <div id="bezier-burst-density" class="bezier-panel-mount"></div>
+                </div>
+                <div class="panel-row" data-burst-mode="curves">
+                    <div id="bezier-burst-motion" class="bezier-panel-mount"></div>
+                </div>
+                <div class="panel-row" data-burst-mode="curves">
+                    <div id="bezier-burst-visual" class="bezier-panel-mount"></div>
+                </div>
+
+                <!-- ===== 低位密集组（双端点）===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#ffb27a;">— 低位密集组 (Low) —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 粒子数量 @1</span><span id="val-rhblc">26</span></div>
+                    <input type="range" id="inp-rhblc" min="0" max="80" step="1" value="26">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 粒子数量 @max</span><span id="val-rhblc-mx">80</span></div>
+                    <input type="range" id="inp-rhblc-mx" min="0" max="200" step="1" value="80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 初速度·下限 @1</span><span id="val-rhblsmin">3.00</span></div>
+                    <input type="range" id="inp-rhblsmin" min="0" max="20" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 初速度·下限 @max</span><span id="val-rhblsmin-mx">5.00</span></div>
+                    <input type="range" id="inp-rhblsmin-mx" min="0" max="30" step="0.1" value="5.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 初速度·上限 @1</span><span id="val-rhblsmax">8.00</span></div>
+                    <input type="range" id="inp-rhblsmax" min="0" max="30" step="0.1" value="8.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 初速度·上限 @max</span><span id="val-rhblsmax-mx">14.00</span></div>
+                    <input type="range" id="inp-rhblsmax-mx" min="0" max="40" step="0.1" value="14.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 上抛偏置 @1</span><span id="val-rhblub">0.25</span></div>
+                    <input type="range" id="inp-rhblub" min="0" max="1" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 上抛偏置 @max</span><span id="val-rhblub-mx">0.40</span></div>
+                    <input type="range" id="inp-rhblub-mx" min="0" max="1" step="0.01" value="0.40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 重力 @1</span><span id="val-rhblg">18.00</span></div>
+                    <input type="range" id="inp-rhblg" min="0" max="60" step="0.5" value="18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 重力 @max</span><span id="val-rhblg-mx">18.00</span></div>
+                    <input type="range" id="inp-rhblg-mx" min="0" max="60" step="0.5" value="18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 空气阻力 @1</span><span id="val-rhbldr">1.20</span></div>
+                    <input type="range" id="inp-rhbldr" min="0" max="8" step="0.05" value="1.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 空气阻力 @max</span><span id="val-rhbldr-mx">1.00</span></div>
+                    <input type="range" id="inp-rhbldr-mx" min="0" max="8" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 寿命·下限 @1 (秒)</span><span id="val-rhbllmin">0.45</span></div>
+                    <input type="range" id="inp-rhbllmin" min="0.05" max="2" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 寿命·下限 @max (秒)</span><span id="val-rhbllmin-mx">0.60</span></div>
+                    <input type="range" id="inp-rhbllmin-mx" min="0.05" max="3" step="0.01" value="0.60">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 寿命·上限 @1 (秒)</span><span id="val-rhbllmax">0.85</span></div>
+                    <input type="range" id="inp-rhbllmax" min="0.05" max="3" step="0.01" value="0.85">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 寿命·上限 @max (秒)</span><span id="val-rhbllmax-mx">1.10</span></div>
+                    <input type="range" id="inp-rhbllmax-mx" min="0.05" max="4" step="0.01" value="1.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 大小·下限 @1</span><span id="val-rhblzmin">0.06</span></div>
+                    <input type="range" id="inp-rhblzmin" min="0.01" max="0.5" step="0.005" value="0.06">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 大小·下限 @max</span><span id="val-rhblzmin-mx">0.10</span></div>
+                    <input type="range" id="inp-rhblzmin-mx" min="0.01" max="0.8" step="0.005" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 大小·上限 @1</span><span id="val-rhblzmax">0.16</span></div>
+                    <input type="range" id="inp-rhblzmax" min="0.01" max="0.8" step="0.005" value="0.16">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 大小·上限 @max</span><span id="val-rhblzmax-mx">0.26</span></div>
+                    <input type="range" id="inp-rhblzmax-mx" min="0.01" max="1.2" step="0.005" value="0.26">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 不透明度 @1</span><span id="val-rhblop">0.85</span></div>
+                    <input type="range" id="inp-rhblop" min="0" max="1" step="0.01" value="0.85">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 不透明度 @max</span><span id="val-rhblop-mx">0.95</span></div>
+                    <input type="range" id="inp-rhblop-mx" min="0" max="1" step="0.01" value="0.95">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 颜色随机度 @1</span><span id="val-rhblcj">0.35</span></div>
+                    <input type="range" id="inp-rhblcj" min="0" max="1" step="0.01" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 颜色随机度 @max</span><span id="val-rhblcj-mx">0.50</span></div>
+                    <input type="range" id="inp-rhblcj-mx" min="0" max="1" step="0.01" value="0.50">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 自转速度 @1</span><span id="val-rhblsp">8.00</span></div>
+                    <input type="range" id="inp-rhblsp" min="0" max="30" step="0.5" value="8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>L · 自转速度 @max</span><span id="val-rhblsp-mx">12.00</span></div>
+                    <input type="range" id="inp-rhblsp-mx" min="0" max="40" step="0.5" value="12">
+                </div>
+
+                <!-- ===== 高位稀疏组（双端点）===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#7ad4ff;">— 高位稀疏组 (High) —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 粒子数量 @1</span><span id="val-rhbhc">8</span></div>
+                    <input type="range" id="inp-rhbhc" min="0" max="40" step="1" value="8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 粒子数量 @max</span><span id="val-rhbhc-mx">24</span></div>
+                    <input type="range" id="inp-rhbhc-mx" min="0" max="100" step="1" value="24">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 初速度·下限 @1</span><span id="val-rhbhsmin">7.00</span></div>
+                    <input type="range" id="inp-rhbhsmin" min="0" max="30" step="0.1" value="7.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 初速度·下限 @max</span><span id="val-rhbhsmin-mx">11.00</span></div>
+                    <input type="range" id="inp-rhbhsmin-mx" min="0" max="40" step="0.1" value="11.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 初速度·上限 @1</span><span id="val-rhbhsmax">13.00</span></div>
+                    <input type="range" id="inp-rhbhsmax" min="0" max="40" step="0.1" value="13.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 初速度·上限 @max</span><span id="val-rhbhsmax-mx">20.00</span></div>
+                    <input type="range" id="inp-rhbhsmax-mx" min="0" max="50" step="0.1" value="20.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 上抛偏置 @1</span><span id="val-rhbhub">0.75</span></div>
+                    <input type="range" id="inp-rhbhub" min="0" max="1" step="0.01" value="0.75">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 上抛偏置 @max</span><span id="val-rhbhub-mx">0.85</span></div>
+                    <input type="range" id="inp-rhbhub-mx" min="0" max="1" step="0.01" value="0.85">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 重力 @1</span><span id="val-rhbhg">22.00</span></div>
+                    <input type="range" id="inp-rhbhg" min="0" max="60" step="0.5" value="22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 重力 @max</span><span id="val-rhbhg-mx">22.00</span></div>
+                    <input type="range" id="inp-rhbhg-mx" min="0" max="60" step="0.5" value="22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 空气阻力 @1</span><span id="val-rhbhdr">0.50</span></div>
+                    <input type="range" id="inp-rhbhdr" min="0" max="8" step="0.05" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 空气阻力 @max</span><span id="val-rhbhdr-mx">0.40</span></div>
+                    <input type="range" id="inp-rhbhdr-mx" min="0" max="8" step="0.05" value="0.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 寿命·下限 @1 (秒)</span><span id="val-rhbhlmin">0.70</span></div>
+                    <input type="range" id="inp-rhbhlmin" min="0.05" max="3" step="0.01" value="0.7">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 寿命·下限 @max (秒)</span><span id="val-rhbhlmin-mx">0.90</span></div>
+                    <input type="range" id="inp-rhbhlmin-mx" min="0.05" max="4" step="0.01" value="0.90">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 寿命·上限 @1 (秒)</span><span id="val-rhbhlmax">1.20</span></div>
+                    <input type="range" id="inp-rhbhlmax" min="0.05" max="4" step="0.01" value="1.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 寿命·上限 @max (秒)</span><span id="val-rhbhlmax-mx">1.60</span></div>
+                    <input type="range" id="inp-rhbhlmax-mx" min="0.05" max="5" step="0.01" value="1.60">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 大小·下限 @1</span><span id="val-rhbhzmin">0.10</span></div>
+                    <input type="range" id="inp-rhbhzmin" min="0.01" max="0.5" step="0.005" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 大小·下限 @max</span><span id="val-rhbhzmin-mx">0.16</span></div>
+                    <input type="range" id="inp-rhbhzmin-mx" min="0.01" max="0.8" step="0.005" value="0.16">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 大小·上限 @1</span><span id="val-rhbhzmax">0.22</span></div>
+                    <input type="range" id="inp-rhbhzmax" min="0.01" max="0.8" step="0.005" value="0.22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 大小·上限 @max</span><span id="val-rhbhzmax-mx">0.36</span></div>
+                    <input type="range" id="inp-rhbhzmax-mx" min="0.01" max="1.5" step="0.005" value="0.36">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 不透明度 @1</span><span id="val-rhbhop">0.90</span></div>
+                    <input type="range" id="inp-rhbhop" min="0" max="1" step="0.01" value="0.9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 不透明度 @max</span><span id="val-rhbhop-mx">1.00</span></div>
+                    <input type="range" id="inp-rhbhop-mx" min="0" max="1" step="0.01" value="1.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 颜色随机度 @1</span><span id="val-rhbhcj">0.45</span></div>
+                    <input type="range" id="inp-rhbhcj" min="0" max="1" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 颜色随机度 @max</span><span id="val-rhbhcj-mx">0.60</span></div>
+                    <input type="range" id="inp-rhbhcj-mx" min="0" max="1" step="0.01" value="0.60">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 自转速度 @1</span><span id="val-rhbhsp">6.00</span></div>
+                    <input type="range" id="inp-rhbhsp" min="0" max="30" step="0.5" value="6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>H · 自转速度 @max</span><span id="val-rhbhsp-mx">10.00</span></div>
+                    <input type="range" id="inp-rhbhsp-mx" min="0" max="40" step="0.5" value="10">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>⚔️ 敌人死亡刀光闪现</summary>
+                <!-- 敌人死亡瞬间贴地（xz 平面）爆开的双层"刀光"：
+                     外层 glow（粗、半透）+ 内层 core（细、几乎不透），AdditiveBlending 高光质感。
+                     朝向：沿击杀来向水平摆放；x 方向先"出鞘"展开，y 方向膨胀回收，最后整体淡出。
+                     全部参数在创建瞬间快照到实例，调参不影响已经在播放的旧实例。-->
+
+                <!-- ===== 时间 ===== -->
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>总时长 (秒)</span><span id="val-sfdu">0.18</span></div>
+                    <input type="range" id="inp-sfdu" min="0.05" max="1.0" step="0.01" value="0.18">
+                </div>
+
+                <!-- ===== 形状 ===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#ffd966;">— 形状 —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>长度 (基准)</span><span id="val-sfln">3.10</span></div>
+                    <input type="range" id="inp-sfln" min="0.5" max="8.0" step="0.05" value="3.1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>外层光晕厚度</span><span id="val-sfgw">0.34</span></div>
+                    <input type="range" id="inp-sfgw" min="0.02" max="2.0" step="0.01" value="0.34">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>内层核心厚度</span><span id="val-sfcw">0.12</span></div>
+                    <input type="range" id="inp-sfcw" min="0.01" max="1.0" step="0.005" value="0.12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>核心相对长度比例</span><span id="val-sfclr">0.96</span></div>
+                    <input type="range" id="inp-sfclr" min="0.4" max="1.0" step="0.01" value="0.96">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>贴地高度偏移</span><span id="val-sfho">0.55</span></div>
+                    <input type="range" id="inp-sfho" min="0" max="2.5" step="0.05" value="0.55">
+                </div>
+
+                <!-- ===== 颜色与透明度 ===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#ffd966;">— 颜色与透明度 —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>颜色 (#RRGGBB)</span><span id="val-sfcl">#91c53a</span></div>
+                    <input type="color" id="inp-sfcl" value="#91c53a">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>外层光晕不透明度</span><span id="val-sfgop">0.82</span></div>
+                    <input type="range" id="inp-sfgop" min="0" max="1" step="0.01" value="0.82">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>内层核心不透明度</span><span id="val-sfcop">1.00</span></div>
+                    <input type="range" id="inp-sfcop" min="0" max="1" step="0.01" value="1.0">
+                </div>
+
+                <!-- ===== 动画曲线 ===== -->
+                <div class="panel-row" style="margin-top: 6px; padding-top: 4px; border-top: 1px dashed #555;">
+                    <div class="panel-row-header"><span style="color:#ffd966;">— 动画曲线 —</span><span></span></div>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出鞘展开占比 (0~1)</span><span id="val-sfrv">0.28</span></div>
+                    <input type="range" id="inp-sfrv" min="0.05" max="0.9" step="0.01" value="0.28">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>淡出起点 (0~1)</span><span id="val-sffs">0.55</span></div>
+                    <input type="range" id="inp-sffs" min="0.1" max="0.95" step="0.01" value="0.55">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🪵 木桩受击反馈 (形变 + 弯曲 · 木桩独有，与敌人完全独立)</summary>
+                <!-- 木桩有两套独立的物理：
+                     ① Squash & Stretch 形变（stakeDeform*）— 木桩本体的"被压扁/被拉长"，
+                        参数语义与上方敌人受击反馈的 hitDeform* 完全一致，但数值各自独立。
+                     ② pivot 弯曲（stakeBend*）— 木桩绕地面 pivot 的摇摆，球形/柱状敌人没有此物理。
+                     闪白和击退/眩晕仍与敌人共用 hit* 参数（在上方分组）。-->
+
+                <!-- ===== Squash & Stretch 形变（弹簧节奏）===== -->
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>形变·回弹刚度 (节奏快慢)</span><span id="val-sds">260</span></div>
+                    <input type="range" id="inp-sds" min="40" max="800" step="5" value="260">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·阻尼 (越小越q弹)</span><span id="val-sdm">6.0</span></div>
+                    <input type="range" id="inp-sdm" min="0" max="40" step="0.2" value="6.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·兜底持续时间 (秒)</span><span id="val-sdu">1.20</span></div>
+                    <input type="range" id="inp-sdu" min="0.1" max="3.0" step="0.01" value="1.2">
+                </div>
+
+                <!-- ===== Squash 阶段 ===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>压扁·沿命中轴缩短幅度</span><span id="val-sdsa">0.50</span></div>
+                    <input type="range" id="inp-sdsa" min="0" max="0.95" step="0.01" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>压扁·垂直方向鼓起幅度</span><span id="val-sdsb">0.50</span></div>
+                    <input type="range" id="inp-sdsb" min="0" max="2.0" step="0.01" value="0.5">
+                </div>
+
+                <!-- ===== Stretch 阶段 ===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>拉长·沿命中轴拉伸幅度</span><span id="val-sdta">0.60</span></div>
+                    <input type="range" id="inp-sdta" min="0" max="3.0" step="0.01" value="0.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>拉长·垂直方向收缩幅度</span><span id="val-sdtp">0.30</span></div>
+                    <input type="range" id="inp-sdtp" min="0" max="0.95" step="0.01" value="0.3">
+                </div>
+
+                <!-- ===== 纵向缩放系数（木桩特有：抑制 Y 方向变化避免"突然变高"）===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>纵向缩放系数 (0=Y不变 / 1=同强)</span><span id="val-sdvs">0.60</span></div>
+                    <input type="range" id="inp-sdvs" min="0" max="1.5" step="0.01" value="0.6">
+                </div>
+
+                <!-- ===== pivot 弯曲（独有物理，球形敌人无此特性）===== -->
+                <div class="panel-row" style="padding-top: 10px;">
+                    <div class="panel-row-header"><span>弯曲·回弹刚度</span><span id="val-sbs">110</span></div>
+                    <input type="range" id="inp-sbs" min="20" max="400" step="5" value="110">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲·阻尼</span><span id="val-sbd">2.60</span></div>
+                    <input type="range" id="inp-sbd" min="0" max="20" step="0.1" value="2.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲·最大角度 (rad)</span><span id="val-sbma">0.90</span></div>
+                    <input type="range" id="inp-sbma" min="0.1" max="1.5" step="0.01" value="0.9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲冲量·主动穿刺 (low)</span><span id="val-sbil">2.00</span></div>
+                    <input type="range" id="inp-sbil" min="0" max="15" step="0.1" value="2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲冲量·回收 (high)</span><span id="val-sbih">4.50</span></div>
+                    <input type="range" id="inp-sbih" min="0" max="15" step="0.1" value="4.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲冲量·特殊 (special)</span><span id="val-sbis">6.50</span></div>
+                    <input type="range" id="inp-sbis" min="0" max="20" step="0.1" value="6.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退→弯曲换算系数</span><span id="val-sbks">3.50</span></div>
+                    <input type="range" id="inp-sbks" min="0" max="10" step="0.1" value="3.5">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🗿 柱状敌人</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>血量</span></div>
+                    <input type="number" id="inp-pehp" class="panel-number" min="0" max="10000" step="1" value="160">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>首次开火延迟 (秒)</span><span id="val-pefid">1.20</span></div>
+                    <input type="range" id="inp-pefid" min="0" max="5" step="0.05" value="1.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>开火间隔 (秒)</span><span id="val-pefi">1.80</span></div>
+                    <input type="range" id="inp-pefi" min="0.3" max="6" step="0.05" value="1.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>开火蓄力时长 (秒)</span><span id="val-pefw">0.35</span></div>
+                    <input type="range" id="inp-pefw" min="0" max="1.5" step="0.05" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>子弹速度</span><span id="val-pbsp">4.00</span></div>
+                    <input type="range" id="inp-pbsp" min="0.5" max="20" step="0.1" value="4.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>子弹存在时长 (秒)</span><span id="val-pblt">3.00</span></div>
+                    <input type="range" id="inp-pblt" min="0.3" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>子弹半径</span><span id="val-pbr">0.25</span></div>
+                    <input type="range" id="inp-pbr" min="0.05" max="1.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>四人小队中柱状敌人数量</span><span id="val-w4pc">2</span></div>
+                    <input type="range" id="inp-w4pc" min="0" max="4" step="1" value="2">
+                </div>
+            </details>
 
             <details class="panel-group">
                 <summary>🕺 角色动画</summary>
                 <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>模型倾斜角度</span><span id="val-mta">0</span></div>
+                    <input type="range" id="inp-mta" min="-90" max="90" step="1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>模型离地高度</span><span id="val-mho">0.00</span></div>
+                    <input type="range" id="inp-mho" min="-1" max="3" step="0.05" value="0">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>步伐频率 (解决滑冰)</span><span id="val-rsf">2.50</span></div>
                     <input type="range" id="inp-rsf" min="0.5" max="5.0" step="0.1" value="2.5">
                 </div>
@@ -218,6 +1054,62 @@
                     <input type="range" id="inp-cd" min="0.1" max="1.5" step="0.05" value="0.35">
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>主动攻击伤害</span></div>
+                    <input type="number" id="inp-padmg" class="panel-number" min="0" max="1000" step="1" value="5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 回收伤害</span></div>
+                    <input type="number" id="inp-prdmg" class="panel-number" min="0" max="1000" step="1" value="10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 回收伤害</span></div>
+                    <input type="number" id="inp-prdmgs" class="panel-number" min="0" max="1000" step="1" value="80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>禁用第四下特殊攻击</span><span id="val-dsac">关</span></div>
+                    <input type="checkbox" id="inp-dsac">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 蓄力时长 (秒)</span><span id="val-awd">0.22</span></div>
+                    <input type="range" id="inp-awd" min="0.05" max="0.8" step="0.01" value="0.22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 蓄力时长 (秒)</span><span id="val-awds">0.34</span></div>
+                    <input type="range" id="inp-awds" min="0.05" max="1.2" step="0.01" value="0.34">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 顶点保持占比</span><span id="val-awhr">0.45</span></div>
+                    <input type="range" id="inp-awhr" min="0.0" max="0.9" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 顶点保持占比</span><span id="val-awhrs">0.55</span></div>
+                    <input type="range" id="inp-awhrs" min="0.0" max="0.9" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投掷恢复时长 (秒)</span><span id="val-ard">0.20</span></div>
+                    <input type="range" id="inp-ard" min="0.05" max="0.8" step="0.01" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投掷恢复时长 (秒)</span><span id="val-ards">0.25</span></div>
+                    <input type="range" id="inp-ards" min="0.05" max="1.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器生成延后时间 (秒)</span><span id="val-aitd">0.00</span></div>
+                    <input type="range" id="inp-aitd" min="0.00" max="0.50" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>攻击武器尺寸</span><span id="val-ahws">0.08</span></div>
+                    <input type="range" id="inp-ahws" min="0.02" max="0.20" step="0.005" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 命中卡肉停顿 (秒)</span><span id="val-ahvp">0.02</span></div>
+                    <input type="range" id="inp-ahvp" min="0.00" max="0.08" step="0.005" value="0.02">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 命中卡肉停顿 (秒)</span><span id="val-ahvps">0.03</span></div>
+                    <input type="range" id="inp-ahvps" min="0.00" max="0.08" step="0.005" value="0.03">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>射出初速度</span><span id="val-dis">60</span></div>
                     <input type="range" id="inp-dis" min="10" max="150" step="1" value="60">
                 </div>
@@ -230,16 +1122,56 @@
                     <input type="range" id="inp-dms" min="0" max="60" step="1" value="15">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>穿透后落点距离</span><span id="val-pdbd">1.5</span></div>
+                    <div class="panel-row-header"><span>场上武器数量上限</span><span id="val-mfof">50</span></div>
+                    <input type="range" id="inp-mfof" min="1" max="50" step="1" value="50">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>穿透后落点距离 (基础)</span><span id="val-pdbd">1.5</span></div>
                     <input type="range" id="inp-pdbd" min="0.1" max="10.0" step="0.1" value="1.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>启用动态落点距离</span><span id="val-pdde">关</span></div>
+                    <input type="checkbox" id="inp-pdde">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>最近落点 (玩家远时)</span><span id="val-pdmin">1.0</span></div>
+                    <input type="range" id="inp-pdmin" min="0.1" max="20.0" step="0.1" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>最远落点 (玩家近时)</span><span id="val-pdmax">4.0</span></div>
+                    <input type="range" id="inp-pdmax" min="0.1" max="20.0" step="0.1" value="4.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>触发最远落点的最近距离</span><span id="val-ptnd">2.0</span></div>
+                    <input type="range" id="inp-ptnd" min="0.0" max="20.0" step="0.1" value="2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>触发最近落点的最远距离</span><span id="val-ptfd">12.0</span></div>
+                    <input type="range" id="inp-ptfd" min="0.5" max="40.0" step="0.1" value="12.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>穿透后速度倍率</span><span id="val-appss">0.30</span></div>
+                    <input type="range" id="inp-appss" min="0.05" max="1.00" step="0.05" value="0.30">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>扎地最终倾角 (度)</span><span id="val-gip">80</span></div>
                     <input type="range" id="inp-gip" min="0" max="90" step="1" value="80">
                 </div>
                 <div class="panel-row">
+                    <div class="panel-row-header"><span>下坠旋转支点偏向 (0中心/1头尖)</span><span id="val-appptb">1.00</span></div>
+                    <input type="range" id="inp-appptb" min="0" max="2.0" step="0.05" value="1.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>支点沿武器轴微调 (单位)</span><span id="val-appto">0.00</span></div>
+                    <input type="range" id="inp-appto" min="-2.0" max="2.0" step="0.05" value="0.00">
+                </div>
+                <div class="panel-row">
                     <div class="panel-row-header"><span>回收逐一间隔 (毫秒)</span><span id="val-ri">100</span></div>
                     <input type="range" id="inp-ri" min="0" max="500" step="10" value="100">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>停下后触发回收所需移动距离</span><span id="val-rmds">1.00</span></div>
+                    <input type="range" id="inp-rmds" min="0" max="5.0" step="0.05" value="1.0">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>前三根回收速度</span><span id="val-rs">70</span></div>
@@ -256,57 +1188,697 @@
             </details>
 
             <details class="panel-group">
-                <summary>⚡️ 连线特效</summary>
+                <summary>🎭 攻击姿态幅度</summary>
                 <div class="panel-row" style="padding-top: 6px;">
-                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线段长<span id="val-tdl">0.30</span></div>
-                    <input type="range" id="inp-tdl" min="0.1" max="2.0" step="0.05" value="0.3">
+                    <div class="panel-row-header"><span>[普通] 蓄力后仰 X (rad)</span><span id="val-alb">-0.65</span></div>
+                    <input type="range" id="inp-alb" min="-2.0" max="0" step="0.01" value="-0.65">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线间隔<span id="val-tgl">0.40</span></div>
-                    <input type="range" id="inp-tgl" min="0.1" max="3.5" step="0.05" value="0.4">
+                    <div class="panel-row-header"><span>[特殊] 蓄力后仰 X (rad)</span><span id="val-albs">-0.95</span></div>
+                    <input type="range" id="inp-albs" min="-2.0" max="0" step="0.01" value="-0.95">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线粗细<span id="val-ttk">0.03</span></div>
-                    <input type="range" id="inp-ttk" min="0.01" max="0.3" step="0.01" value="0.03">
+                    <div class="panel-row-header"><span>[普通] 蓄力后扭 Y (rad)</span><span id="val-atb">-1.05</span></div>
+                    <input type="range" id="inp-atb" min="-2.5" max="0" step="0.01" value="-1.05">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 连线段数<span id="val-tsc">8</span></div>
-                    <input type="range" id="inp-tsc" min="3" max="16" step="1" value="8">
+                    <div class="panel-row-header"><span>[特殊] 蓄力后扭 Y (rad)</span><span id="val-atbs">-1.45</span></div>
+                    <input type="range" id="inp-atbs" min="-2.5" max="0" step="0.01" value="-1.45">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线段长<span id="val-stdl">0.30</span></div>
-                    <input type="range" id="inp-stdl" min="0.1" max="2.5" step="0.05" value="0.3">
+                    <div class="panel-row-header"><span>[普通] 蓄力侧倾 Z (rad)</span><span id="val-als">0.28</span></div>
+                    <input type="range" id="inp-als" min="0" max="1.0" step="0.01" value="0.28">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线间隔<span id="val-stgl">0.50</span></div>
-                    <input type="range" id="inp-stgl" min="0.1" max="4.0" step="0.05" value="0.5">
+                    <div class="panel-row-header"><span>[特殊] 蓄力侧倾 Z (rad)</span><span id="val-alss">0.38</span></div>
+                    <input type="range" id="inp-alss" min="0" max="1.2" step="0.01" value="0.38">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线粗细<span id="val-sttk">0.13</span></div>
-                    <input type="range" id="inp-sttk" min="0.04" max="0.35" step="0.01" value="0.13">
+                    <div class="panel-row-header"><span>[普通] 投出前倾 X (rad)</span><span id="val-atf">0.95</span></div>
+                    <input type="range" id="inp-atf" min="0" max="2.0" step="0.01" value="0.95">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 连线段数<span id="val-stsc">10</span></div>
-                    <input type="range" id="inp-stsc" min="4" max="18" step="1" value="10">
+                    <div class="panel-row-header"><span>[特殊] 投出前倾 X (rad)</span><span id="val-atfs">1.18</span></div>
+                    <input type="range" id="inp-atfs" min="0" max="2.2" step="0.01" value="1.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出前扭 Y (rad)</span><span id="val-att">0.78</span></div>
+                    <input type="range" id="inp-att" min="0" max="2.0" step="0.01" value="0.78">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出前扭 Y (rad)</span><span id="val-atts">1.02</span></div>
+                    <input type="range" id="inp-atts" min="0" max="2.2" step="0.01" value="1.02">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出侧倾 Z (rad)</span><span id="val-ats">-0.22</span></div>
+                    <input type="range" id="inp-ats" min="-1.0" max="0" step="0.01" value="-0.22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出侧倾 Z (rad)</span><span id="val-atss">-0.30</span></div>
+                    <input type="range" id="inp-atss" min="-1.2" max="0" step="0.01" value="-0.30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 前倾极限保持占比</span><span id="val-abr">0.38</span></div>
+                    <input type="range" id="inp-abr" min="0.05" max="0.8" step="0.01" value="0.38">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 前倾极限保持占比</span><span id="val-abrs">0.42</span></div>
+                    <input type="range" id="inp-abrs" min="0.05" max="0.8" step="0.01" value="0.42">
+                </div>
+                <!-- ======== 下半身：弓步站姿 + 攻击腿部摆动 ======== -->
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>[站姿] 前腿大腿前倾 (rad)</span><span id="val-asft">0.32</span></div>
+                    <input type="range" id="inp-asft" min="0" max="0.8" step="0.01" value="0.32">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[站姿] 前腿膝盖屈曲</span><span id="val-asfk">0.55</span></div>
+                    <input type="range" id="inp-asfk" min="0" max="1.5" step="0.01" value="0.55">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[站姿] 后腿大腿后倾 (rad)</span><span id="val-asrt">0.15</span></div>
+                    <input type="range" id="inp-asrt" min="0" max="0.6" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[站姿] 后腿膝盖屈曲</span><span id="val-asrk">0.25</span></div>
+                    <input type="range" id="inp-asrk" min="0" max="1.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[攻击·蓄力] 后坐幅度</span><span id="val-alwt">0.08</span></div>
+                    <input type="range" id="inp-alwt" min="0" max="0.4" step="0.01" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[攻击·蓄力] 加深屈膝</span><span id="val-alwk">0.10</span></div>
+                    <input type="range" id="inp-alwk" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[攻击·发力] 前冲幅度</span><span id="val-altt">0.10</span></div>
+                    <input type="range" id="inp-altt" min="0" max="0.6" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[攻击·发力] 膝盖伸展</span><span id="val-altk">0.18</span></div>
+                    <input type="range" id="inp-altk" min="0" max="0.8" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[胯部跟随] Y扭转比例</span><span id="val-ahfy">0.40</span></div>
+                    <input type="range" id="inp-ahfy" min="0" max="1.0" step="0.01" value="0.40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[胯部跟随] Z侧倾比例</span><span id="val-ahfz">0.35</span></div>
+                    <input type="range" id="inp-ahfz" min="0" max="1.0" step="0.01" value="0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力·普通] 身体下蹲量</span><span id="val-abdw">0.05</span></div>
+                    <input type="range" id="inp-abdw" min="0" max="0.3" step="0.005" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力·特殊] 身体下蹲量</span><span id="val-abdws">0.08</span></div>
+                    <input type="range" id="inp-abdws" min="0" max="0.35" step="0.005" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出·普通] 身体上顶量</span><span id="val-ablt">0.08</span></div>
+                    <input type="range" id="inp-ablt" min="0" max="0.3" step="0.005" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出·特殊] 身体上顶量</span><span id="val-ablts">0.13</span></div>
+                    <input type="range" id="inp-ablts" min="0" max="0.35" step="0.005" value="0.13">
+                </div>
+                <!-- ======== 胯部旋转（带动腿部和尾巴，围绕左脚轴心转动）======== -->
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>[轴心] 左脚偏移 X</span><span id="val-alfpx">0.055</span></div>
+                    <input type="range" id="inp-alfpx" min="-0.2" max="0.3" step="0.005" value="0.055">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[轴心] 左脚偏移 Z</span><span id="val-alfpz">0.00</span></div>
+                    <input type="range" id="inp-alfpz" min="-0.2" max="0.2" step="0.005" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力] 胯部扭转 Y</span><span id="val-ahtby">-0.22</span></div>
+                    <input type="range" id="inp-ahtby" min="-0.8" max="0" step="0.01" value="-0.22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力·特殊] 胯部扭转 Y</span><span id="val-ahtbys">-0.32</span></div>
+                    <input type="range" id="inp-ahtbys" min="-1.0" max="0" step="0.01" value="-0.32">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力] 胯部侧倾 Z</span><span id="val-ahlsz">0.10</span></div>
+                    <input type="range" id="inp-ahlsz" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[蓄力·特殊] 胯部侧倾 Z</span><span id="val-ahlszs">0.15</span></div>
+                    <input type="range" id="inp-ahlszs" min="0" max="0.6" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出] 胯部前扭 Y</span><span id="val-ahtty">0.18</span></div>
+                    <input type="range" id="inp-ahtty" min="0" max="0.8" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出·特殊] 胯部前扭 Y</span><span id="val-ahttys">0.25</span></div>
+                    <input type="range" id="inp-ahttys" min="0" max="1.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出] 胯部侧倾 Z</span><span id="val-ahtsz">-0.08</span></div>
+                    <input type="range" id="inp-ahtsz" min="-0.5" max="0" step="0.01" value="-0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[投出·特殊] 胯部侧倾 Z</span><span id="val-ahtszs">-0.12</span></div>
+                    <input type="range" id="inp-ahtszs" min="-0.6" max="0" step="0.01" value="-0.12">
+                </div>
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>站立呼吸幅度</span><span id="val-ibsy">0.03</span></div>
+                    <input type="range" id="inp-ibsy" min="0" max="0.2" step="0.005" value="0.03">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>站立呼吸频率</span><span id="val-ibss">3.0</span></div>
+                    <input type="range" id="inp-ibss" min="0.5" max="8.0" step="0.1" value="3.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🦾 投掷手臂蓄力姿态</summary>
+                <div class="panel-row" style="padding-top: 6px; font-size: 0.8em; color: #aaa; line-height: 1.4;">
+                    大臂三轴旋转在"玩家模型坐标系"中反解得到：目标是大臂水平向外、小臂 90° 成角指向后上方。参数单位均为弧度（PI ≈ 3.14）。
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 大臂 X 轴旋转 (rad)</span><span id="val-aapx">-0.53</span></div>
+                    <input type="range" id="inp-aapx" min="-3.14" max="3.14" step="0.01" value="-0.53">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 大臂 X 轴旋转 (rad)</span><span id="val-aapxs">-0.79</span></div>
+                    <input type="range" id="inp-aapxs" min="-3.14" max="3.14" step="0.01" value="-0.79">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 大臂 Y 轴旋转 (rad)</span><span id="val-aapy">1.13</span></div>
+                    <input type="range" id="inp-aapy" min="-3.14" max="3.14" step="0.01" value="1.13">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 大臂 Y 轴旋转 (rad)</span><span id="val-aapys">1.32</span></div>
+                    <input type="range" id="inp-aapys" min="-3.14" max="3.14" step="0.01" value="1.32">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 大臂 Z 轴旋转 (rad)</span><span id="val-aapz">-1.23</span></div>
+                    <input type="range" id="inp-aapz" min="-3.14" max="3.14" step="0.01" value="-1.23">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 大臂 Z 轴旋转 (rad)</span><span id="val-aapzs">-0.88</span></div>
+                    <input type="range" id="inp-aapzs" min="-3.14" max="3.14" step="0.01" value="-0.88">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 小臂弯曲 (rad, -PI/2=90°)</span><span id="val-aebp">-1.57</span></div>
+                    <input type="range" id="inp-aebp" min="-3.14" max="0" step="0.01" value="-1.57">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 小臂弯曲 (rad)</span><span id="val-aebps">-1.57</span></div>
+                    <input type="range" id="inp-aebps" min="-3.14" max="0" step="0.01" value="-1.57">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>✋ 辅助手姿态（非投掷侧）</summary>
+                <div class="panel-row" style="padding-top: 6px; font-size: 0.8em; color: #aaa; line-height: 1.4;">
+                    投掷的辅助手（右手投 = 左手）。蓄力时大臂前伸、小臂横胸前；投出时甩到身后。大臂 YXZ 三轴 + 小臂弯曲各 2 组（普通/特殊），蓄力/投出 各 1 套。单位弧度（PI ≈ 3.14）。
+                </div>
+                <div class="panel-row" style="font-size: 0.8em; color: #ffb; padding-top: 4px;">—— 蓄力姿态 ——</div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 蓄力 大臂 X (rad)</span><span id="val-aswx">0.00</span></div>
+                    <input type="range" id="inp-aswx" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 蓄力 大臂 X (rad)</span><span id="val-aswxs">0.09</span></div>
+                    <input type="range" id="inp-aswxs" min="-3.14" max="3.14" step="0.01" value="0.09">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 蓄力 大臂 Y (rad)</span><span id="val-aswy">0.00</span></div>
+                    <input type="range" id="inp-aswy" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 蓄力 大臂 Y (rad)</span><span id="val-aswys">0.00</span></div>
+                    <input type="range" id="inp-aswys" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 蓄力 大臂 Z (rad)</span><span id="val-aswz">-1.48</span></div>
+                    <input type="range" id="inp-aswz" min="-3.14" max="3.14" step="0.01" value="-1.48">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 蓄力 大臂 Z (rad)</span><span id="val-aswzs">-1.31</span></div>
+                    <input type="range" id="inp-aswzs" min="-3.14" max="3.14" step="0.01" value="-1.31">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 蓄力 小臂弯曲 (rad)</span><span id="val-asew">-1.73</span></div>
+                    <input type="range" id="inp-asew" min="-3.14" max="0" step="0.01" value="-1.73">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 蓄力 小臂弯曲 (rad)</span><span id="val-asews">-1.73</span></div>
+                    <input type="range" id="inp-asews" min="-3.14" max="0" step="0.01" value="-1.73">
+                </div>
+                <div class="panel-row" style="font-size: 0.8em; color: #ffb; padding-top: 4px;">—— 投出后甩到身后 ——</div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出 大臂 X (rad)</span><span id="val-astx">0.00</span></div>
+                    <input type="range" id="inp-astx" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出 大臂 X (rad)</span><span id="val-astxs">-0.35</span></div>
+                    <input type="range" id="inp-astxs" min="-3.14" max="3.14" step="0.01" value="-0.35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出 大臂 Y (rad)</span><span id="val-asty">0.09</span></div>
+                    <input type="range" id="inp-asty" min="-3.14" max="3.14" step="0.01" value="0.09">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出 大臂 Y (rad)</span><span id="val-astys">0.00</span></div>
+                    <input type="range" id="inp-astys" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出 大臂 Z (rad)</span><span id="val-astz">-1.22</span></div>
+                    <input type="range" id="inp-astz" min="-3.14" max="3.14" step="0.01" value="-1.22">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出 大臂 Z (rad)</span><span id="val-astzs">-0.87</span></div>
+                    <input type="range" id="inp-astzs" min="-3.14" max="3.14" step="0.01" value="-0.87">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 投出 小臂弯曲 (rad)</span><span id="val-aset">-0.94</span></div>
+                    <input type="range" id="inp-aset" min="-3.14" max="0" step="0.01" value="-0.94">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 投出 小臂弯曲 (rad)</span><span id="val-asets">-0.94</span></div>
+                    <input type="range" id="inp-asets" min="-3.14" max="0" step="0.01" value="-0.94">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🔪 手持武器姿态（蓄力时）</summary>
+                <div class="panel-row" style="padding-top: 6px; font-size: 0.8em; color: #aaa; line-height: 1.4;">
+                    武器挂在玩家根节点（不跟随前臂翻转）。参考系：玩家正前方 = -Z，正右方 = +X，上方 = +Y。默认尖端朝向玩家正前方且平行地面。
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>X 轴位移 (左右; +右)</span><span id="val-awhx">0.10</span></div>
+                    <input type="range" id="inp-awhx" min="-0.5" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>Y 轴位移 (上下; +上)</span><span id="val-awhy">0.45</span></div>
+                    <input type="range" id="inp-awhy" min="0.00" max="1.00" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>Z 轴位移 (前后; -前)</span><span id="val-awhz">-0.05</span></div>
+                    <input type="range" id="inp-awhz" min="-0.50" max="0.50" step="0.01" value="-0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>X 轴旋转 (rad; 仰俯)</span><span id="val-awhrx">0.00</span></div>
+                    <input type="range" id="inp-awhrx" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>Y 轴旋转 (rad; 偏航; 默认π=尖端朝前)</span><span id="val-awhry">3.14</span></div>
+                    <input type="range" id="inp-awhry" min="-3.14" max="3.14" step="0.01" value="3.14">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>Z 轴旋转 (rad; 翻滚)</span><span id="val-awhrz">0.00</span></div>
+                    <input type="range" id="inp-awhrz" min="-3.14" max="3.14" step="0.01" value="0.00">
+                </div>
+                <div class="panel-row" style="font-size: 0.8em; color: #ffb; padding-top: 4px;">—— 蓄力期间 Z 位移动画 ——</div>
+                <div class="panel-row" style="font-size: 0.78em; color: #aaa; line-height: 1.4;">
+                    [0, 停留占比] 武器停留在默认位置；剩余时间内 easeOutCubic 滑动到 (默认位置 + 终点偏移)，蓄力结束 = 出手消失。停留占比 = 1 全程静止；终点偏移 = 0 无位移。
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>停留占比 (0..1)</span><span id="val-awhsr">0.50</span></div>
+                    <input type="range" id="inp-awhsr" min="0" max="1" step="0.01" value="0.50">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>终点 Z 偏移 (-朝前 / +朝后)</span><span id="val-awhoz">-0.40</span></div>
+                    <input type="range" id="inp-awhoz" min="-1.0" max="1.0" step="0.01" value="-0.40">
+                </div>
+                <div class="panel-row" style="font-size: 0.8em; color: #ffb; padding-top: 4px;">—— 出现弹性缩放 ——</div>
+                <div class="panel-row" style="font-size: 0.78em; color: #aaa; line-height: 1.4;">
+                    武器从隐藏→显示瞬间触发：前一半时长 0 → 超冲峰值×targetScale，后一半时长 → targetScale。仅作用于 scale，不影响 Z 位移动画。关闭后退化为瞬间出现。
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>启用弹性出现</span><span id="val-awhpe">开</span></div>
+                    <input type="checkbox" id="inp-awhpe" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弹性时长 (秒)</span><span id="val-awhpd">0.18</span></div>
+                    <input type="range" id="inp-awhpd" min="0.05" max="0.60" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>超冲倍率 (1.0 = 无超冲)</span><span id="val-awhpo">1.20</span></div>
+                    <input type="range" id="inp-awhpo" min="1.00" max="2.00" step="0.01" value="1.20">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>🐱 回收小猫演出</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>出土时长 (秒)</span><span id="val-rced">0.30</span></div>
+                    <input type="range" id="inp-rced" min="0.05" max="1.0" step="0.01" value="0.30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>蓄力时长 (秒)</span><span id="val-rcwd">0.50</span></div>
+                    <input type="range" id="inp-rcwd" min="0.05" max="1.5" step="0.01" value="0.50">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>甩出时长 (秒)</span><span id="val-rctd">0.15</span></div>
+                    <input type="range" id="inp-rctd" min="0.02" max="0.8" step="0.01" value="0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>保持时长 (秒)</span><span id="val-rchd">0.20</span></div>
+                    <input type="range" id="inp-rchd" min="0.0" max="1.5" step="0.01" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐隐时长 (秒)</span><span id="val-rcfd">1.50</span></div>
+                    <input type="range" id="inp-rcfd" min="0.0" max="3.0" step="0.01" value="1.50">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 小猫缩放</span><span id="val-rcsc">1.30</span></div>
+                    <input type="range" id="inp-rcsc" min="0.5" max="2.5" step="0.05" value="1.30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 小猫缩放</span><span id="val-rcscs">1.48</span></div>
+                    <input type="range" id="inp-rcscs" min="0.5" max="3.0" step="0.05" value="1.48">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[普通] 武器缩放</span><span id="val-rcws">0.54</span></div>
+                    <input type="range" id="inp-rcws" min="0.1" max="1.2" step="0.02" value="0.54">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>[特殊] 武器缩放</span><span id="val-rcwss">0.66</span></div>
+                    <input type="range" id="inp-rcwss" min="0.1" max="1.4" step="0.02" value="0.66">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器挂点 X</span><span id="val-rcwox">-0.01</span></div>
+                    <input type="range" id="inp-rcwox" min="-0.1" max="0.1" step="0.005" value="-0.01">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器挂点 Y</span><span id="val-rcwoy">-0.006</span></div>
+                    <input type="range" id="inp-rcwoy" min="-0.15" max="0.15" step="0.005" value="-0.006">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器挂点 Z</span><span id="val-rcwoz">0.045</span></div>
+                    <input type="range" id="inp-rcwoz" min="-0.15" max="0.2" step="0.005" value="0.045">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器基础 X转角(度)</span><span id="val-rcwbrx">180</span></div>
+                    <input type="range" id="inp-rcwbrx" min="-180" max="180" step="1" value="180">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器基础 Y转角(度)</span><span id="val-rcwbry">0</span></div>
+                    <input type="range" id="inp-rcwbry" min="-180" max="180" step="1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器基础 Z转角(度)</span><span id="val-rcwbrz">0</span></div>
+                    <input type="range" id="inp-rcwbrz" min="-180" max="180" step="1" value="0">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器蓄力 X偏转(度)</span><span id="val-rcwwrx">86</span></div>
+                    <input type="range" id="inp-rcwwrx" min="-180" max="180" step="1" value="86">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>武器甩出 X偏转(度)</span><span id="val-rcwtrx">57</span></div>
+                    <input type="range" id="inp-rcwtrx" min="-180" max="180" step="1" value="57">
+                </div>
+            </details>
+            
+            <details class="panel-group">
+                <summary>⚡ 标枪飞行特效 (Javelin VFX)</summary>
+
+                <!-- ===== 子区 1：核心抛射体 (Core Projectile) ===== -->
+                <div class="panel-row" style="margin-top: 6px; padding: 6px 8px; background: linear-gradient(90deg, rgba(255, 240, 150, 0.18), rgba(255, 240, 150, 0.02)); border-left: 3px solid #ffe066; border-radius: 4px;">
+                    <strong style="color: #ffe066; font-size: 12px; letter-spacing: 0.5px;">① 核心抛射体 · Projectile Core</strong>
+                </div>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header">发光强度 (Intensity)<span id="val-vfxci">12.0</span></div>
+                    <input type="range" id="inp-vfxci" min="0.5" max="50.0" step="0.5" value="12.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">长度 (Scale Z)<span id="val-vfxcsz">2.5</span></div>
+                    <input type="range" id="inp-vfxcsz" min="0.5" max="8.0" step="0.1" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">厚度 X (Scale X)<span id="val-vfxcsx">0.25</span></div>
+                    <input type="range" id="inp-vfxcsx" min="0.05" max="2.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">厚度 Y (Scale Y)<span id="val-vfxcsy">0.25</span></div>
+                    <input type="range" id="inp-vfxcsy" min="0.05" max="2.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">菲涅尔过渡硬度 (Fresnel Pow)<span id="val-vfxcfp">1.5</span></div>
+                    <input type="range" id="inp-vfxcfp" min="0.1" max="6.0" step="0.1" value="1.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">中心颜色 (Core Color)<span id="val-vfxcc">#ffffff</span></div>
+                    <input type="color" id="inp-vfxcc" value="#ffffff">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">边缘颜色 (Edge Color)<span id="val-vfxcec">#ffcc00</span></div>
+                    <input type="color" id="inp-vfxcec" value="#ffcc00">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">分离后核心淡出 (Fade Sec)<span id="val-vfxcfd">0.18</span></div>
+                    <input type="range" id="inp-vfxcfd" min="0.0" max="2.0" step="0.02" value="0.18">
+                </div>
+
+                <!-- ===== 子区 1b：飞行武器模型 (Flight Weapon Model) ===== -->
+                <div class="panel-row" style="margin-top: 12px; padding: 6px 8px; background: linear-gradient(90deg, rgba(180, 255, 150, 0.18), rgba(180, 255, 150, 0.02)); border-left: 3px solid #91c53a; border-radius: 4px;">
+                    <strong style="color: #91c53a; font-size: 12px; letter-spacing: 0.5px;">①ᵇ 飞行武器模型 · Flight Weapon</strong>
+                </div>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header">飞行武器尺寸倍率 (Scale)<span id="val-vfxfms">1.00</span></div>
+                    <input type="range" id="inp-vfxfms" min="0.1" max="5.0" step="0.05" value="1.0">
+                </div>
+
+                <!-- ===== 子区 2：音障环 (Mach Rings) ===== -->
+                <div class="panel-row" style="margin-top: 12px; padding: 6px 8px; background: linear-gradient(90deg, rgba(150, 220, 255, 0.18), rgba(150, 220, 255, 0.02)); border-left: 3px solid #66c4ff; border-radius: 4px;">
+                    <strong style="color: #66c4ff; font-size: 12px; letter-spacing: 0.5px;">② 音障环 · Mach Rings</strong>
+                </div>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header">生成间距 (Spawn Dist)<span id="val-vfxrsd">1.5</span></div>
+                    <input type="range" id="inp-vfxrsd" min="0.05" max="5.0" step="0.05" value="1.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">寿命 (Life Sec)<span id="val-vfxrl">0.25</span></div>
+                    <input type="range" id="inp-vfxrl" min="0.05" max="2.0" step="0.01" value="0.25">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">起始缩放 (Start Scale)<span id="val-vfxrss">0.2</span></div>
+                    <input type="range" id="inp-vfxrss" min="0.0" max="3.0" step="0.05" value="0.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">终末缩放 (End Scale)<span id="val-vfxres">2.0</span></div>
+                    <input type="range" id="inp-vfxres" min="0.1" max="8.0" step="0.1" value="2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">继承速度倍率 (Inherit Vel)<span id="val-vfxriv">-0.15</span></div>
+                    <input type="range" id="inp-vfxriv" min="-2.0" max="2.0" step="0.05" value="-0.15">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">颜色 (Color)<span id="val-vfxrc">#ffd820</span></div>
+                    <input type="color" id="inp-vfxrc" value="#ffd820">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">HDR 强度 (Intensity)<span id="val-vfxri">8.0</span></div>
+                    <input type="range" id="inp-vfxri" min="0.5" max="30.0" step="0.5" value="8.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">内径 (Inner R)<span id="val-vfxrir">0.42</span></div>
+                    <input type="range" id="inp-vfxrir" min="0.0" max="0.5" step="0.01" value="0.42">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">外径 (Outer R)<span id="val-vfxror">0.5</span></div>
+                    <input type="range" id="inp-vfxror" min="0.05" max="0.5" step="0.01" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">边缘羽化 (Softness)<span id="val-vfxrsf">0.05</span></div>
+                    <input type="range" id="inp-vfxrsf" min="0.0" max="0.3" step="0.005" value="0.05">
+                </div>
+
+                <!-- ===== 子区 3：核心拖尾 (Ribbon Trail) ===== -->
+                <div class="panel-row" style="margin-top: 12px; padding: 6px 8px; background: linear-gradient(90deg, rgba(255, 170, 100, 0.18), rgba(255, 170, 100, 0.02)); border-left: 3px solid #ffaa66; border-radius: 4px;">
+                    <strong style="color: #ffaa66; font-size: 12px; letter-spacing: 0.5px;">③ 核心拖尾 · Ribbon Trail</strong>
+                </div>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header">最大节点数 (Length)<span id="val-vfxtl">30</span></div>
+                    <input type="range" id="inp-vfxtl" min="2" max="60" step="1" value="30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">头部宽度 (Head Width)<span id="val-vfxtw">0.4</span></div>
+                    <input type="range" id="inp-vfxtw" min="0.0" max="3.0" step="0.05" value="0.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">尾部宽度 (Tail Width)<span id="val-vfxttw">0.0</span></div>
+                    <input type="range" id="inp-vfxttw" min="0.0" max="3.0" step="0.05" value="0.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">HDR 强度 (Intensity)<span id="val-vfxti">8.0</span></div>
+                    <input type="range" id="inp-vfxti" min="0.5" max="30.0" step="0.5" value="8.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">头部颜色 (Color Head)<span id="val-vfxtch">#ffff99</span></div>
+                    <input type="color" id="inp-vfxtch" value="#ffff99">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">尾部颜色 (Color Tail)<span id="val-vfxtct">#ff6600</span></div>
+                    <input type="color" id="inp-vfxtct" value="#ff6600">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">噪波频率 (Noise Scale)<span id="val-vfxtns">20.0</span></div>
+                    <input type="range" id="inp-vfxtns" min="1.0" max="80.0" step="1.0" value="20.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">噪波速度 (Noise Speed)<span id="val-vfxtnv">10.0</span></div>
+                    <input type="range" id="inp-vfxtnv" min="0.0" max="40.0" step="0.5" value="10.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">噪波侵蚀 (Noise Amount)<span id="val-vfxtna">0.4</span></div>
+                    <input type="range" id="inp-vfxtna" min="0.0" max="1.0" step="0.02" value="0.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">中心硬度 (Edge Soft)<span id="val-vfxtes">0.6</span></div>
+                    <input type="range" id="inp-vfxtes" min="0.0" max="1.0" step="0.02" value="0.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">分离后整尾淡出 (Fade Sec)<span id="val-vfxtfd">0.6</span></div>
+                    <input type="range" id="inp-vfxtfd" min="0.0" max="3.0" step="0.05" value="0.6">
+                </div>
+
+                <!-- ===== 子区 4：飞溅粒子 (Sparks / Debris) ===== -->
+                <div class="panel-row" style="margin-top: 12px; padding: 6px 8px; background: linear-gradient(90deg, rgba(180, 255, 150, 0.18), rgba(180, 255, 150, 0.02)); border-left: 3px solid #b4ff96; border-radius: 4px;">
+                    <strong style="color: #b4ff96; font-size: 12px; letter-spacing: 0.5px;">④ 飞溅粒子 · Sparks / Debris</strong>
+                </div>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header">生成间距 (Spawn Dist)<span id="val-vfxssd">0.4</span></div>
+                    <input type="range" id="inp-vfxssd" min="0.05" max="3.0" step="0.05" value="0.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">触发概率 (Spawn Prob)<span id="val-vfxsp">0.7</span></div>
+                    <input type="range" id="inp-vfxsp" min="0.0" max="1.0" step="0.02" value="0.7">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">寿命 (Life Sec)<span id="val-vfxsl">0.18</span></div>
+                    <input type="range" id="inp-vfxsl" min="0.02" max="2.0" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">基础速度 (Base Speed)<span id="val-vfxsbs">3.0</span></div>
+                    <input type="range" id="inp-vfxsbs" min="0.0" max="20.0" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">随机速度上限 (Speed Rand)<span id="val-vfxssr">5.0</span></div>
+                    <input type="range" id="inp-vfxssr" min="0.0" max="20.0" step="0.1" value="5.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">全局速度倍率 (Speed Mult)<span id="val-vfxss">1.0</span></div>
+                    <input type="range" id="inp-vfxss" min="0.1" max="5.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">继承武器速度 (Inherit Vel)<span id="val-vfxsiv">0.3</span></div>
+                    <input type="range" id="inp-vfxsiv" min="0.0" max="2.0" step="0.02" value="0.3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">锥形角度 (Cone Deg)<span id="val-vfxsca">35</span></div>
+                    <input type="range" id="inp-vfxsca" min="0" max="180" step="1" value="35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">空气阻力 (Drag)<span id="val-vfxsd">0.9</span></div>
+                    <input type="range" id="inp-vfxsd" min="0.0" max="1.0" step="0.005" value="0.9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">重力 (Gravity)<span id="val-vfxsg">-2.0</span></div>
+                    <input type="range" id="inp-vfxsg" min="-30.0" max="10.0" step="0.1" value="-2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">横向尺寸 (Size)<span id="val-vfxsz">0.5</span></div>
+                    <input type="range" id="inp-vfxsz" min="0.05" max="3.0" step="0.05" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">速度方向拉伸 (Stretch)<span id="val-vfxsst">0.2</span></div>
+                    <input type="range" id="inp-vfxsst" min="0.0" max="2.0" step="0.02" value="0.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">颜色 (Color)<span id="val-vfxsc">#ffdd44</span></div>
+                    <input type="color" id="inp-vfxsc" value="#ffdd44">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header">闪烁最低值 (Flicker Low)<span id="val-vfxsfl">0.5</span></div>
+                    <input type="range" id="inp-vfxsfl" min="0.0" max="1.0" step="0.02" value="0.5">
+                </div>
+            </details>
+            <details class="panel-group">
+                <summary>🎯 落点指示器特效</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 圆环半径<span id="val-drrn">0.58</span></div>
+                    <input type="range" id="inp-drrn" min="0.2" max="2.0" step="0.02" value="0.58">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 圆环半径<span id="val-drrs">0.78</span></div>
+                    <input type="range" id="inp-drrs" min="0.2" max="2.0" step="0.02" value="0.78">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #6ad6ff;">[普通]</span> 圆环透明度<span id="val-dron">0.82</span></div>
+                    <input type="range" id="inp-dron" min="0.0" max="1.0" step="0.02" value="0.82">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span style="color: #ffd98a;">[特殊]</span> 圆环透明度<span id="val-dros">1.00</span></div>
+                    <input type="range" id="inp-dros" min="0.0" max="1.0" step="0.02" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span></span> 指针大小<span id="val-das">1.00</span></div>
+                    <input type="range" id="inp-das" min="0.2" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span></span> 指针长短<span id="val-dal">1.00</span></div>
+                    <input type="range" id="inp-dal" min="0.2" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span></span> 指针透明度<span id="val-dao">0.82</span></div>
+                    <input type="range" id="inp-dao" min="0.0" max="1.0" step="0.02" value="0.82">
                 </div>
             </details>
 
             <details class="panel-group">
                 <summary>📳 震动设置</summary>
+                <!-- 主动穿刺（羽毛飞行途中命中敌人）-->
                 <div class="panel-row" style="padding-top: 6px;">
-                    <div class="panel-row-header"><span>回收震动 (轻)</span><span id="val-sr">0.10</span></div>
-                    <input type="range" id="inp-sr" min="0" max="0.5" step="0.05" value="0.10">
+                    <div class="panel-row-header"><span>投掷穿刺·普通 强度</span><span id="val-stn">0.08</span></div>
+                    <input type="range" id="inp-stn" min="0" max="1.0" step="0.02" value="0.08">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>死亡震动 (中)</span><span id="val-si">0.40</span></div>
+                    <div class="panel-row-header"><span>投掷穿刺·普通 时长 (秒)</span><span id="val-stnd">0.08</span></div>
+                    <input type="range" id="inp-stnd" min="0" max="0.5" step="0.01" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>投掷穿刺·特殊 强度</span><span id="val-sts">0.20</span></div>
+                    <input type="range" id="inp-sts" min="0" max="2.0" step="0.02" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>投掷穿刺·特殊 时长 (秒)</span><span id="val-stsd">0.12</span></div>
+                    <input type="range" id="inp-stsd" min="0" max="0.5" step="0.01" value="0.12">
+                </div>
+                <!-- 回收穿刺（羽毛飞回途中命中敌人）-->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>回收穿刺·普通 强度</span><span id="val-sr">0.10</span></div>
+                    <input type="range" id="inp-sr" min="0" max="1.0" step="0.02" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>回收穿刺·普通 时长 (秒)</span><span id="val-srd">0.10</span></div>
+                    <input type="range" id="inp-srd" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>回收穿刺·特殊 强度</span><span id="val-sf">0.80</span></div>
+                    <input type="range" id="inp-sf" min="0" max="2.0" step="0.05" value="0.80">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>回收穿刺·特殊 时长 (秒)</span><span id="val-sfd">0.15</span></div>
+                    <input type="range" id="inp-sfd" min="0" max="0.5" step="0.01" value="0.15">
+                </div>
+                <!-- 敌人死亡（通用兜底）-->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>死亡震动 强度</span><span id="val-si">0.40</span></div>
                     <input type="range" id="inp-si" min="0" max="1.5" step="0.05" value="0.40">
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>终结震动 (强)</span><span id="val-sf">0.80</span></div>
-                    <input type="range" id="inp-sf" min="0" max="2.0" step="0.1" value="0.80">
-                </div>
-                <div class="panel-row">
-                    <div class="panel-row-header"><span>震动时长 (秒)</span><span id="val-sd">0.15</span></div>
+                    <div class="panel-row-header"><span>死亡震动 时长 (秒)</span><span id="val-sd">0.15</span></div>
                     <input type="range" id="inp-sd" min="0" max="1.0" step="0.05" value="0.15">
                 </div>
             </details>
@@ -316,6 +1888,14 @@
                 <div class="panel-row" style="padding-top: 6px;">
                     <div class="panel-row-header"><span>遮挡透视辅助</span><span id="val-xre">开</span></div>
                     <input type="checkbox" id="inp-xre" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>角色描边</span><span id="val-poe">开</span></div>
+                    <input type="checkbox" id="inp-poe" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>角色描边粗细</span><span id="val-pot">1.20</span></div>
+                    <input type="range" id="inp-pot" min="0" max="4" step="0.05" value="1.2">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>辉光强度</span><span id="val-bst">0.30</span></div>
@@ -340,14 +1920,606 @@
             </details>
 
             <details class="panel-group">
+                <summary>🗺️ 地图配置</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>砖块横向数量</span><span id="val-mbnx">6.0</span></div>
+                    <input type="range" id="inp-mbnx" min="2" max="20" step="0.5" value="6.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>砖块纵向比例</span><span id="val-mbry">1.00</span></div>
+                    <input type="range" id="inp-mbry" min="0.1" max="2.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>缝隙宽度</span><span id="val-mgw">0.020</span></div>
+                    <input type="range" id="inp-mgw" min="0" max="0.1" step="0.001" value="0.02">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>交错偏移(0-1)</span><span id="val-mso">0.50</span></div>
+                    <input type="range" id="inp-mso" min="0.0" max="1.0" step="0.05" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>整体透明度</span><span id="val-mbo">1.00</span></div>
+                    <input type="range" id="inp-mbo" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐变起始色</span><span id="val-mbcs">#312c5c</span></div>
+                    <input type="color" id="inp-mbcs" value="#312c5c" style="width:100%;height:28px;background:#222;border:1px solid #555;border-radius:3px;cursor:pointer;">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐变中间色</span><span id="val-mbcm">#6f5fa0</span></div>
+                    <input type="color" id="inp-mbcm" value="#6f5fa0" style="width:100%;height:28px;background:#222;border:1px solid #555;border-radius:3px;cursor:pointer;">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>中间色位置(0-1)</span><span id="val-mbcmp">0.50</span></div>
+                    <input type="range" id="inp-mbcmp" min="0.05" max="0.95" step="0.01" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐变结束色</span><span id="val-mbce">#91c53a</span></div>
+                    <input type="color" id="inp-mbce" value="#91c53a" style="width:100%;height:28px;background:#222;border:1px solid #555;border-radius:3px;cursor:pointer;">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐变角度(度)</span><span id="val-mbga">135</span></div>
+                    <input type="range" id="inp-mbga" min="0" max="360" step="1" value="135">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>渐变周期数</span><span id="val-mbgcy">1.00</span></div>
+                    <input type="range" id="inp-mbgcy" min="0.25" max="10" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>砖缝颜色</span><span id="val-mbgc">#110f22</span></div>
+                    <input type="color" id="inp-mbgc" value="#110f22" style="width:100%;height:28px;background:#222;border:1px solid #555;border-radius:3px;cursor:pointer;">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>衬底颜色</span><span id="val-mbbc">#2d2952</span></div>
+                    <input type="color" id="inp-mbbc" value="#2d2952" style="width:100%;height:28px;background:#222;border:1px solid #555;border-radius:3px;cursor:pointer;">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>衬底透明度</span><span id="val-mbbo">1.00</span></div>
+                    <input type="range" id="inp-mbbo" min="0.0" max="1.0" step="0.05" value="1.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
                 <summary>🖥 UI 与界面</summary>
                 <div class="panel-row" style="padding-top: 6px;">
-                    <div class="panel-row-header"><span>伤害数字倍率</span><span id="val-dsz">0.6</span></div>
-                    <input type="range" id="inp-dsz" min="0.1" max="3.0" step="0.1" value="0.6">
+                    <div class="panel-row-header"><span>调节面板透明度</span><span id="val-pop">1.00</span></div>
+                    <input type="range" id="inp-pop" min="0.1" max="1.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>显示帧率</span><span id="val-fps">关</span></div>
+                    <input type="checkbox" id="inp-fps">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>显示伤害数字</span><span id="val-sct">开</span></div>
+                    <input type="checkbox" id="inp-sct" checked>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>伤害数字倍率</span><span id="val-dsz">1.0</span></div>
+                    <input type="range" id="inp-dsz" min="0.1" max="3.0" step="0.1" value="1.0">
                 </div>
                 <div class="panel-row">
                     <div class="panel-row-header"><span>羽毛 UI 倍率</span><span id="val-hsz">1.0</span></div>
                     <input type="range" id="inp-hsz" min="0.3" max="3.0" step="0.1" value="1.0">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>💥 伤害数字动效 · 主动攻击 (发射命中)</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>总寿命 (秒)</span><span id="val-dmg-atk-life">1.00</span></div>
+                    <input type="range" id="inp-dmg-atk-life" min="0.2" max="2.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动时间占比</span><span id="val-dmg-atk-mt">0.20</span></div>
+                    <input type="range" id="inp-dmg-atk-mt" min="0" max="1" step="0.01" value="0.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留抖动占比</span><span id="val-dmg-atk-hr">0.12</span></div>
+                    <input type="range" id="inp-dmg-atk-hr" min="0" max="0.9" step="0.01" value="0.12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>缩小淡出占比</span><span id="val-dmg-atk-fr">0.05</span></div>
+                    <input type="range" id="inp-dmg-atk-fr" min="0.01" max="0.9" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最小)</span><span id="val-dmg-atk-dmin">3.80</span></div>
+                    <input type="range" id="inp-dmg-atk-dmin" min="0" max="15" step="0.1" value="3.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最大)</span><span id="val-dmg-atk-dmax">5.80</span></div>
+                    <input type="range" id="inp-dmg-atk-dmax" min="0" max="20" step="0.1" value="5.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最小)</span><span id="val-dmg-atk-umin">0.00</span></div>
+                    <input type="range" id="inp-dmg-atk-umin" min="-5" max="15" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最大)</span><span id="val-dmg-atk-umax">0.00</span></div>
+                    <input type="range" id="inp-dmg-atk-umax" min="-5" max="20" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生成时缩放</span><span id="val-dmg-atk-ss">0.00</span></div>
+                    <input type="range" id="inp-dmg-atk-ss" min="0" max="3.5" step="0.05" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发峰值缩放</span><span id="val-dmg-atk-sp">2.40</span></div>
+                    <input type="range" id="inp-dmg-atk-sp" min="1.0" max="3.5" step="0.05" value="2.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留稳定缩放</span><span id="val-dmg-atk-sh">2.20</span></div>
+                    <input type="range" id="inp-dmg-atk-sh" min="0" max="5" step="0.05" value="2.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>结束缩放</span><span id="val-dmg-atk-se">2.00</span></div>
+                    <input type="range" id="inp-dmg-atk-se" min="0" max="2.5" step="0.05" value="2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆起始角度 (°)</span><span id="val-dmg-atk-sa0">23.00</span></div>
+                    <input type="range" id="inp-dmg-atk-sa0" min="-60" max="60" step="0.5" value="23">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆中间角度 (°)</span><span id="val-dmg-atk-sam">12.75</span></div>
+                    <input type="range" id="inp-dmg-atk-sam" min="-60" max="60" step="0.5" value="12.75">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆结束角度 (°)</span><span id="val-dmg-atk-sa1">2.50</span></div>
+                    <input type="range" id="inp-dmg-atk-sa1" min="-60" max="60" step="0.5" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现曲线指数</span><span id="val-dmg-atk-sac">3.0</span></div>
+                    <input type="range" id="inp-dmg-atk-sac" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消失曲线指数</span><span id="val-dmg-atk-sec">3.0</span></div>
+                    <input type="range" id="inp-dmg-atk-sec" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向随机偏角 (°)</span><span id="val-dmg-atk-dj">0</span></div>
+                    <input type="range" id="inp-dmg-atk-dj" min="0" max="180" step="1" value="0">
+                </div>
+
+                <!-- ===== 逐字"从天而降"动效（主动攻击不合并、不分 @1/@max；单端点配置） =====
+                     字符按 Gap 间隔依次出现；出现瞬间以 Peak 倍率"由大"亮相，
+                     在 Dur 时长内 easeOutCubic 衰减到 1.0，过后稳定。
+                     字符越靠后：间隔越大（出现得慢）+ 衰减越长（落地慢）+ 出现初始越大（前小后大）。
+                     Start = 第一个字符使用，End = 最后一个字符使用，中间线性插值。 -->
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>逐字进入开关 (0=关 1=开)</span><span id="val-dmg-atk-cse">1</span></div>
+                    <input type="range" id="inp-dmg-atk-cse" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 Start (前/秒)</span><span id="val-dmg-atk-cgs">0.04</span></div>
+                    <input type="range" id="inp-dmg-atk-cgs" min="0" max="0.5" step="0.01" value="0.04">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 End (后/秒)</span><span id="val-dmg-atk-cge">0.10</span></div>
+                    <input type="range" id="inp-dmg-atk-cge" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 Start (前/秒)</span><span id="val-dmg-atk-cds">0.18</span></div>
+                    <input type="range" id="inp-dmg-atk-cds" min="0.05" max="1.5" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 End (后/秒)</span><span id="val-dmg-atk-cde">0.40</span></div>
+                    <input type="range" id="inp-dmg-atk-cde" min="0.05" max="2.0" step="0.01" value="0.40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 Start (前)</span><span id="val-dmg-atk-cps">1.40</span></div>
+                    <input type="range" id="inp-dmg-atk-cps" min="1.0" max="4.0" step="0.05" value="1.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 End (后)</span><span id="val-dmg-atk-cpe">2.40</span></div>
+                    <input type="range" id="inp-dmg-atk-cpe" min="1.0" max="6.0" step="0.05" value="2.4">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>💢 暴击 (Critical Hit · 仅主动攻击)</summary>
+
+                <!-- 面板顶部说明：让用户一眼看清整个面板的作用范围与边界条件 -->
+                <div class="panel-row" style="
+                    padding: 8px 10px;
+                    background: rgba(255, 122, 74, 0.07);
+                    border-left: 3px solid #ff7a4a;
+                    color: rgba(255, 255, 255, 0.78);
+                    font-size: 11px;
+                    line-height: 1.55;
+                ">
+                    本面板仅作用于<b style="color:#ff7a4a">主动攻击</b>（羽毛飞行途中穿刺命中）。<br>
+                    回收命中、特殊回收均不受本组参数影响。<br>
+                    数字颜色 = 亮燃红（<span style="color:#ff7a4a;font-weight:700">与满贯穿回收命中同款</span>）。
+                </div>
+
+                <!-- ============================================================
+                     1️⃣ 触发与伤害 —— 决定"什么时候触发暴击 / 暴击造成多少伤害"
+                     ============================================================ -->
+                <div class="panel-section-title">
+                    <span class="ps-icon">🎲</span>
+                    <span>1. 触发与伤害</span>
+                    <span class="ps-hint">控制概率与数值</span>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>① 暴击总开关 (0=关 1=开)</span><span id="val-crit-en">1</span></div>
+                    <input type="range" id="inp-crit-en" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>② 暴击概率 (0~1)</span><span id="val-crit-ch">0.30</span></div>
+                    <input type="range" id="inp-crit-ch" min="0" max="1" step="0.01" value="0.30">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>③ 暴击伤害值 (固定数)</span><span id="val-crit-dmg">480</span></div>
+                    <input type="range" id="inp-crit-dmg" min="0" max="2000" step="1" value="480">
+                </div>
+
+                <!-- ============================================================
+                     2️⃣ 击退反馈 —— 控制"暴击命中后敌人被推开多远"
+                     ============================================================ -->
+                <div class="panel-section-title">
+                    <span class="ps-icon">💪</span>
+                    <span>2. 击退反馈</span>
+                    <span class="ps-hint">敌人被推开的力度</span>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退力度 (普通=10, 越大推得越远)</span><span id="val-crit-kb">30.00</span></div>
+                    <input type="range" id="inp-crit-kb" min="0" max="100" step="0.5" value="30">
+                </div>
+
+                <!-- ============================================================
+                     3️⃣ 粒子特效 —— 复用"回收命中爆体特效"，控制其大小/强度
+                     ============================================================ -->
+                <div class="panel-section-title">
+                    <span class="ps-icon">💥</span>
+                    <span>3. 粒子特效（复用回收命中爆体）</span>
+                    <span class="ps-hint">在敌人身上的爆点</span>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>粒子整体缩放</span><span id="val-crit-bs">1.00</span></div>
+                    <input type="range" id="inp-crit-bs" min="0.1" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>粒子合并计数 (1=普通, 10=最炸)</span><span id="val-crit-bmc">1</span></div>
+                    <input type="range" id="inp-crit-bmc" min="1" max="10" step="1" value="1">
+                </div>
+
+                <!-- ============================================================
+                     4️⃣ 伤害数字 · 主体动效 —— 屏幕上跳出来的"-480"那个数字
+                                                的尺寸/位移/抖动/曲线
+                     ============================================================ -->
+                <div class="panel-section-title">
+                    <span class="ps-icon">🔢</span>
+                    <span>4. 伤害数字 · 主体动效</span>
+                    <span class="ps-hint">屏上"-480"的弹出/抖动</span>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>总寿命 (秒)</span><span id="val-dmg-crit-life">1.40</span></div>
+                    <input type="range" id="inp-dmg-crit-life" min="0.2" max="3.0" step="0.05" value="1.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动时间占比</span><span id="val-dmg-crit-mt">0.20</span></div>
+                    <input type="range" id="inp-dmg-crit-mt" min="0" max="1" step="0.01" value="0.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留抖动占比</span><span id="val-dmg-crit-hr">0.18</span></div>
+                    <input type="range" id="inp-dmg-crit-hr" min="0" max="0.9" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>缩小淡出占比</span><span id="val-dmg-crit-fr">0.08</span></div>
+                    <input type="range" id="inp-dmg-crit-fr" min="0.01" max="0.9" step="0.01" value="0.08">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最小)</span><span id="val-dmg-crit-dmin">4.50</span></div>
+                    <input type="range" id="inp-dmg-crit-dmin" min="0" max="20" step="0.1" value="4.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最大)</span><span id="val-dmg-crit-dmax">7.00</span></div>
+                    <input type="range" id="inp-dmg-crit-dmax" min="0" max="25" step="0.1" value="7.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最小)</span><span id="val-dmg-crit-umin">0.00</span></div>
+                    <input type="range" id="inp-dmg-crit-umin" min="-5" max="15" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最大)</span><span id="val-dmg-crit-umax">0.00</span></div>
+                    <input type="range" id="inp-dmg-crit-umax" min="-5" max="20" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生成时缩放</span><span id="val-dmg-crit-ss">0.00</span></div>
+                    <input type="range" id="inp-dmg-crit-ss" min="0" max="3.5" step="0.05" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发峰值缩放</span><span id="val-dmg-crit-sp">3.60</span></div>
+                    <input type="range" id="inp-dmg-crit-sp" min="1.0" max="6.0" step="0.05" value="3.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留稳定缩放</span><span id="val-dmg-crit-sh">3.20</span></div>
+                    <input type="range" id="inp-dmg-crit-sh" min="0" max="6.0" step="0.05" value="3.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>结束缩放</span><span id="val-dmg-crit-se">2.80</span></div>
+                    <input type="range" id="inp-dmg-crit-se" min="0" max="5.0" step="0.05" value="2.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆起始角度 (°)</span><span id="val-dmg-crit-sa0">35.00</span></div>
+                    <input type="range" id="inp-dmg-crit-sa0" min="-60" max="60" step="0.5" value="35">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆中间角度 (°)</span><span id="val-dmg-crit-sam">18.75</span></div>
+                    <input type="range" id="inp-dmg-crit-sam" min="-60" max="60" step="0.5" value="18.75">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆结束角度 (°)</span><span id="val-dmg-crit-sa1">2.50</span></div>
+                    <input type="range" id="inp-dmg-crit-sa1" min="-60" max="60" step="0.5" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现曲线指数</span><span id="val-dmg-crit-sac">3.0</span></div>
+                    <input type="range" id="inp-dmg-crit-sac" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消失曲线指数</span><span id="val-dmg-crit-sec">3.0</span></div>
+                    <input type="range" id="inp-dmg-crit-sec" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向随机偏角 (°)</span><span id="val-dmg-crit-dj">0</span></div>
+                    <input type="range" id="inp-dmg-crit-dj" min="0" max="180" step="1" value="0">
+                </div>
+
+                <!-- ============================================================
+                     5️⃣ 伤害数字 · 逐字进入 —— "-480"中每个字符依次"砸"下来的节奏
+                     ============================================================ -->
+                <div class="panel-section-title">
+                    <span class="ps-icon">⏱️</span>
+                    <span>5. 伤害数字 · 逐字进入节奏</span>
+                    <span class="ps-hint">"4→8→0"逐个砸下</span>
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>逐字进入开关 (0=关 1=开)</span><span id="val-dmg-crit-cse">1</span></div>
+                    <input type="range" id="inp-dmg-crit-cse" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 Start (前/秒)</span><span id="val-dmg-crit-cgs">0.04</span></div>
+                    <input type="range" id="inp-dmg-crit-cgs" min="0" max="0.5" step="0.01" value="0.04">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 End (后/秒)</span><span id="val-dmg-crit-cge">0.10</span></div>
+                    <input type="range" id="inp-dmg-crit-cge" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 Start (前/秒)</span><span id="val-dmg-crit-cds">0.20</span></div>
+                    <input type="range" id="inp-dmg-crit-cds" min="0.05" max="1.5" step="0.01" value="0.20">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 End (后/秒)</span><span id="val-dmg-crit-cde">0.45</span></div>
+                    <input type="range" id="inp-dmg-crit-cde" min="0.05" max="2.0" step="0.01" value="0.45">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 Start (前)</span><span id="val-dmg-crit-cps">1.60</span></div>
+                    <input type="range" id="inp-dmg-crit-cps" min="1.0" max="4.0" step="0.05" value="1.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 End (后)</span><span id="val-dmg-crit-cpe">2.80</span></div>
+                    <input type="range" id="inp-dmg-crit-cpe" min="1.0" max="6.0" step="0.05" value="2.8">
+                </div>
+            </details>
+
+            <details class="panel-group">
+                <summary>💥 伤害数字动效 · 回收命中 (含 high / special / 中断回收)</summary>
+
+                <!-- ===== 命中数加成（控制 @1 → @max 双端点的插值） ===== -->
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>同时命中合并窗口 (秒)</span><span id="val-dmg-rec-mw">0.05</span></div>
+                    <input type="range" id="inp-dmg-rec-mw" min="0" max="0.5" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>触发 @max 所需命中数</span><span id="val-dmg-rec-cmax">10</span></div>
+                    <input type="range" id="inp-dmg-rec-cmax" min="1" max="20" step="1" value="10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>命中数曲线 (0 线性 / 1 smooth / 2 smoother / 3 easeOut)</span><span id="val-dmg-rec-curve">1</span></div>
+                    <input type="range" id="inp-dmg-rec-curve" min="0" max="3" step="1" value="1">
+                </div>
+
+                <!-- ===== 双端点参数：每个参数拆为 @1 (单把) 和 @max (≥CountForMax 把) ===== -->
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>总寿命 @1 (秒)</span><span id="val-dmg-rec-life">1.00</span></div>
+                    <input type="range" id="inp-dmg-rec-life" min="0.2" max="3.0" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>总寿命 @max (秒)</span><span id="val-dmg-rec-life-mx">1.60</span></div>
+                    <input type="range" id="inp-dmg-rec-life-mx" min="0.2" max="4.0" step="0.05" value="1.6">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动时间占比 @1</span><span id="val-dmg-rec-mt">0.20</span></div>
+                    <input type="range" id="inp-dmg-rec-mt" min="0" max="1" step="0.01" value="0.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>移动时间占比 @max</span><span id="val-dmg-rec-mt-mx">0.20</span></div>
+                    <input type="range" id="inp-dmg-rec-mt-mx" min="0" max="1" step="0.01" value="0.2">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留抖动占比 @1</span><span id="val-dmg-rec-hr">0.12</span></div>
+                    <input type="range" id="inp-dmg-rec-hr" min="0" max="0.9" step="0.01" value="0.12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留抖动占比 @max</span><span id="val-dmg-rec-hr-mx">0.12</span></div>
+                    <input type="range" id="inp-dmg-rec-hr-mx" min="0" max="0.9" step="0.01" value="0.12">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>缩小淡出占比 @1</span><span id="val-dmg-rec-fr">0.05</span></div>
+                    <input type="range" id="inp-dmg-rec-fr" min="0.01" max="0.9" step="0.01" value="0.05">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>缩小淡出占比 @max</span><span id="val-dmg-rec-fr-mx">0.05</span></div>
+                    <input type="range" id="inp-dmg-rec-fr-mx" min="0.01" max="0.9" step="0.01" value="0.05">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最小) @1</span><span id="val-dmg-rec-dmin">3.80</span></div>
+                    <input type="range" id="inp-dmg-rec-dmin" min="0" max="15" step="0.1" value="3.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最小) @max</span><span id="val-dmg-rec-dmin-mx">3.80</span></div>
+                    <input type="range" id="inp-dmg-rec-dmin-mx" min="0" max="20" step="0.1" value="3.8">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最大) @1</span><span id="val-dmg-rec-dmax">5.80</span></div>
+                    <input type="range" id="inp-dmg-rec-dmax" min="0" max="20" step="0.1" value="5.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发距离 (最大) @max</span><span id="val-dmg-rec-dmax-mx">5.80</span></div>
+                    <input type="range" id="inp-dmg-rec-dmax-mx" min="0" max="25" step="0.1" value="5.8">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最小) @1</span><span id="val-dmg-rec-umin">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-umin" min="-5" max="15" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最小) @max</span><span id="val-dmg-rec-umin-mx">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-umin-mx" min="-5" max="20" step="0.1" value="0">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最大) @1</span><span id="val-dmg-rec-umax">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-umax" min="-5" max="20" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>向上位移 (最大) @max</span><span id="val-dmg-rec-umax-mx">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-umax-mx" min="-5" max="25" step="0.1" value="0">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生成时缩放 @1</span><span id="val-dmg-rec-ss">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-ss" min="0" max="3.5" step="0.05" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>生成时缩放 @max</span><span id="val-dmg-rec-ss-mx">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-ss-mx" min="0" max="6.0" step="0.05" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发峰值缩放 @1</span><span id="val-dmg-rec-sp">2.40</span></div>
+                    <input type="range" id="inp-dmg-rec-sp" min="1.0" max="3.5" step="0.05" value="2.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>迸发峰值缩放 @max</span><span id="val-dmg-rec-sp-mx">3.60</span></div>
+                    <input type="range" id="inp-dmg-rec-sp-mx" min="1.0" max="6.0" step="0.05" value="3.6">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留稳定缩放 @1</span><span id="val-dmg-rec-sh">2.20</span></div>
+                    <input type="range" id="inp-dmg-rec-sh" min="0" max="6.0" step="0.05" value="2.2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>驻留稳定缩放 @max</span><span id="val-dmg-rec-sh-mx">3.20</span></div>
+                    <input type="range" id="inp-dmg-rec-sh-mx" min="0" max="10.0" step="0.05" value="3.2">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>结束缩放 @1</span><span id="val-dmg-rec-se">2.00</span></div>
+                    <input type="range" id="inp-dmg-rec-se" min="0" max="2.5" step="0.05" value="2.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>结束缩放 @max</span><span id="val-dmg-rec-se-mx">2.80</span></div>
+                    <input type="range" id="inp-dmg-rec-se-mx" min="0" max="5.0" step="0.05" value="2.8">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆起始角度 (°) @1</span><span id="val-dmg-rec-sa0">23.00</span></div>
+                    <input type="range" id="inp-dmg-rec-sa0" min="-60" max="60" step="0.5" value="23">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆起始角度 (°) @max</span><span id="val-dmg-rec-sa0-mx">35.00</span></div>
+                    <input type="range" id="inp-dmg-rec-sa0-mx" min="-90" max="90" step="0.5" value="35">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆中间角度 (°) @1</span><span id="val-dmg-rec-sam">12.75</span></div>
+                    <input type="range" id="inp-dmg-rec-sam" min="-60" max="60" step="0.5" value="12.75">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆中间角度 (°) @max</span><span id="val-dmg-rec-sam-mx">18.75</span></div>
+                    <input type="range" id="inp-dmg-rec-sam-mx" min="-90" max="90" step="0.5" value="18.75">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆结束角度 (°) @1</span><span id="val-dmg-rec-sa1">2.50</span></div>
+                    <input type="range" id="inp-dmg-rec-sa1" min="-60" max="60" step="0.5" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>摇摆结束角度 (°) @max</span><span id="val-dmg-rec-sa1-mx">2.50</span></div>
+                    <input type="range" id="inp-dmg-rec-sa1-mx" min="-90" max="90" step="0.5" value="2.5">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现曲线指数 @1</span><span id="val-dmg-rec-sac">3.0</span></div>
+                    <input type="range" id="inp-dmg-rec-sac" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现曲线指数 @max</span><span id="val-dmg-rec-sac-mx">3.0</span></div>
+                    <input type="range" id="inp-dmg-rec-sac-mx" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消失曲线指数 @1</span><span id="val-dmg-rec-sec">3.0</span></div>
+                    <input type="range" id="inp-dmg-rec-sec" min="1" max="8" step="0.1" value="3.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>消失曲线指数 @max</span><span id="val-dmg-rec-sec-mx">3.0</span></div>
+                    <input type="range" id="inp-dmg-rec-sec-mx" min="1" max="8" step="0.1" value="3.0">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向随机偏角 (°) @1</span><span id="val-dmg-rec-dj">0</span></div>
+                    <input type="range" id="inp-dmg-rec-dj" min="0" max="180" step="1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>方向随机偏角 (°) @max</span><span id="val-dmg-rec-dj-mx">0</span></div>
+                    <input type="range" id="inp-dmg-rec-dj-mx" min="0" max="180" step="1" value="0">
+                </div>
+
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>无方向向上位移 @1</span><span id="val-dmg-rec-fu">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-fu" min="0" max="4.0" step="0.1" value="0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>无方向向上位移 @max</span><span id="val-dmg-rec-fu-mx">0.00</span></div>
+                    <input type="range" id="inp-dmg-rec-fu-mx" min="0" max="6.0" step="0.1" value="0">
+                </div>
+
+                <!-- ===== 逐字"从天而降"动效（不区分 @1 / @max，所有命中数共用一组） =====
+                     字符按 Gap 间隔依次出现；出现瞬间以 Peak 倍率"由大"亮相，
+                     在 Dur 时长内 easeOutCubic 衰减到 1.0，过后稳定。
+                     字符越靠后：间隔越大（出现得慢）+ 衰减越长（落地慢）+ 出现初始越大（前小后大）。
+                     双端点：Start = 第一个字符，End = 最后一个字符，中间线性插值。 -->
+                <div class="panel-row" style="padding-top: 8px;">
+                    <div class="panel-row-header"><span>逐字进入开关 (0=关 1=开)</span><span id="val-dmg-rec-cse">1</span></div>
+                    <input type="range" id="inp-dmg-rec-cse" min="0" max="1" step="1" value="1">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 Start (前/秒)</span><span id="val-dmg-rec-cgs">0.04</span></div>
+                    <input type="range" id="inp-dmg-rec-cgs" min="0" max="0.5" step="0.01" value="0.04">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>字符间隔 End (后/秒)</span><span id="val-dmg-rec-cge">0.10</span></div>
+                    <input type="range" id="inp-dmg-rec-cge" min="0" max="0.5" step="0.01" value="0.10">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 Start (前/秒)</span><span id="val-dmg-rec-cds">0.18</span></div>
+                    <input type="range" id="inp-dmg-rec-cds" min="0.05" max="1.5" step="0.01" value="0.18">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>单字衰减时长 End (后/秒)</span><span id="val-dmg-rec-cde">0.40</span></div>
+                    <input type="range" id="inp-dmg-rec-cde" min="0.05" max="2.0" step="0.01" value="0.40">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 Start (前)</span><span id="val-dmg-rec-cps">1.40</span></div>
+                    <input type="range" id="inp-dmg-rec-cps" min="1.0" max="4.0" step="0.05" value="1.4">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>出现初始缩放 End (后)</span><span id="val-dmg-rec-cpe">2.40</span></div>
+                    <input type="range" id="inp-dmg-rec-cpe" min="1.0" max="6.0" step="0.05" value="2.4">
                 </div>
             </details>
 
@@ -380,6 +2552,7 @@
             </details>
 
         </div>
+        </div>
     </div>
 
     <div id="game-wrapper">
@@ -394,6 +2567,7 @@
             <div id="joystick-base"></div>
             <div id="joystick-knob"></div>
         </div>
+        <button id="btn-mode-switch" type="button" style="display:none;">进入木桩模式</button>
         <div id="ui-layer"></div>
     </div>
 

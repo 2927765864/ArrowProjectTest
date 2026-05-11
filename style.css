@@ -1,30 +1,77 @@
 :root {
-    --dmg-scale: 0.6; 
+    --dmg-scale: 1.0;
     --hud-scale: 1.0;
+    --panel-opacity: 1;
 }
+
+/* 左上角"测试"文字：连续点击三次可呼出参数面板 */
+#panel-trigger {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 12px;
+    z-index: 101;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.28);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: transform 0.1s ease, background 0.15s ease, color 0.15s ease;
+}
+#panel-trigger:hover { color: #91c53a; background: rgba(0, 0, 0, 0.45); }
+#panel-trigger:active { transform: scale(0.94); }
+#panel-trigger.is-hit {
+    color: #91c53a;
+    background: rgba(145, 197, 58, 0.22);
+}
+
+/* 右上角 FPS 显示。默认隐藏，由 CONFIG.showFps 切换。 */
+#fps-display {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    right: calc(env(safe-area-inset-right, 0px) + 12px);
+    z-index: 101;
+    display: none;
+    color: #91c53a;
+    font-family: 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.45);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#fps-display.is-visible { display: block; }
 body {
     margin: 0;
     overflow: hidden;
     background-color: #000;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    justify-content: center;
-    align-items: center;
     width: 100vw;
     height: 100dvh;
+    /* 适配刘海/打孔屏，使用安全区 */
+    padding: 0;
 }
 #game-wrapper {
-    position: relative;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100dvh;
     background-color: #1a1532;
     overflow: hidden;
-    box-shadow: 0 0 28px rgba(0, 0, 0, 0.65);
     touch-action: none;
-}
-@media (min-aspect-ratio: 9/16) {
-    #game-wrapper { width: calc(100dvh * 9 / 16); height: 100dvh; }
-}
-@media (max-aspect-ratio: 9/16) {
-    #game-wrapper { width: 100vw; height: calc(100vw * 16 / 9); }
 }
 #canvas-container { width: 100%; height: 100%; display: block; }
 
@@ -135,45 +182,142 @@ body {
     pointer-events: none;
     overflow: hidden;
 }
+
+/* 场景模式切换按钮（右上角）*/
+#btn-mode-switch {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: 12px;
+    z-index: 30;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(94, 85, 162, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), 0 0 10px rgba(145, 197, 58, 0.18);
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+    user-select: none;
+    pointer-events: auto;
+}
+#btn-mode-switch:hover { background: rgba(145, 197, 58, 0.82); }
+#btn-mode-switch:active { transform: scale(0.96); }
+
+/* 浮动伤害数字：
+   - 位置(left/top)、transform、font-size、opacity 全部由 JS 逐帧驱动（见 utils.js 的 updateFloatingTexts）
+   - CSS 这里定义基础字号（对应 scale=1）+ 颜色 + 厚描边 + 外发光 + 软投影 + 字体渲染优化
+   - 缩放通过 font-size 矢量重渲染实现（而不是 transform: scale），字体始终清晰
+   - transform 里只有 translate3d(-50%, -50%, 0) 做定位，不做 scale
+
+   ★ 视觉风格：圆胖卡通字（Lilita One）+ 8 方向深紫黑硬描边 + 暖色外发光 + 底部软投影。
+     所有 tier（low/high/crit/interrupt）共享同一套描边/发光，仅靠颜色和字号区分等级，
+     既保留多汁观感，又克制视觉差异。
+*/
 .floating-text {
     position: absolute;
-    transform: translate(-50%, -50%);
+    /* 圆胖卡通字体 + 中文 900 黑体兜底（"贯穿"等中文字符）+ 系统字最终回落 */
+    font-family: 'Lilita One', 'Noto Sans SC', 'Segoe UI', Tahoma, sans-serif;
     font-weight: 900;
     pointer-events: none;
     z-index: 10;
-    animation: juicyPop 0.8s forwards cubic-bezier(0.1, 0.9, 0.2, 1.2);
+    /* 字体渲染优化：确保抗锯齿 + 几何精确渲染 */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+    /* 触发独立合成层 + 固定亚像素渲染 */
+    backface-visibility: hidden;
+    transform: translate3d(-50%, -50%, 0);
+    transform-origin: 50% 50%;
+    will-change: transform, opacity, font-size, left, top;
+    /* 避免光晕/描边在层外被裁切时留下硬边 */
+    overflow: visible;
+    white-space: nowrap;
+    /* 关键：用 inline-flex + center 让 -10 与 x7贯穿 按"几何中点"水平对齐，
+       而不是按基线（baseline 会让西文与中文/×号视觉错位）。
+       line-height: 1 抹掉行盒额外间距，使中点 = 字面中点。 */
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    /* ★ 多层 text-shadow 叠加（完全去描边版）：
+       1) 0/0/3px 紧贴字身的暖紫柔光——加深字根边缘对比，让字与背景分离（替代描边的"勾轮廓"作用）
+       2) 0/0/8px 大范围柔光晕——让字"漂浮"在场景上的环境光感
+       3) 0/2px/3px 半透明软投影——把数字轻轻"压"在画面里，立体而非贴片
+       说明：彻底去掉所有方向硬描边，可读性完全由"双层柔光 + 软投影"承担。
+       注意：在极亮的纯色背景下可能略糊，但游戏场景里 3D 物体颜色丰富，柔光足够拉开层次。
+    */
+    text-shadow:
+         0 0 3px rgba(30, 16, 42, 0.95),
+         0 0 8px rgba(30, 16, 42, 0.65),
+         0 2px 3px rgba(0, 0, 0, 0.45);
 }
-.text-low { color: #ffffff; font-size: calc(10px * var(--dmg-scale)); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
-.text-high { color: #91c53a; font-size: calc(13px * var(--dmg-scale)); text-shadow: 0 0 8px rgba(145, 197, 58, 0.6), 0 3px 8px rgba(0, 0, 0, 0.3); }
-.text-crit { color: #91c53a; font-size: calc(18px * var(--dmg-scale)); text-shadow: 0 0 12px rgba(145, 197, 58, 0.8), 0 4px 10px rgba(0, 0, 0, 0.35); animation: juicyPopCrit 0.9s forwards cubic-bezier(0.1, 0.9, 0.2, 1.2); }
-.text-interrupt { color: #91c53a; font-size: calc(16px * var(--dmg-scale)); text-shadow: 0 0 12px rgba(145, 197, 58, 0.8), 0 0 20px rgba(145, 197, 58, 0.5), 0 4px 10px rgba(0, 0, 0, 0.4); animation: juicyPopInterrupt 0.85s forwards cubic-bezier(0.12, 0.92, 0.22, 1.18); letter-spacing: 0.08em; }
 
-@keyframes juicyPop {
-    0% { transform: translate(-50%, -50%) scale(0.2); opacity: 1; }
-    25% { transform: translate(-50%, -180%) scale(1.4); opacity: 1; }
-    45% { transform: translate(-50%, -140%) scale(1.0); opacity: 1; }
-    75% { transform: translate(-50%, -170%) scale(1.0); opacity: 0.9; }
-    100% { transform: translate(-50%, -220%) scale(0.7); opacity: 0; }
+/* 纯色伤害数字：去掉黑描边和投影，依靠"颜色 + 字号 + 动效"区分等级。
+   字号缩放仍走 font-size 路径以保持矢量清晰。 */
+.text-low {
+    color: #ffffff;
+    font-size: calc(14px * var(--dmg-scale));
+}
+.text-high {
+    color: #c8ea75;
+    font-size: calc(18px * var(--dmg-scale));
+}
+.text-crit {
+    color: #ffe880;
+    font-size: calc(26px * var(--dmg-scale));
+}
+.text-interrupt {
+    color: #c8ea75;
+    font-size: calc(20px * var(--dmg-scale));
+    letter-spacing: 0.06em;
 }
 
-@keyframes juicyPopCrit {
-    0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; filter: brightness(2); }
-    20% { transform: translate(-50%, -200%) scale(1.8); opacity: 1; filter: brightness(1.5); }
-    40% { transform: translate(-50%, -150%) scale(1.1); opacity: 1; filter: brightness(1); }
-    75% { transform: translate(-50%, -190%) scale(1.1); opacity: 0.9; }
-    100% { transform: translate(-50%, -250%) scale(0.8); opacity: 0; }
+/* ★ 回收命中·按贯穿数分阶段着色（覆盖 .text-high / .text-crit 的 color）：
+   - 单把武器命中（无贯穿）→ 白色，朴素中性
+   - 触发贯穿（≥2 但未到 max）→ 暖蜂蜜黄，递进式强化
+   - 达到 max 贯穿数 → 暖燃血红，最终爆发反馈
+   颜色遵循游戏整体"深紫黑底 + 暖色光"调性，避开冷调和荧光。
+   字号/字阴影/发光仍由原 .text-high / .text-crit 控制，这里仅覆盖 color。
+   .dmg-pen 设了 color: inherit，会自动跟随主体色。 */
+.text-recall-solo {
+    color: #ffffff;
+}
+.text-recall-pierce {
+    color: #ffe24d;
+}
+.text-recall-max {
+    color: #ff7a4a;
 }
 
-@keyframes juicyPopInterrupt {
-    0% { transform: translate(-50%, -50%) scale(0.45); opacity: 1; filter: brightness(2.2); }
-    18% { transform: translate(-50%, -190%) scale(1.65); opacity: 1; filter: brightness(1.7); }
-    36% { transform: translate(-50%, -150%) scale(1.02); opacity: 1; filter: brightness(1.05); }
-    72% { transform: translate(-50%, -195%) scale(1.05); opacity: 0.95; }
-    100% { transform: translate(-50%, -245%) scale(0.78); opacity: 0; }
+/* "x N 贯穿"后缀：与主伤害数字保持完全相同的字号（继承），
+   仅靠间距和微透明度区分主副。
+   - inline-flex + center：内部 x / 数字 / 中文 三段也走几何中点对齐，
+     避免 'x' 字符在某些字体里 line-box 中点偏低导致"沉底"的视觉错位。
+   - line-height: 1：与 .floating-text 一致，去除行盒抬升。 */
+.dmg-pen {
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+    font-size: 1em;
+    margin-left: 0.4em;
+    color: inherit;
+    opacity: 0.95;
 }
 
-.dmg-flex { display: flex; align-items: center; gap: 4px; color: inherit; }
-.dmg-icon { fill: currentColor; filter: drop-shadow(0 0 6px rgba(145, 197, 58, 0.4)) drop-shadow(0 3px 6px rgba(0,0,0,0.35)); width: 1.2em; height: 1.2em; }
+/* 逐字进入动效用：单字符容器（由 utils.js 在创建时拆分生成）。
+   - inline-block：transform: scale() 才能稳定生效（行内 span 在 inline-flex 父级内不可靠）
+   - transform-origin 50% 50%：缩放围绕字符自身中心，不挤压相邻字符
+   - 行内 style 会覆盖 transform 用于动画；transform 不影响文档流尺寸 ——
+     字符 scale=0 时仍占据排版位置，整条文字宽度从一开始就稳定，避免"逐字出现时整体抖动"。
+*/
+.dmg-char {
+    display: inline-block;
+    transform-origin: 50% 50%;
+    will-change: transform;
+}
 
 #control-panel {
     position: absolute;
@@ -188,7 +332,7 @@ body {
     font-size: 11px;
     backdrop-filter: blur(10px);
     box-shadow: 0 16px 40px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.06);
-    width: min(296px, calc(100vw - 20px));
+    width: min(380px, calc(100vw - 20px));
     max-width: calc(100vw - 20px);
     max-height: calc(100dvh - 20px);
     display: flex;
@@ -196,6 +340,17 @@ body {
     box-sizing: border-box;
     overflow: hidden;
     touch-action: pan-x pan-y;
+    opacity: var(--panel-opacity);
+    transition: opacity 0.15s ease;
+}
+/* 面板主体：左侧分类（纵向滚动）+ 右侧内容（纵向滚动）。 */
+#panel-body {
+    display: flex;
+    flex-direction: row;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    overflow: hidden;
 }
 #panel-header {
     display: flex;
@@ -223,52 +378,73 @@ body {
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
     gap: 8px;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-right: 6px;
+    padding-right: 8px;
     padding-bottom: 12px;
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y;
 }
-#panel-content::-webkit-scrollbar { width: 8px; }
-#panel-content::-webkit-scrollbar-thumb { background: rgba(145, 197, 58, 0.45); border-radius: 4px; }
-#panel-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); border-radius: 4px; }
+#panel-content::-webkit-scrollbar { width: 14px; }
+#panel-content::-webkit-scrollbar-thumb {
+    background: rgba(145, 197, 58, 0.55);
+    border-radius: 7px;
+    border: 2px solid rgba(26, 21, 50, 0.9);
+    background-clip: padding-box;
+    min-height: 40px;
+}
+#panel-content::-webkit-scrollbar-thumb:hover { background: rgba(145, 197, 58, 0.8); background-clip: padding-box; border: 2px solid rgba(26, 21, 50, 0.9); }
+#panel-content::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.25); border-radius: 7px; }
 #panel-tabs {
     display: flex;
+    flex-direction: column;
     gap: 6px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding-bottom: 6px;
-    margin-bottom: 6px;
-    position: sticky;
-    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 6px 8px 0;
+    flex: 0 0 auto;
+    width: 110px;
+    min-width: 110px;
+    align-self: stretch;
     z-index: 2;
-    background: linear-gradient(180deg, rgba(26, 21, 50, 0.98) 0%, rgba(26, 21, 50, 0.88) 72%, rgba(26, 21, 50, 0) 100%);
+    border-right: 1px solid rgba(145, 197, 58, 0.18);
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-x;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 #panel-tabs::-webkit-scrollbar {
-    height: 6px;
+    width: 10px;
 }
 #panel-tabs::-webkit-scrollbar-thumb {
-    background: rgba(145, 197, 58, 0.45);
-    border-radius: 4px;
+    background: rgba(145, 197, 58, 0.55);
+    border-radius: 5px;
+    border: 2px solid rgba(26, 21, 50, 0.9);
+    background-clip: padding-box;
+    min-height: 30px;
 }
+#panel-tabs::-webkit-scrollbar-thumb:hover { background: rgba(145, 197, 58, 0.8); background-clip: padding-box; border: 2px solid rgba(26, 21, 50, 0.9); }
 #panel-tabs::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 5px;
 }
 .panel-tab {
     appearance: none;
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: rgba(255, 255, 255, 0.05);
     color: rgba(255, 255, 255, 0.84);
-    border-radius: 999px;
-    padding: 7px 11px;
-    white-space: nowrap;
+    border-radius: 8px;
+    padding: 8px 10px;
+    width: 100%;
+    text-align: left;
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: normal;
+    word-break: break-word;
     cursor: pointer;
     flex: 0 0 auto;
     transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, color 0.15s ease;
@@ -291,16 +467,33 @@ body {
     margin-bottom: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    max-height: 360px; /* Reduced from 480px to ensure it actually hits the threshold on smaller screens */
     overscroll-behavior: contain;
     scrollbar-gutter: stable;
     -webkit-overflow-scrolling: touch;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
 }
+/* 未激活的分组（通过 tab 切换 open 状态）彻底从布局里移除，
+   避免在 #panel-content 中留下空白占位行。 */
+.panel-group:not([open]) {
+    display: none;
+}
 .panel-group[open] {
     border-color: rgba(145, 197, 58, 0.22);
     background: rgba(15, 12, 30, 0.72);
+    /* 活动分组撑满 #panel-content 的剩余高度。 */
+    flex: 1 1 auto;
+    min-height: 0;
 }
+.panel-group::-webkit-scrollbar { width: 12px; }
+.panel-group::-webkit-scrollbar-thumb {
+    background: rgba(145, 197, 58, 0.5);
+    border-radius: 6px;
+    border: 2px solid rgba(15, 12, 30, 0.9);
+    background-clip: padding-box;
+    min-height: 40px;
+}
+.panel-group::-webkit-scrollbar-thumb:hover { background: rgba(145, 197, 58, 0.75); background-clip: padding-box; border: 2px solid rgba(15, 12, 30, 0.9); }
+.panel-group::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.22); border-radius: 6px; }
 .panel-group summary {
     display: none;
 }
@@ -312,6 +505,52 @@ body {
     border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 .panel-row:last-child { border-bottom: none; }
+
+/* 面板组内的"小节标题"——把一个 .panel-group 拆成几个视觉小段，
+   防止 30+ 个滑块连成一片让人分不清"这个滑块到底在调什么"。
+   设计：左侧贴一个色条 + 加粗标题；左右各一条细分割线挑明断点；
+   首个小节去掉上方多余内边距。 */
+.panel-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 0 0 0;
+    padding: 8px 10px 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #c8ea75;
+    background: linear-gradient(
+        to right,
+        rgba(145, 197, 58, 0.18) 0%,
+        rgba(145, 197, 58, 0.06) 60%,
+        rgba(145, 197, 58, 0) 100%
+    );
+    border-left: 3px solid #91c53a;
+    border-top: 1px solid rgba(145, 197, 58, 0.25);
+    border-bottom: 1px solid rgba(145, 197, 58, 0.18);
+    text-transform: none;
+}
+.panel-section-title:first-child {
+    margin-top: 0;
+}
+/* 紧跟在小节标题后的第一个 panel-row 把上方那条分割线让给标题，
+   避免出现"标题底边线 + 行顶边距"双重视觉断点。 */
+.panel-section-title + .panel-row {
+    border-top: none;
+}
+.panel-section-title .ps-icon {
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+.panel-section-title .ps-hint {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0;
+}
 .panel-row-header {
     display: flex;
     justify-content: space-between;
@@ -344,19 +583,45 @@ input[type="range"] {
     accent-color: #91c53a;
     touch-action: pan-x;
 }
+/* 面板里的数字输入框（精确数值输入，比 range 滑块更适合大范围/整数）。
+   尽量贴近现有面板的暗色风格：深底 + 绿色聚焦边。 */
+input.panel-number {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    margin: 0;
+    background: rgba(0, 0, 0, 0.35);
+    color: #e7f3c8;
+    border: 1px solid rgba(145, 197, 58, 0.35);
+    border-radius: 4px;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    outline: none;
+}
+input.panel-number:focus {
+    border-color: #91c53a;
+    background: rgba(0, 0, 0, 0.5);
+}
 
 @media (max-width: 700px) {
     #control-panel {
         top: 8px;
         left: 8px;
-        width: min(320px, calc(100vw - 16px));
+        width: min(380px, calc(100vw - 16px));
         max-width: calc(100vw - 16px);
         max-height: calc(100dvh - 16px);
         padding: 10px;
     }
 
+    #panel-tabs {
+        width: 96px;
+        min-width: 96px;
+    }
+
     .panel-tab {
-        padding: 7px 10px;
+        padding: 7px 8px;
+        font-size: 10.5px;
     }
 
     .panel-row {
@@ -364,8 +629,107 @@ input[type="range"] {
     }
 }
 
+@media (max-width: 460px) {
+    #panel-tabs {
+        width: 84px;
+        min-width: 84px;
+    }
+    .panel-tab {
+        padding: 6px 6px;
+        font-size: 10px;
+    }
+}
+
 @media (pointer: fine) {
     #virtual-joystick {
         display: none;
     }
+}
+
+/* ===== 回收命中爆体特效 · 旧滑条模式视觉区分 =====
+   旧模式下显示的 @max 滑条用橙色左色条提示，让用户一眼分辨"基础值 (@1) / 终点值 (@max)"。 */
+.panel-row[data-burst-mode="legacy"] {
+    border-left: 3px solid rgba(255, 178, 122, 0.55);
+    padding-left: 7px;
+}
+
+/* ===== 贝塞尔曲线编辑面板（回收命中爆体特效 · 曲线模式）===== */
+.bezier-panel-mount { width: 100%; }
+.bezier-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(145, 197, 58, 0.18);
+    border-radius: 8px;
+}
+.bezier-panel--disabled { opacity: 0.45; }
+.bezier-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+.bezier-panel__title {
+    color: #cbe88b;
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.2;
+}
+.bezier-panel__enable {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 12px;
+    cursor: pointer;
+}
+.bezier-panel__canvas {
+    display: block;
+    width: 100%;
+    height: 160px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    cursor: crosshair;
+}
+.bezier-panel__scales {
+    display: flex;
+    gap: 8px;
+}
+.bezier-panel__scale {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+}
+.bezier-panel__scale .panel-number {
+    padding: 3px 6px;
+    font-size: 12px;
+}
+.bezier-panel__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.bezier-panel__preset {
+    flex: 1 0 auto;
+    min-width: 56px;
+    padding: 4px 6px;
+    background: rgba(145, 197, 58, 0.12);
+    color: #cbe88b;
+    border: 1px solid rgba(145, 197, 58, 0.28);
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.bezier-panel__preset:hover {
+    background: rgba(145, 197, 58, 0.22);
+}
+.bezier-panel__preset:active {
+    transform: translateY(1px);
 }

@@ -252,19 +252,12 @@ export class PlayerCharacter {
         const elbowJointL = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.leftForearm.add(elbowJointL);
 
-        // Left Held Weapon
-        this.heldWeaponLeft = new THREE.Group();
-        const leftWeaponModel = createWeaponModel(0.08);
-        // Reset the default position/rotation applied by createWeaponModel
-        // so we can use the old player arm positioning logic
-        leftWeaponModel.position.set(0, 0, 0);
-        leftWeaponModel.rotation.set(0, 0, 0);
-        this.heldWeaponLeft.add(leftWeaponModel);
-
-        this.heldWeaponLeft.position.set(0, -0.03, 0.1); 
-        this.heldWeaponLeft.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
-        this.heldWeaponLeft.visible = false;
-        this.leftForearm.add(this.heldWeaponLeft);
+        // Held weapon — attached to the player root mesh (not the forearm),
+        // so it follows the player's facing direction and stays parallel to
+        // the ground regardless of arm/elbow rotation during the windup pose.
+        // The legacy 'heldWeaponLeft' field is kept (null) for any defensive
+        // checks elsewhere; only one weapon mesh is needed in the scene.
+        this.heldWeaponLeft = null;
 
         this.rightArm = new THREE.Group();
         this.rightArm.rotation.order = 'YXZ';
@@ -300,17 +293,33 @@ export class PlayerCharacter {
         const elbowJointR = new THREE.Mesh(shoulderJointGeo, faceMat);
         this.rightForearm.add(elbowJointR);
 
-        // Right Held Weapon
+        // Held weapon — attached to the player root mesh.
+        //
+        // 设计意图：
+        //   - 武器在蓄力期间需要紧贴玩家手部，且【始终平行于地面，尖端指向
+        //     玩家正前方】。
+        //   - 如果挂在 forearm 上，前臂在蓄力期间会做大幅旋转（armPullX/Y/Z
+        //     和 elbowBendPull 都不为 0），武器会跟着前臂一起翻转，违反
+        //     "尖端指向正前方"的设计要求。
+        //   - 因此挂在 this.mesh（玩家根 Group）下：mesh 的旋转只包含
+        //     "玩家朝向" 的 yaw（main.js 的 player.mesh.quaternion.slerp
+        //     仅围绕 Y 轴旋转），不会受到攻击姿态的躯干扭转、手臂动作影响。
+        //
+        // 模型基轴对齐：
+        //   createWeaponModel() 内部默认会做 rotation.set(PI/2, 0, 0)，使尖端
+        //   指向 +Z。但玩家“正前方” = -Z，因此把内部 modelGroup 的轴向重置为
+        //   单位四元数，再由外层 heldWeaponRight 通过 RotY=PI 把尖端转向 -Z。
+        //   这样默认就拿在手上、平行地面、尖端朝前。
         this.heldWeaponRight = new THREE.Group();
         const rightWeaponModel = createWeaponModel(0.08);
         rightWeaponModel.position.set(0, 0, 0);
         rightWeaponModel.rotation.set(0, 0, 0);
         this.heldWeaponRight.add(rightWeaponModel);
 
-        this.heldWeaponRight.position.set(0, -0.03, 0.1); 
-        this.heldWeaponRight.rotation.set(Math.PI / 2 + 0.3, 0, 0); 
+        // 默认值由 CONFIG 提供（attackWeaponHoldPos*/Rot*），这里只挂载到
+        // mesh 下，每帧由 _updateAnimation 末尾应用最新参数。
         this.heldWeaponRight.visible = false;
-        this.rightForearm.add(this.heldWeaponRight);
+        this.mesh.add(this.heldWeaponRight);
 
         // 已移除玩家手上、背上的所有武器模型显示（hand/back weapon meshes removed）
 
@@ -564,6 +573,20 @@ export class PlayerCharacter {
         this.attackPhase = 'none'; // 'windup', 'recover'
         this.windupDuration = 0.1;
         this.recoverDuration = 0.2;
+        // Configured "weapon spawn delay" for the current attack: extra time
+        // between windup-end and the actual feather spawn. The held-weapon
+        // pose animation (stayRatio + Z-offset) treats (windupDuration +
+        // throwSpawnDelay) as the unified animation window so the held
+        // weapon stays visible all the way until the feather actually
+        // launches. Pure visual; logical attack phases are unaffected.
+        this.throwSpawnDelay = 0;
+        this.throwSpawnDelayActive = false;
+        this.throwSpawnDelayElapsed = 0;
+        // 武器“弹性出现”缩放动画 — 跟踪上一帧 visible 状态以检测显示边沿，
+        // 边沿出现时把 popElapsed 归零并在后续每帧前进。超过 popDuration
+        // 之后保持 targetScale。仅 scale 受影响，位置 / Z 位移动画独立运行。
+        this._heldWeaponWasVisible = false;
+        this.heldWeaponPopElapsed = 0;
         this.attackFacingAngle = null;
         this.attackHand = 'right';
         this.nextAttackHand = 'right';
@@ -789,7 +812,7 @@ export class PlayerCharacter {
         oldGeo?.dispose();
     }
 
-    playAttack(windupDuration = 0.1, recoverDuration = 0.2, isSpecial = false) { 
+    playAttack(windupDuration = 0.1, recoverDuration = 0.2, isSpecial = false, throwSpawnDelay = 0) {
         this.attackHand = 'right';
         this.nextAttackHand = 'right';
         this.isAttacking = true; 
@@ -797,8 +820,32 @@ export class PlayerCharacter {
         this.attackTimer = windupDuration;
         this.windupDuration = windupDuration;
         this.recoverDuration = recoverDuration;
+        // Visual-only: extends the held-weapon pose animation window so
+        // stayRatio is interpreted over (windupDuration + throwSpawnDelay).
+        // The flag flips to true the moment windup ends and stays true
+        // until executeThrow() (or a cancel) resets it via clearThrowSpawnDelay().
+        this.throwSpawnDelay = Math.max(0, throwSpawnDelay);
+        this.throwSpawnDelayActive = false;
+        this.throwSpawnDelayElapsed = 0;
         this.isSpecialAttack = isSpecial;
         this._attackCountInSequence = (this._attackCountInSequence || 0) + 1;
+    }
+
+    // Called by main.js the moment the windup ends and the configured
+    // "weapon spawn delay" window begins. Keeps the held-weapon visual
+    // animation running smoothly across windup-end into the delay.
+    beginThrowSpawnDelay() {
+        this.throwSpawnDelayActive = true;
+        this.throwSpawnDelayElapsed = 0;
+    }
+
+    // Called by main.js when the spawn-delay window ends — either because
+    // executeThrow() finally fired, or because the throw was cancelled /
+    // interrupted. Pose animation collapses back to its non-delayed form.
+    clearThrowSpawnDelay() {
+        this.throwSpawnDelay = 0;
+        this.throwSpawnDelayActive = false;
+        this.throwSpawnDelayElapsed = 0;
     }
 
     // Reset the attack sequence counter (always uses right hand).
@@ -817,6 +864,9 @@ export class PlayerCharacter {
             this.attackPhase = 'none';
             this.attackTimer = 0;
             this.attackFacingAngle = null;
+            this.throwSpawnDelay = 0;
+            this.throwSpawnDelayActive = false;
+            this.throwSpawnDelayElapsed = 0;
             return true;
         }
         return false;
@@ -846,6 +896,12 @@ export class PlayerCharacter {
         this.attackFacingAngle = null;
         this.isCatching = false;
         this.catchTimer = 0;
+        // Also clear the held-weapon pose-extension state so the weapon
+        // model (if any) hides immediately when the player breaks out of
+        // the attack pose.
+        this.throwSpawnDelay = 0;
+        this.throwSpawnDelayActive = false;
+        this.throwSpawnDelayElapsed = 0;
 
         if (!wasAttacking) return;
 
@@ -971,19 +1027,131 @@ export class PlayerCharacter {
         this._updateAnimation_main(delta, time, isMoving, currentVelocity);
         this._updateAnimation_shared(delta, time);
 
-        // Update held weapon visibility and scale
-        const targetScale = this.isSpecialAttack ? 1.4 : 1.0;
-        
+        // ===== 手持武器（蓄力时）位姿与显隐 =====
+        //
+        // 武器挂在 this.mesh 之下，因此其变换的“参考系”就是“玩家整体朝向”
+        //   - mesh 的 quaternion 仅围绕 Y 轴旋转（来自 main.js 的 facing slerp）
+        //   - 所以下面写的 (position, rotation) 都解释为 “在玩家正前方为 -Z 的局部坐标系下”
+        //
+        // 默认朝向：让武器尖端指向 -Z（玩家正前方）、躯干平行地面。
+        // createWeaponModel 内部默认的 +Z 朝尖端，所以这里用 RotY = PI 把它转 180°。
+        //
+        // 蓄力期间（含蓄力结束后的“武器生成延后”窗口）的 Z 轴位移动画：
+        //   动画总时长 = windupDuration + throwSpawnDelay
+        //     · windupDuration  = 玩家蓄力的时长
+        //     · throwSpawnDelay = 蓄力结束到武器实体真正生成飞出的额外延后
+        //       （即“武器生成延后时间”参数）
+        //   总时长划分为两段——
+        //     [0, stayRatio]      → 武器停在【默认位置】(pzBase)，静止
+        //     [stayRatio, 1]      → 武器沿 Z 从默认位置滑到 (pzBase + offsetZ)，
+        //                            到达总时长结束（= 真正出手）时正好抵达终点
+        //   stayRatio = 0 全程都在移动；stayRatio = 1 全程静止（关闭动画）。
+        //   offsetZ > 0 终点更靠后；offsetZ < 0 终点更靠前。
+        //
+        // 关键：把“生成延后”纳入参考时间后，武器在蓄力刚结束、还在等延后期间
+        // 仍然可见且继续推进位移；直到 main.js 真正调用 executeThrow()
+        // （此时 throwSpawnDelayActive 被外部清掉、attackPhase 也已是 recover）
+        // 才彻底消失。
         if (this.heldWeaponRight) {
-            this.heldWeaponRight.visible = this.isAttacking && this.attackPhase === 'windup' && this.attackHand === 'right';
-            if (this.heldWeaponRight.visible) {
-                this.heldWeaponRight.scale.setScalar(targetScale);
+            const targetScale = this.isSpecialAttack ? 1.4 : 1.0;
+            const px = CONFIG.attackWeaponHoldPosX ?? 0.10;
+            const py = CONFIG.attackWeaponHoldPosY ?? 0.45;
+            const pzBase = CONFIG.attackWeaponHoldPosZ ?? -0.05;
+            const rx = CONFIG.attackWeaponHoldRotX ?? 0;
+            const ry = CONFIG.attackWeaponHoldRotY ?? Math.PI;
+            const rz = CONFIG.attackWeaponHoldRotZ ?? 0;
+
+            const offsetZ = CONFIG.attackWeaponHoldOffsetZ ?? 0.4;
+            const stayRatio = THREE.MathUtils.clamp(CONFIG.attackWeaponHoldStayRatio ?? 0.5, 0, 1);
+
+            // 统一“蓄力进度”分母：windupDuration + throwSpawnDelay
+            //   - 蓄力期间：分子 = windupDuration - attackTimer（已蓄力时间）
+            //   - 延后期间：分子 = windupDuration + throwSpawnDelayElapsed
+            //   - 其它阶段：进度无意义（武器也不可见）
+            // throwSpawnDelay 为 0 时此分母退化为 windupDuration，行为与改前一致。
+            let windupProgress = 0;
+            let weaponShouldShow = false;
+            const animTotal = (this.windupDuration || 0) + (this.throwSpawnDelay || 0);
+            if (animTotal > 1e-6) {
+                if (this.isAttacking && this.attackPhase === 'windup') {
+                    const elapsedWindup = Math.max(0, this.windupDuration - this.attackTimer);
+                    windupProgress = THREE.MathUtils.clamp(elapsedWindup / animTotal, 0, 1);
+                    weaponShouldShow = true;
+                } else if (this.throwSpawnDelayActive && this.throwSpawnDelay > 0) {
+                    // 蓄力已结束、正处于“武器生成延后”窗口。
+                    // 此时 attackPhase 已经是 'recover'，但视觉上武器仍要继续
+                    // 沿原动画轨迹滑向终点偏移，直到真正出手为止。
+                    const elapsed = (this.windupDuration || 0) + this.throwSpawnDelayElapsed;
+                    windupProgress = THREE.MathUtils.clamp(elapsed / animTotal, 0, 1);
+                    weaponShouldShow = true;
+                }
             }
-        }
-        if (this.heldWeaponLeft) {
-            this.heldWeaponLeft.visible = this.isAttacking && this.attackPhase === 'windup' && this.attackHand === 'left';
-            if (this.heldWeaponLeft.visible) {
-                this.heldWeaponLeft.scale.setScalar(targetScale);
+
+            // 在 [stayRatio, 1] 之间把 progress 重映射到 [0, 1] 作为位移进度。
+            // 移动段总占比 = (1 - stayRatio)。
+            //
+            // 用 smoothstep（x²·(3 − 2x)）代替 easeOutCubic，原因：
+            //   * easeOutCubic 在 t = 0 处导数 = 3，导致武器在 stayRatio
+            //     边界从静止瞬间获得一个不小的初速度——肉眼会看到“猛动
+            //     一下”的闪烁感（位置数学上连续，但速度从 0 跳到非零）。
+            //   * smoothstep 在两端导数均为 0，速度无突变，过渡视觉柔和。
+            //   * 终点抵达值仍是 1，与原版语义保持一致（蓄力总时长结束 =
+            //     正好抵达 pzBase + offsetZ）。
+            // 注：仍要 clamp linear——如果 stayRatio 极大（如 0.96）+
+            // windupDur 极短，单帧步进会跨过整个移动段，clamp 兜底是必要的。
+            let advance = 0;
+            const moveSpan = 1 - stayRatio;
+            if (moveSpan > 1e-4 && windupProgress > stayRatio) {
+                const linear = THREE.MathUtils.clamp((windupProgress - stayRatio) / moveSpan, 0, 1);
+                advance = linear * linear * (3 - 2 * linear); // smoothstep
+            }
+            // 当前 Z = 默认位置 (pzBase) → 终点 (pzBase + offsetZ) 的插值
+            const pz = pzBase + offsetZ * advance;
+
+            this.heldWeaponRight.position.set(px, py, pz);
+            this.heldWeaponRight.rotation.set(rx, ry, rz);
+
+            // 检测 hidden→visible 显示边沿：归零弹性计时器；
+            // 持续显示期间累加 delta 推进弹性进度。
+            // 离开显示状态时不重置（下次出现自然会触发新一轮归零）。
+            if (weaponShouldShow && !this._heldWeaponWasVisible) {
+                this.heldWeaponPopElapsed = 0;
+            } else if (weaponShouldShow) {
+                this.heldWeaponPopElapsed += delta;
+            }
+            this._heldWeaponWasVisible = weaponShouldShow;
+
+            this.heldWeaponRight.visible = weaponShouldShow;
+            if (this.heldWeaponRight.visible) {
+                // ----- 出现弹性缩放 -----
+                //
+                // 在 hidden→visible 边沿把 popElapsed 归零并启动两段 easeOut：
+                //   * 前 50% 时长：0 → overshoot×targetScale（快速膨胀）
+                //   * 后 50% 时长：overshoot×targetScale → 1.0×targetScale（回落）
+                // 路径示例 (overshoot=1.2, targetScale=1)：0 → 1.2 → 1.0
+                // 关闭弹性 / 时长结束后：直接锁到 targetScale。
+                //
+                // 选择 easeOut（1 − (1 − t)²）让两段都“开始快、结束慢”——
+                // 这样在峰值附近视觉上有“反弹卡顿”的弹性感，比线性更生动。
+                const popOn = !!CONFIG.attackWeaponHoldPopEnabled;
+                const popDur = Math.max(0, CONFIG.attackWeaponHoldPopDuration ?? 0);
+                const overshoot = Math.max(1.0, CONFIG.attackWeaponHoldPopOvershoot ?? 1.0);
+                let scaleMult = 1.0;
+                if (popOn && popDur > 1e-4 && this.heldWeaponPopElapsed < popDur) {
+                    const t = THREE.MathUtils.clamp(this.heldWeaponPopElapsed / popDur, 0, 1);
+                    if (t < 0.5) {
+                        // 前段 0..0.5 映射到 0..1，0 → overshoot
+                        const a = t * 2;
+                        const eased = 1 - (1 - a) * (1 - a); // easeOutQuad
+                        scaleMult = overshoot * eased;
+                    } else {
+                        // 后段 0.5..1 映射到 0..1，overshoot → 1
+                        const a = (t - 0.5) * 2;
+                        const eased = 1 - (1 - a) * (1 - a); // easeOutQuad
+                        scaleMult = overshoot + (1.0 - overshoot) * eased;
+                    }
+                }
+                this.heldWeaponRight.scale.setScalar(targetScale * scaleMult);
             }
         }
     }
@@ -1221,6 +1389,16 @@ export class PlayerCharacter {
                     this.attackFacingAngle = null;
                 }
             }
+        }
+        // While main.js is holding the weapon-spawn-delay window open
+        // (between windup-end and the actual feather spawn), advance the
+        // elapsed counter so the held-weapon pose animation can use it
+        // as the tail of its unified (windupDur + spawnDelay) window.
+        if (this.throwSpawnDelayActive && this.throwSpawnDelay > 0) {
+            this.throwSpawnDelayElapsed = Math.min(
+                this.throwSpawnDelay,
+                this.throwSpawnDelayElapsed + delta
+            );
         }
 
         const isRunning = isMoving && !this.isAttacking;
@@ -1866,6 +2044,11 @@ export class PlayerCharacter {
         this.walkPhase = 0;
         this.smokeTrailDistance = 0;
         this.lastStepPhaseIndex = 0;
+        this.throwSpawnDelay = 0;
+        this.throwSpawnDelayActive = false;
+        this.throwSpawnDelayElapsed = 0;
+        this._heldWeaponWasVisible = false;
+        this.heldWeaponPopElapsed = 0;
     }
 
     updateTrajectory(delta) {

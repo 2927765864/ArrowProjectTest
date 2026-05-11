@@ -53,20 +53,45 @@ export class TargetIndicator {
         }
 
         Globals.scene.add(this.group);
+
+        // Smooth-follow state: the indicator tracks a "displayed position" that
+        // eases toward the real target position. When the target switches
+        // (e.g. enemy A -> enemy B) the circle quickly slides across the floor
+        // instead of popping to the new location.
+        this._displayPos = new THREE.Vector3();
+        this._hadTarget = false;
+        // Lerp sharpness: 1 - exp(-delta * k). k ~= 22 reaches ~95% in ~0.13s,
+        // giving a snappy ~0.15s feel similar to lock-on handling.
+        this._followSharpness = 22;
     }
 
     update(targetPos, delta) {
         if (!targetPos) {
+            // Lost target -> hide immediately and reset so next appearance
+            // snaps to the new target rather than sliding from a stale spot.
             this.group.visible = false;
+            this._hadTarget = false;
             return;
         }
 
+        if (!this._hadTarget) {
+            // First appearance: snap directly under the target.
+            this._displayPos.copy(targetPos);
+            this._hadTarget = true;
+        } else {
+            // Target-to-target switch (or tracking a moving target):
+            // exponentially ease toward the new position. This makes A->B
+            // switches feel like a fast slide rather than a teleport.
+            const t = 1 - Math.exp(-delta * this._followSharpness);
+            this._displayPos.lerp(targetPos, t);
+        }
+
         this.group.visible = true;
-        this.group.position.x = targetPos.x;
-        this.group.position.z = targetPos.z;
-        
+        this.group.position.x = this._displayPos.x;
+        this.group.position.z = this._displayPos.z;
+
         this.ringGroup.rotation.y += delta * 2.5;
-        
+
         // Slight breathing scale
         const scale = 1.0 + Math.sin(Globals.clock.getElapsedTime() * 5) * 0.05;
         this.group.scale.set(scale, 1, scale);

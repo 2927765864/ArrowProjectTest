@@ -1,0 +1,35 @@
+{
+  "name": "弓箭传说：横向电弧",
+  "short_name": "弓箭传说",
+  "description": "横向电弧风格的轻量动作游戏。WebGL + 虚拟摇杆，全屏沉浸。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#1a1532",
+  "theme_color": "#1a1532",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["games", "action"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

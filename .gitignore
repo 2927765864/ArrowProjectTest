@@ -1,4 +1,26 @@
 .build/
 .tools/
 *.apk
+*.idsig
 .android_hidden/
+
+# macOS 系统文件
+.DS_Store
+
+# 开发服务器运行时产物
+server.log
+server.pid
+
+# 临时调试/补丁脚本（开发期产物，不应进仓）
+patch.js
+patch2.py
+patch_config_aim.js
+patch_player.py
+replace_recall.js
+restore.patch
+test.js
+test_arm.js
+test_lerp.js
+test_three.js
+temp_group.html
+tune_arm_full_hierarchy.py
