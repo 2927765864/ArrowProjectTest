@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-11T04:21:32.520Z
+// 生成时间: 2026-05-11T05:01:35.092Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778473292;
+export const SHIPPING_PRESET_VERSION = 1778475695;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -424,10 +424,9 @@ export const SHIPPING_PRESET = {
     slashFlashRevealRatio: 0.18,
     slashFlashFadeStart: 0.32,
     damageTextScale: 0.6,
-    // 伤害数字 text-shadow 三层 alpha（与 DEFAULT_CONFIG 同值，留出口以便发布版独立微调）
     dmgShadowAlphaTight: 0.35,
-    dmgShadowAlphaGlow:  0.20,
-    dmgShadowAlphaDrop:  0.30,
+    dmgShadowAlphaGlow: 0.2,
+    dmgShadowAlphaDrop: 0.1,
     hudScale: 1,
     shakeIntensityThrow: 0.2,
     shakeDurationThrow: 0.13,

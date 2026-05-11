@@ -1,6 +1,6 @@
 {
   "type": "arrowProjectPreset",
-  "name": "稳定打击感v2.3",
+  "name": "稳定打击感v2.4",
   "config": {
     "shootCooldown": 0.7,
     "playerAttackDamage": 240,
@@ -397,6 +397,9 @@
     "slashFlashRevealRatio": 0.18,
     "slashFlashFadeStart": 0.32,
     "damageTextScale": 0.6,
+    "dmgShadowAlphaTight": 0.35,
+    "dmgShadowAlphaGlow": 0.2,
+    "dmgShadowAlphaDrop": 0.1,
     "hudScale": 1,
     "shakeIntensityThrow": 0.2,
     "shakeDurationThrow": 0.13,
