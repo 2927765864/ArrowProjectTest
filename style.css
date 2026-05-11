@@ -312,11 +312,29 @@ body {
    - transform-origin 50% 50%：缩放围绕字符自身中心，不挤压相邻字符
    - 行内 style 会覆盖 transform 用于动画；transform 不影响文档流尺寸 ——
      字符 scale=0 时仍占据排版位置，整条文字宽度从一开始就稳定，避免"逐字出现时整体抖动"。
-*/
+
+   ★ text-shadow: none 关键修复（iOS Safari/WebKit）：
+     外层 .floating-text 上的 text-shadow 是为整条跳字设计的"一次性"柔光+软投影。
+     但 utils.js 的 splitFloatingTextChars 把文本拆成了一堆 <span class="dmg-char">
+     单字符 span，CSS 继承会让每个子 span 各自再画一遍 text-shadow。
+     - Chrome/Blink（网页端）会做层合并，多份 shadow alpha 不会 1:1 叠加，看起来很浅；
+     - iOS Safari/WebKit 会按每个 inline-block 子层独立绘制 shadow，相邻字符的阴影
+       互相覆盖叠加 → 数字部分阴影"特别重"。
+     而内层 <span class="dmg-pen"> 在 WebKit 上因 inline-flex 创建了独立合成上下文，
+     里面的"贯穿"两字 shadow 渲染路径不同，反而保持了正常浅阴影 —— 这就解释了
+     "iOS 上数字阴影很重、贯穿两字却正常"的现象。
+     这里把所有子级 shadow 干掉，整条只在最外层 .floating-text 画一次，跨平台一致。 */
 .dmg-char {
     display: inline-block;
     transform-origin: 50% 50%;
     will-change: transform;
+    text-shadow: none;
+}
+
+/* 同理：.dmg-pen 是 "X3贯穿" 后缀的内层容器，也属于 .floating-text 的子级，
+   它本身（以及它内部的 .dmg-char）都不该再画一份 shadow —— 全部交给最外层。 */
+.dmg-pen {
+    text-shadow: none;
 }
 
 #control-panel {
