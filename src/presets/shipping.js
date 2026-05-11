@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-07T09:00:35.212Z
+// 生成时间: 2026-05-11T03:39:26.723Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,12 +26,12 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778144435;
+export const SHIPPING_PRESET_VERSION = 1778470766;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
     playerAttackDamage: 240,
-    playerRecallDamage: 480,
+    playerRecallDamage: 240,
     playerRecallDamageSpecial: 80,
     attackWindupDur: 0.3,
     attackWindupDurSpecial: 0.43,
@@ -73,6 +73,9 @@ export const SHIPPING_PRESET = {
     attackWeaponHoldRotZ: -0.58,
     attackWeaponHoldStayRatio: 0.96,
     attackWeaponHoldOffsetZ: 0.34,
+    attackWeaponHoldPopEnabled: true,
+    attackWeaponHoldPopDuration: 0.18,
+    attackWeaponHoldPopOvershoot: 1.2,
     attackSupportArmWindupX: 0,
     attackSupportArmWindupXSpecial: 0.09,
     attackSupportArmWindupY: 0,
@@ -159,7 +162,7 @@ export const SHIPPING_PRESET = {
     sceneMode: "dummy",
     wave4Count: 4,
     wave4RespawnDelay: 0.6,
-    floorStyle: "brick",
+    floorStyle: "solid",
     maxMoveSpeedX: 8,
     maxMoveSpeedZ: 9,
     showPlayerTrajectory: false,
@@ -194,7 +197,7 @@ export const SHIPPING_PRESET = {
     indicatorMaxRange: 0.6,
     indicatorMaxInput: 1.8,
     enemyScale: 2,
-    enemyHP: 10000,
+    enemyHP: 2000,
     enemyMoveSpeedBase: 1.2,
     enemyMoveSpeedRandom: 1,
     pillarEnemyHP: 2000,
@@ -245,6 +248,37 @@ export const SHIPPING_PRESET = {
     stakeBendImpulseHigh: 4.5,
     stakeBendImpulseSpecial: 6.5,
     stakeKnockbackBendScale: 3.5,
+    critEnabled: true,
+    critChance: 0.5,
+    critDamage: 480,
+    critKnockbackForce: 20,
+    critBurstScale: 1,
+    critBurstMergeCount: 1,
+    dmgCritAtkMoveTimeRatio: 0.4,
+    dmgCritAtkHoldRatio: 0,
+    dmgCritAtkFadeRatio: 0.11,
+    dmgCritAtkLife: 1.15,
+    dmgCritAtkBurstDistMin: 2.7,
+    dmgCritAtkBurstDistMax: 3.2,
+    dmgCritAtkBurstUpMin: 0,
+    dmgCritAtkBurstUpMax: 0,
+    dmgCritAtkShakeAmpStart: 0,
+    dmgCritAtkShakeAmpMid: 5.5,
+    dmgCritAtkShakeAmpEnd: -14.5,
+    dmgCritAtkShakeAppearCurve: 3,
+    dmgCritAtkShakeEndCurve: 1,
+    dmgCritAtkScaleStart: 2.9,
+    dmgCritAtkScalePunch: 3.25,
+    dmgCritAtkScaleHold: 3.25,
+    dmgCritAtkScaleEnd: 0,
+    dmgCritAtkDirJitterDeg: 0,
+    dmgCritAtkCharStaggerEnabled: 1,
+    dmgCritAtkCharGapStart: 0.02,
+    dmgCritAtkCharGapEnd: 0.07,
+    dmgCritAtkCharDurStart: 0.1,
+    dmgCritAtkCharDurEnd: 0.17,
+    dmgCritAtkCharPeakStart: 2,
+    dmgCritAtkCharPeakEnd: 3.15,
     hitSparkSpeedMin: 27.5,
     hitSparkSpeedMax: 36.5,
     hitSparkDrag: 5.4,
@@ -561,6 +595,20 @@ export const SHIPPING_PRESET = {
     vfxSparkStretch: 0.2,
     vfxSparkColor: 16768324,
     vfxSparkFlickerLow: 0.5,
+    mapBrickCountX: 8,
+    mapBrickAspectY: 1,
+    mapGapWidth: 0,
+    mapStaggerOffset: 0,
+    mapBrickOpacity: 1,
+    mapBrickColorStart: 0,
+    mapBrickColorMid: 4063400,
+    mapBrickColorMidPos: 0.5,
+    mapBrickColorEnd: 16770773,
+    mapBrickGradientAngle: 196,
+    mapBrickGradientCycles: 1,
+    mapBrickGapColor: 3353699,
+    mapBrickBaseColor: 0,
+    mapBrickBaseOpacity: 1,
     vfxRingScale: 2,
     hideOldThrowBurst: true,
     throwBurstDuration: 0.4,
@@ -657,4 +705,7 @@ export const SHIPPING_PRESET = {
     deploySpeed: 40,
     maxMoveSpeed: 10,
     stopToAttackMode: true,
+    mapBrickColor: 3222620,
+    mapGapDepth: 0,
+    mapBrickNoise: 0.6,
 };
