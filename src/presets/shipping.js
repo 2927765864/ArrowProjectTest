@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-11T05:06:29.708Z
+// 生成时间: 2026-05-11T05:18:17.207Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778475989;
+export const SHIPPING_PRESET_VERSION = 1778476697;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -220,7 +220,7 @@ export const SHIPPING_PRESET = {
     hitDeformStretchPinch: 0.44,
     hitDeformDentDepth: 0.65,
     hitDeformDentRadius: 0.7,
-    hitKnockbackForce: 10,
+    hitKnockbackForce: 5,
     hitStunDuration: 0.15,
     hitBendEnabled: true,
     hitBendStiffness: 164,
@@ -251,7 +251,7 @@ export const SHIPPING_PRESET = {
     critEnabled: true,
     critChance: 0.5,
     critDamage: 480,
-    critKnockbackForce: 15,
+    critKnockbackForce: 10,
     critBurstScale: 1,
     critBurstMergeCount: 1,
     dmgCritAtkMoveTimeRatio: 0.4,
@@ -423,7 +423,7 @@ export const SHIPPING_PRESET = {
     slashFlashCoreOpacity: 1,
     slashFlashRevealRatio: 0.18,
     slashFlashFadeStart: 0.32,
-    damageTextScale: 0.6,
+    damageTextScale: 0.8,
     dmgShadowAlphaTight: 0.35,
     dmgShadowAlphaGlow: 0.2,
     dmgShadowAlphaDrop: 0.1,
