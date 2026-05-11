@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-11T05:01:35.092Z
+// 生成时间: 2026-05-11T05:06:29.708Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778475695;
+export const SHIPPING_PRESET_VERSION = 1778475989;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -159,7 +159,7 @@ export const SHIPPING_PRESET = {
     recallCourierWeaponBaseRotZ: 0,
     recallCourierWeaponWindupRotX: 86,
     recallCourierWeaponThrowRotX: 57,
-    sceneMode: "obstacles",
+    sceneMode: "dummy",
     wave4Count: 4,
     wave4RespawnDelay: 0.6,
     floorStyle: "solid",
@@ -482,9 +482,9 @@ export const SHIPPING_PRESET = {
     dmgAtkShakeAmpEnd: -13.5,
     dmgAtkShakeAppearCurve: 3,
     dmgAtkShakeEndCurve: 1,
-    dmgAtkScaleStart: 2.8,
-    dmgAtkScalePunch: 3.25,
-    dmgAtkScaleHold: 3,
+    dmgAtkScaleStart: 3,
+    dmgAtkScalePunch: 3.5,
+    dmgAtkScaleHold: 3.5,
     dmgAtkScaleEnd: 0,
     dmgAtkDirJitterDeg: 0,
     dmgAtkCharStaggerEnabled: 1,
