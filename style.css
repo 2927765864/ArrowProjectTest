@@ -341,8 +341,9 @@ body {
 
 #control-panel {
     position: absolute;
-    top: 10px;
-    left: 10px;
+    /* iOS 顶部状态栏（刘海/灵动岛）会覆盖在网页内容上方，必须用 safe-area-inset-top 让头部"隐藏"按钮可点击 */
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: calc(env(safe-area-inset-left, 0px) + 10px);
     background: linear-gradient(180deg, rgba(26, 21, 50, 0.94) 0%, rgba(15, 12, 30, 0.9) 100%);
     color: #eee;
     padding: 12px;
@@ -352,9 +353,9 @@ body {
     font-size: 11px;
     backdrop-filter: blur(10px);
     box-shadow: 0 16px 40px rgba(0,0,0,0.52), inset 0 1px 0 rgba(255,255,255,0.06);
-    width: min(380px, calc(100vw - 20px));
-    max-width: calc(100vw - 20px);
-    max-height: calc(100dvh - 20px);
+    width: min(380px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px));
+    max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 20px);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 20px);
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -626,11 +627,11 @@ input.panel-number:focus {
 
 @media (max-width: 700px) {
     #control-panel {
-        top: 8px;
-        left: 8px;
-        width: min(380px, calc(100vw - 16px));
-        max-width: calc(100vw - 16px);
-        max-height: calc(100dvh - 16px);
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        left: calc(env(safe-area-inset-left, 0px) + 8px);
+        width: min(380px, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px));
+        max-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
+        max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
         padding: 10px;
     }
 
