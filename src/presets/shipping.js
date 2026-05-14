@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-14T05:12:24.084Z
+// 生成时间: 2026-05-14T09:15:35.919Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778735544;
+export const SHIPPING_PRESET_VERSION = 1778750135;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -196,10 +196,12 @@ export const SHIPPING_PRESET = {
     playerShadowRadius: 0.22,
     indicatorMaxRange: 0.6,
     indicatorMaxInput: 1.8,
-    enemyScale: 2,
+    enemyScale: 2.3,
+    slimeScaleMul: 1.1,
     enemyHP: 2000,
     enemyMoveSpeedBase: 1.2,
     enemyMoveSpeedRandom: 1,
+    pillarScaleMul: 1,
     pillarEnemyHP: 2000,
     pillarEnemyFireInitDelay: 1.2,
     pillarEnemyFireInterval: 4,
@@ -233,6 +235,20 @@ export const SHIPPING_PRESET = {
     hitBendShear: 1,
     hitBendPushIn: 0.99,
     hitBendAxisLength: 1.5,
+    hitSFlashDuration: 0.12,
+    hitSFlashIntensity: 0.12,
+    hitSDeformStiffness: 125,
+    hitSDeformDamping: 7,
+    hitSDeformIntensity: 1.15,
+    hitSDeformDuration: 1.44,
+    hitSKnockbackDistance: 0.7,
+    hitSKnockbackStartSpeed: 12,
+    hitSKnockbackEndSpeed: 0,
+    hitSKnockbackCurve: 1.15,
+    hitSStunDuration: 0.15,
+    hitSBendStiffness: 653,
+    hitSBendDamping: 10.2,
+    hitSBendIntensity: 1.32,
     stakeDeformStiffness: 260,
     stakeDeformDamping: 6,
     stakeDeformDuration: 1.2,
@@ -248,10 +264,14 @@ export const SHIPPING_PRESET = {
     stakeBendImpulseHigh: 4.5,
     stakeBendImpulseSpecial: 6.5,
     stakeKnockbackBendScale: 3.5,
-    critEnabled: true,
+    critEnabled: 1,
     critChance: 0.5,
     critDamage: 480,
-    critKnockbackForce: 10,
+    critKnockbackDistance: 1,
+    critKnockbackStartSpeed: 24,
+    critKnockbackEndSpeed: 0,
+    critKnockbackCurve: 1.15,
+    critKnockbackForce: 5,
     critBurstScale: 0.8,
     critBurstMergeCount: 1,
     dmgCritAtkMoveTimeRatio: 0.4,
@@ -396,10 +416,10 @@ export const SHIPPING_PRESET = {
     recallHitBurstHighUpBiasAtMax: 0.85,
     recallHitBurstHighGravity: 26.5,
     recallHitBurstHighGravityAtMax: 27.5,
-    recallHitBurstHighLifeMin: 0.21,
-    recallHitBurstHighLifeMinAtMax: 0.38,
-    recallHitBurstHighLifeMax: 0.26,
-    recallHitBurstHighLifeMaxAtMax: 0.53,
+    recallHitBurstHighLifeMin: 0.27,
+    recallHitBurstHighLifeMinAtMax: 0.33,
+    recallHitBurstHighLifeMax: 0.38,
+    recallHitBurstHighLifeMaxAtMax: 0.51,
     recallHitBurstHighSizeMin: 0.195,
     recallHitBurstHighSizeMinAtMax: 0.22,
     recallHitBurstHighSizeMax: 0.24,

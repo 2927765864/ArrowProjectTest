@@ -1,8 +1,68 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 
+// =============================================================================
+// 史莱姆 (configKey='hitS') 简化模型的"内部固定基准常量"
+// =============================================================================
+// 为减少面板暴露的参数数量（22 → 9），史莱姆组把多个细分幅度合并成两个总幅度参数：
+//   · hitSDeformIntensity → 统一驱动 Squash/Stretch/Dent 的 5 个细分
+//   · hitSBendIntensity   → 统一驱动 Bend 的 4 个分量
+// 各细分实际值 = Intensity * 基准常量。Intensity=0 完全关闭；1.0 = 出厂基准手感。
+//
+// 基准常量取自第一版史莱姆出厂参数（shipping.js 中 hitSDeform* / hitSBend* 的旧值），
+// 这样 Intensity=1.0 时观感与改造前一致；用户只需调一个总幅度就能整体放大/缩小手感。
+//
+// 这些基准是"形状比例"，无需暴露给用户调整——侧击 C 形弯（Curvature）游戏里无场景，
+// 直接置为 0；其余分量按经验选择的合理比例。
+// =============================================================================
+const SLIME_DEFORM_BASE = {
+    SquashAxis:   0.62,   // 压扁阶段沿命中轴缩短幅度（0 → 不缩短；0.95 → 极端 cartoonish）
+    SquashBulge:  0.9,    // 压扁阶段垂直命中轴鼓起幅度
+    StretchAxis:  0.88,   // 拉长阶段沿命中轴拉伸幅度
+    StretchPinch: 0.44,   // 拉长阶段垂直命中轴收缩幅度
+    // —— Dent（命中点局部凹陷）已禁用，置为 0 ——
+    // 原因：Dent 是 shader 里"在命中点附近沿命中轴单向把顶点推入身体"的非对称位移
+    //   （高斯权重，越靠近命中点推得越多），它会让史莱姆建模整体沿攻击方向产生明显的
+    //   视觉相对位移（与击退力无关），与"形变只是形变，不应该改变敌人视觉位置"的需求冲突。
+    //   Squash/Stretch 部分以原点为不动点对称缩放，是干净的，所以只关闭 Dent。
+    //   子 mesh（眼睛/耳朵）原本也会被 Dent 整体推一段，本次一并消除。
+    DentDepth:    0.0,    // ← 关闭 Dent，避免形变带来攻击方向上的相对位移
+    DentRadius:   0.7,    // 局部凹陷影响半径（DentDepth=0 后已无作用，保留兼容）
+    Duration:     1.44,   // 形变兜底持续时长（秒）；弹簧 nearRest 通常更早触发结束
+};
+const SLIME_BEND_BASE = {
+    // —— Bulge（钟形）和 PushIn（反凹）已禁用，置为 0 ——
+    // 原因：这两项在 shader 里是关于命中轴的偶函数（(1-t²) 型），它们对所有顶点叠加同号位移；
+    //   在球面分布上的体积平均不为 0，所以会让整个建模沿击退方向（=攻击方向的水平投影）平移。
+    //   尤其是史莱姆的身体半径 (≈0.38·scale) 远小于 AxisLength=1.5，使 t 在所有顶点上接近 0，
+    //   _bell=(1-t²) 几乎恒为 1，于是 Bulge/PushIn 实际几乎完全退化成了刚体平移，看不出形状变化，
+    //   却贡献了"弯曲·总幅度"几乎全部的视觉位移。与"形变只是形变，不应改变敌人视觉位置"冲突。
+    //   保留 Shear（线性 t，奇函数，球对称下平均位移=0）作为真正的"被推弯曲"主视觉。
+    Bulge:        0.0,    // ← 关闭：偶函数项，在球面上平均位移≠0，造成沿击退方向的整体平移
+    Curvature:    0.0,    // 二次弯曲分量 —— 游戏无侧击场景，固定为 0
+    Shear:        1.0,    // 线性 t 剪切分量 —— 真正的"被推弯曲"主视觉（奇函数，平均位移=0）
+    PushIn:       0.0,    // ← 关闭：偶函数项，与 Bulge 同理，会造成整体平移
+    AxisLength:   1.5,    // 沿命中轴归一化半长（dot(p,axis)/此值 → t∈[-1,1]）
+    ForceRef:     10.5,   // 击退力归一化参考：force=此值时 bend 弹簧初值打满 = 1.0
+    ImpulseMax:   0.95,   // 弯曲弹簧初值上限
+    Duration:     1.0,    // 弯曲兜底时长
+};
+
 /**
  * HitReaction - 敌人受击反馈（闪白 + Squash & Stretch 弹性形变 + Bend 击退弯曲）
+ *
+ * 参数分组（构造时 options.configKey 决定使用哪一组 CONFIG 字段）：
+ *   · configKey: 'hit'   → 柱状敌人 (PillarEnemy)
+ *                          字段：hitFlashDuration / hitDeformStiffness / hitBendBulge ...
+ *                          也作为木桩闪白来源（木桩仅用 flashOnly 模式的 hitFlash*）
+ *   · configKey: 'hitS'  → 史莱姆敌人 (Enemy)
+ *                          字段：hitSFlashDuration / hitSDeformStiffness / hitSDeformDamping
+ *                              / hitSDeformIntensity / hitSStunDuration
+ *                              / hitSBendStiffness / hitSBendDamping / hitSBendIntensity
+ *                          击退由 Enemy.js 自己的 4 参数系统驱动（位移/初速/末速/曲线），
+ *                          不再走 HitReaction；此处仅接收 triggerBend(direction, distance) 调用。
+ *   两组字段在 CONFIG 中完全独立，互不影响。
+ *   未传 configKey 时默认 'hit'，保持向后兼容（与改造前完全等价）。
  *
  * 核心模型："Squash & Stretch"（迪士尼经典动画 12 法则之首）：
  *   命中瞬间，敌人沿命中方向被"压扁"（squash），同时垂直方向"鼓起"（bulge）；
@@ -54,6 +114,16 @@ export class HitReaction {
     constructor(options = {}) {
         // 模式：true = 只走闪白通道（木桩用），false = 完整启用闪白+形变（球形/柱状用）
         this._flashOnly = !!options.flashOnly;
+
+        // ---------- 配置键前缀（决定从 CONFIG 哪一组字段读受击反馈参数）----------
+        // 现在支持两组 完全独立 的参数：
+        //   · 'hit'   → 柱状敌人（PillarEnemy）专用，对应面板"敌人受击反馈（柱状敌人）"
+        //               同时也作为"木桩闪白"的来源（木桩 flashOnly 模式，只读 hitFlash*）
+        //   · 'hitS'  → 史莱姆敌人（Enemy）专用，对应面板"敌人受击反馈（史莱姆）"
+        //
+        // 通过 _k('FlashDuration') 拼出 'hitFlashDuration' 或 'hitSFlashDuration'。
+        // 默认 'hit' —— 即不传 configKey 时维持改造前的旧行为，向后兼容。
+        this._configKey = options.configKey || 'hit';
 
         // ---------- 闪白 ----------
         this._flashUniform = { value: 0.0 };
@@ -112,6 +182,66 @@ export class HitReaction {
         this._tmpV1 = new THREE.Vector3();
         this._tmpV2 = new THREE.Vector3();
         this._tmpQ  = new THREE.Quaternion();
+    }
+
+    /** 拼出当前 HitReaction 使用的 CONFIG 字段名。例：_k('FlashDuration') → 'hitFlashDuration' 或 'hitSFlashDuration'。 */
+    _k(suffix) {
+        return this._configKey + suffix;
+    }
+
+    /**
+     * 读取当前 HitReaction 组对应 suffix 的"有效配置值"。
+     *
+     * 柱状组 (configKey='hit')：直接返回 CONFIG['hit' + suffix]。
+     * 史莱姆组 (configKey='hitS')：对被合并的细分字段，按 Intensity * 基准常量返回；
+     *   其他字段（Stiffness、Damping、FlashDuration、FlashIntensity、KnockbackForce、
+     *   StunDuration）直接读 CONFIG.hitS*。
+     *
+     * 这样 HitReaction 内部的 shader uniforms 仍然按"细分参数"工作，对外只暴露 Intensity。
+     *
+     * @param {string}    suffix       字段后缀，例如 'DeformSquashAxis'
+     * @param {*}         fallback     CONFIG 中没值时的兜底
+     * @returns {*}
+     */
+    _cfg(suffix, fallback) {
+        if (this._configKey === 'hitS') {
+            // —— 形变·总时间（兜底）：单独暴露为 CONFIG.hitSDeformDuration ——
+            //    走在 SLIME_DEFORM_BASE 之前，避免被 Intensity 缩放（Duration 是"时长"不是"幅度"）。
+            //    调用端用的是 _cfg('DeformDuration', ...)（带 Deform 前缀），
+            //    但 SLIME_DEFORM_BASE 里 key 是裸 'Duration'，因此这里要显式接管。
+            if (suffix === 'DeformDuration' || suffix === 'Duration') {
+                return CONFIG.hitSDeformDuration ?? SLIME_DEFORM_BASE.Duration;
+            }
+            // —— Deform 系列被合并到 hitSDeformIntensity 的细分 ——
+            if (suffix in SLIME_DEFORM_BASE) {
+                const intensity = Math.max(0, CONFIG.hitSDeformIntensity ?? 1.0);
+                return SLIME_DEFORM_BASE[suffix] * intensity;
+            }
+            // —— Bend 系列被合并到 hitSBendIntensity 的细分 ——
+            if (suffix.startsWith('Bend')) {
+                const tail = suffix.slice(4); // 去掉 'Bend' 前缀
+                if (tail in SLIME_BEND_BASE) {
+                    // ForceRef / ImpulseMax / AxisLength / Duration / Curvature 不应被 Intensity 缩放
+                    //   —— 它们是"换算系数 / 形状常量"，不是"强度"
+                    const noScale = (tail === 'ForceRef' || tail === 'ImpulseMax'
+                                     || tail === 'AxisLength' || tail === 'Duration'
+                                     || tail === 'Curvature');
+                    if (noScale) return SLIME_BEND_BASE[tail];
+                    const intensity = Math.max(0, CONFIG.hitSBendIntensity ?? 1.0);
+                    return SLIME_BEND_BASE[tail] * intensity;
+                }
+            }
+            // Deform 总开关：Intensity=0 即视为关闭
+            if (suffix === 'DeformEnabled') {
+                return (CONFIG.hitSDeformIntensity ?? 1.0) > 0;
+            }
+            // Bend 总开关：Intensity=0 即视为关闭
+            if (suffix === 'BendEnabled') {
+                return (CONFIG.hitSBendIntensity ?? 1.0) > 0;
+            }
+        }
+        const v = CONFIG[this._configKey + suffix];
+        return v === undefined ? fallback : v;
     }
 
     /**
@@ -320,8 +450,8 @@ export class HitReaction {
      */
     trigger(hitPointWorld, hitDirWorld) {
         // ---------- 启动闪白 ----------
-        this._flashPeak = Math.max(0, Math.min(1, CONFIG.hitFlashIntensity ?? 1.0));
-        this._flashDuration = Math.max(0.0001, CONFIG.hitFlashDuration ?? 0.1);
+        this._flashPeak = Math.max(0, Math.min(1, this._cfg('FlashIntensity', 1.0)));
+        this._flashDuration = Math.max(0.0001, this._cfg('FlashDuration', 0.1));
         this._flashTime = 0;
         this._flashUniform.value = this._flashPeak;
 
@@ -330,7 +460,7 @@ export class HitReaction {
             return;
         }
 
-        if (!(CONFIG.hitDeformEnabled ?? true)) {
+        if (!this._cfg('DeformEnabled', true)) {
             return;
         }
 
@@ -368,12 +498,12 @@ export class HitReaction {
         this._deformActive = true;
 
         this._springUniform.value = this._springX;
-        this._dentDepthUniform.value = Math.max(0, CONFIG.hitDeformDentDepth ?? 0.18);
-        this._dentRadiusUniform.value = Math.max(0.01, CONFIG.hitDeformDentRadius ?? 0.7);
-        this._squashAxisUniform.value = Math.max(0, CONFIG.hitDeformSquashAxis ?? 0.5);
-        this._squashBulgeUniform.value = Math.max(0, CONFIG.hitDeformSquashBulge ?? 0.5);
-        this._stretchAxisUniform.value = Math.max(0, CONFIG.hitDeformStretchAxis ?? 0.6);
-        this._stretchPinchUniform.value = Math.max(0, CONFIG.hitDeformStretchPinch ?? 0.3);
+        this._dentDepthUniform.value = Math.max(0, this._cfg('DeformDentDepth', 0.18));
+        this._dentRadiusUniform.value = Math.max(0.01, this._cfg('DeformDentRadius', 0.7));
+        this._squashAxisUniform.value = Math.max(0, this._cfg('DeformSquashAxis', 0.5));
+        this._squashBulgeUniform.value = Math.max(0, this._cfg('DeformSquashBulge', 0.5));
+        this._stretchAxisUniform.value = Math.max(0, this._cfg('DeformStretchAxis', 0.6));
+        this._stretchPinchUniform.value = Math.max(0, this._cfg('DeformStretchPinch', 0.3));
     }
 
     /**
@@ -388,7 +518,7 @@ export class HitReaction {
      */
     triggerBend(knockbackDirWorld, force) {
         if (this._flashOnly) return;
-        if (!(CONFIG.hitBendEnabled ?? true)) return;
+        if (!this._cfg('BendEnabled', true)) return;
         if (!knockbackDirWorld || force <= 0) return;
         if (!this._deformTarget) return;
 
@@ -411,8 +541,8 @@ export class HitReaction {
         this._bendDirUniform.value.copy(this._tmpV1);
 
         // 注入弹簧初值：x(0) = clamp(force / forceRef, ..., maxImpulse)，v(0)=0
-        const forceRef = Math.max(0.0001, CONFIG.hitBendForceRef ?? 10);
-        const maxImpulse = Math.max(0.01, CONFIG.hitBendImpulseMax ?? 1.4);
+        const forceRef = Math.max(0.0001, this._cfg('BendForceRef', 10));
+        const maxImpulse = Math.max(0.01, this._cfg('BendImpulseMax', 1.4));
         const impulse = Math.min(maxImpulse, force / forceRef);
 
         // 如果上一波 bend 还没完，叠加而非覆盖（避免连击时弯曲突然归零）
@@ -422,11 +552,11 @@ export class HitReaction {
         this._bendActive = true;
 
         this._bendUniform.value = this._bendX;
-        this._bendBulgeUniform.value = Math.max(0, CONFIG.hitBendBulge ?? 0.35);
-        this._bendCurvatureUniform.value = Math.max(0, CONFIG.hitBendCurvature ?? 0.55);
-        this._bendShearUniform.value = Math.max(0, CONFIG.hitBendShear ?? 0.30);
-        this._bendPushInUniform.value = Math.max(0, CONFIG.hitBendPushIn ?? 0.18);
-        this._bendAxisLenUniform.value = Math.max(0.05, CONFIG.hitBendAxisLength ?? 0.5);
+        this._bendBulgeUniform.value = Math.max(0, this._cfg('BendBulge', 0.35));
+        this._bendCurvatureUniform.value = Math.max(0, this._cfg('BendCurvature', 0.55));
+        this._bendShearUniform.value = Math.max(0, this._cfg('BendShear', 0.30));
+        this._bendPushInUniform.value = Math.max(0, this._cfg('BendPushIn', 0.18));
+        this._bendAxisLenUniform.value = Math.max(0.05, this._cfg('BendAxisLength', 0.5));
     }
 
     update(delta) {
@@ -444,8 +574,8 @@ export class HitReaction {
         // ---------- 弹簧更新 ----------
         if (this._deformActive) {
             this._deformTime += delta;
-            const stiffness = CONFIG.hitDeformStiffness ?? 260;
-            const damping = CONFIG.hitDeformDamping ?? 6.0;
+            const stiffness = this._cfg('DeformStiffness', 260);
+            const damping = this._cfg('DeformDamping', 6.0);
             // 子步长积分（默认 stiffness 较大，需要 ~6 个子步以内才稳定）
             const steps = 6;
             const dt = delta / steps;
@@ -456,15 +586,15 @@ export class HitReaction {
             }
             this._springUniform.value = this._springX;
             // 同步运行时可调参数（让面板拖动立即生效）
-            this._dentDepthUniform.value = Math.max(0, CONFIG.hitDeformDentDepth ?? 0.18);
-            this._dentRadiusUniform.value = Math.max(0.01, CONFIG.hitDeformDentRadius ?? 0.7);
-            this._squashAxisUniform.value = Math.max(0, CONFIG.hitDeformSquashAxis ?? 0.5);
-            this._squashBulgeUniform.value = Math.max(0, CONFIG.hitDeformSquashBulge ?? 0.5);
-            this._stretchAxisUniform.value = Math.max(0, CONFIG.hitDeformStretchAxis ?? 0.6);
-            this._stretchPinchUniform.value = Math.max(0, CONFIG.hitDeformStretchPinch ?? 0.3);
+            this._dentDepthUniform.value = Math.max(0, this._cfg('DeformDentDepth', 0.18));
+            this._dentRadiusUniform.value = Math.max(0.01, this._cfg('DeformDentRadius', 0.7));
+            this._squashAxisUniform.value = Math.max(0, this._cfg('DeformSquashAxis', 0.5));
+            this._squashBulgeUniform.value = Math.max(0, this._cfg('DeformSquashBulge', 0.5));
+            this._stretchAxisUniform.value = Math.max(0, this._cfg('DeformStretchAxis', 0.6));
+            this._stretchPinchUniform.value = Math.max(0, this._cfg('DeformStretchPinch', 0.3));
 
             // 结束条件：超时或几乎静止（同时检测位移与速度都接近零）
-            const maxDur = CONFIG.hitDeformDuration ?? 0.6;
+            const maxDur = this._cfg('DeformDuration', 0.6);
             const nearRest = Math.abs(this._springX) < 0.005 && Math.abs(this._springV) < 0.05;
             if (this._deformTime >= maxDur || nearRest) {
                 this._springX = 0;
@@ -477,8 +607,8 @@ export class HitReaction {
         // ---------- Bend 弹簧（独立运行，参数与 squash 弹簧分离）----------
         if (this._bendActive) {
             this._bendTime += delta;
-            const k = CONFIG.hitBendStiffness ?? 180;
-            const c = CONFIG.hitBendDamping ?? 9.0;
+            const k = this._cfg('BendStiffness', 180);
+            const c = this._cfg('BendDamping', 9.0);
             const steps = 6;
             const dt = delta / steps;
             for (let i = 0; i < steps; i++) {
@@ -488,13 +618,13 @@ export class HitReaction {
             }
             this._bendUniform.value = this._bendX;
             // 同步运行时可调参数
-            this._bendBulgeUniform.value = Math.max(0, CONFIG.hitBendBulge ?? 0.35);
-            this._bendCurvatureUniform.value = Math.max(0, CONFIG.hitBendCurvature ?? 0.55);
-            this._bendShearUniform.value = Math.max(0, CONFIG.hitBendShear ?? 0.30);
-            this._bendPushInUniform.value = Math.max(0, CONFIG.hitBendPushIn ?? 0.18);
-            this._bendAxisLenUniform.value = Math.max(0.05, CONFIG.hitBendAxisLength ?? 0.5);
+            this._bendBulgeUniform.value = Math.max(0, this._cfg('BendBulge', 0.35));
+            this._bendCurvatureUniform.value = Math.max(0, this._cfg('BendCurvature', 0.55));
+            this._bendShearUniform.value = Math.max(0, this._cfg('BendShear', 0.30));
+            this._bendPushInUniform.value = Math.max(0, this._cfg('BendPushIn', 0.18));
+            this._bendAxisLenUniform.value = Math.max(0.05, this._cfg('BendAxisLength', 0.5));
 
-            const bendDur = CONFIG.hitBendDuration ?? 1.0;
+            const bendDur = this._cfg('BendDuration', 1.0);
             const bendRest = Math.abs(this._bendX) < 0.003 && Math.abs(this._bendV) < 0.04;
             if (this._bendTime >= bendDur || bendRest) {
                 this._bendX = 0;

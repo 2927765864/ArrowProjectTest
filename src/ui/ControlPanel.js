@@ -115,6 +115,9 @@ export function setupControlPanel() {
         btnScm.innerText = '切换为木桩';
     } else if (CONFIG.sceneMode === 'dummy') {
         valScm.innerText = '木桩';
+        btnScm.innerText = '切换为史莱姆木桩';
+    } else if (CONFIG.sceneMode === 'slimeDummy') {
+        valScm.innerText = '史莱姆木桩';
         btnScm.innerText = '切换为四人小队';
     } else if (CONFIG.sceneMode === 'wave4') {
         valScm.innerText = '四人小队';
@@ -126,13 +129,14 @@ export function setupControlPanel() {
     
     btnScm.addEventListener('click', () => {
         Globals.audioManager?.playUIClick();
-        // 循环顺序: endless → obstacles → dummy → wave4 → empty → endless
+        // 循环顺序: endless → obstacles → dummy → slimeDummy → wave4 → empty → endless
         const nextMap = {
-            endless:   'obstacles',
-            obstacles: 'dummy',
-            dummy:     'wave4',
-            wave4:     'empty',
-            empty:     'endless',
+            endless:    'obstacles',
+            obstacles:  'dummy',
+            dummy:      'slimeDummy',
+            slimeDummy: 'wave4',
+            wave4:      'empty',
+            empty:      'endless',
         };
         const next = nextMap[CONFIG.sceneMode] ?? 'endless';
         // setActiveSceneMode 会同步标签文字和右上角按钮
@@ -786,6 +790,25 @@ export function setupControlPanel() {
         });
     }
     
+    // 计算单个敌人实体当前应有的渲染缩放：
+    //   史莱姆 (Enemy 普通/Dummy/WoodenStake) → enemyScale × slimeScaleMul
+    //   柱状  (PillarEnemy, 有 isPillar 标记) → enemyScale × pillarScaleMul
+    // 注：WoodenStake 也被放进 Globals.enemies 且无 isPillar，跟随 slimeScaleMul，
+    //     与原行为（受全局 enemyScale 影响）保持一致的延展。
+    const computeEnemyScale = (enemy) => {
+        const base = CONFIG.enemyScale;
+        const mul  = enemy && enemy.isPillar
+            ? (CONFIG.pillarScaleMul ?? 1)
+            : (CONFIG.slimeScaleMul  ?? 1);
+        return base * mul;
+    };
+    // 给所有现存敌人同步一次缩放（每次三个滑杆任何一个变化时调用）
+    const applyEnemyScalesToAll = () => {
+        Globals.enemies.forEach(enemy => {
+            enemy.mesh.scale.setScalar(computeEnemyScale(enemy));
+        });
+    };
+
     const inpEs = document.getElementById('inp-es');
     if (inpEs) {
         if (CONFIG.enemyScale !== undefined) {
@@ -796,7 +819,37 @@ export function setupControlPanel() {
             const val = parseFloat(e.target.value);
             CONFIG.enemyScale = val;
             document.getElementById('val-es').innerText = val.toFixed(1);
-            Globals.enemies.forEach(enemy => enemy.mesh.scale.setScalar(val));
+            applyEnemyScalesToAll();
+        });
+    }
+
+    // 史莱姆敌人尺寸倍率（仅作用于非柱状敌人，叠乘在 enemyScale 上）
+    const inpSsm = document.getElementById('inp-ssm');
+    if (inpSsm) {
+        if (CONFIG.slimeScaleMul !== undefined) {
+            inpSsm.value = CONFIG.slimeScaleMul;
+            document.getElementById('val-ssm').innerText = CONFIG.slimeScaleMul.toFixed(2);
+        }
+        inpSsm.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.slimeScaleMul = val;
+            document.getElementById('val-ssm').innerText = val.toFixed(2);
+            applyEnemyScalesToAll();
+        });
+    }
+
+    // 柱状敌人尺寸倍率（仅作用于 isPillar=true 的敌人，叠乘在 enemyScale 上）
+    const inpPsm = document.getElementById('inp-psm');
+    if (inpPsm) {
+        if (CONFIG.pillarScaleMul !== undefined) {
+            inpPsm.value = CONFIG.pillarScaleMul;
+            document.getElementById('val-psm').innerText = CONFIG.pillarScaleMul.toFixed(2);
+        }
+        inpPsm.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            CONFIG.pillarScaleMul = val;
+            document.getElementById('val-psm').innerText = val.toFixed(2);
+            applyEnemyScalesToAll();
         });
     }
 
@@ -805,7 +858,8 @@ export function setupControlPanel() {
     bindSlider('inp-emsb', 'val-emsb', 'enemyMoveSpeedBase',   true);
     bindSlider('inp-emsr', 'val-emsr', 'enemyMoveSpeedRandom', true);
 
-    // 💥 敌人受击反馈 · 闪白 + Squash & Stretch 形变 + 击退/眩晕（统一影响球形/柱状/木桩三类敌人）
+    // 💥 敌人受击反馈（柱状敌人）· hit* —— 闪白 + Squash & Stretch 形变 + 击退/眩晕 + Bend 弯曲
+    // 仅作用于 PillarEnemy。木桩闪白也读 hitFlash*（其它字段木桩用 stakeDeform*/stakeBend*）。
     bindSlider('inp-hfd',  'val-hfd',  'hitFlashDuration',          true);
     bindSlider('inp-hfi',  'val-hfi',  'hitFlashIntensity',         true);
     // 弹簧节奏
@@ -835,6 +889,30 @@ export function setupControlPanel() {
     bindSlider('inp-hbsh',  'val-hbsh',  'hitBendShear',             true);
     bindSlider('inp-hbpi',  'val-hbpi',  'hitBendPushIn',            true);
     bindSlider('inp-hbal',  'val-hbal',  'hitBendAxisLength',        true);
+
+    // 🟣 敌人受击反馈（史莱姆）· hitS* —— 简化版（与柱状组完全独立）
+    // 仅作用于 Enemy。控件 id 前缀 inpS-/valS- 与柱状组的 inp-/val- 区分。
+    // 形状细项（SquashAxis/Bulge、StretchAxis/Pinch、DentDepth、BendBulge/Shear/PushIn 等）
+    // 已被合并到 hitSDeformIntensity / hitSBendIntensity 两个"总幅度"参数，
+    // 内部按 SLIME_DEFORM_BASE / SLIME_BEND_BASE 固定比例分配（见 src/effects/HitReaction.js）。
+    bindSlider('inpS-hfd',  'valS-hfd',  'hitSFlashDuration',          true);
+    bindSlider('inpS-hfi',  'valS-hfi',  'hitSFlashIntensity',         true);
+    // 弹性形变：节奏 / Q 弹度 / 总幅度
+    bindSlider('inpS-hds',  'valS-hds',  'hitSDeformStiffness',        false);
+    bindSlider('inpS-hdm',  'valS-hdm',  'hitSDeformDamping',          true);
+    bindSlider('inpS-hdi',  'valS-hdi',  'hitSDeformIntensity',        true);
+    bindSlider('inpS-hdu',  'valS-hdu',  'hitSDeformDuration',         true);
+    // 击退（4 参数：总位移 / 初速度 / 末速度 / 速度曲线指数）+ 眩晕
+    // 详细模型说明见 config.js 中 hitSKnockback* 的注释。
+    bindSlider('inpS-hkd',  'valS-hkd',  'hitSKnockbackDistance',      true);
+    bindSlider('inpS-hkv0', 'valS-hkv0', 'hitSKnockbackStartSpeed',    true);
+    bindSlider('inpS-hkv1', 'valS-hkv1', 'hitSKnockbackEndSpeed',      true);
+    bindSlider('inpS-hkc',  'valS-hkc',  'hitSKnockbackCurve',         true);
+    bindSlider('inpS-hsd',  'valS-hsd',  'hitSStunDuration',           true);
+    // 击退弯曲：节奏 / Q 弹度 / 总幅度
+    bindSlider('inpS-hbs',  'valS-hbs',  'hitSBendStiffness',          false);
+    bindSlider('inpS-hbm',  'valS-hbm',  'hitSBendDamping',            true);
+    bindSlider('inpS-hbi',  'valS-hbi',  'hitSBendIntensity',          true);
 
     // ✨ 击中流星火花特效 (HitSparkEffect)
     bindSlider('inp-hsv1', 'val-hsv1', 'hitSparkSpeedMin',     true);
@@ -1140,6 +1218,12 @@ export function setupControlPanel() {
     bindSlider('inp-crit-en',  'val-crit-en',  'critEnabled');                  // 0/1
     bindSlider('inp-crit-ch',  'val-crit-ch',  'critChance',          true);
     bindSlider('inp-crit-dmg', 'val-crit-dmg', 'critDamage');                   // 整数
+    // 暴击击退（史莱姆专属 4 参数，与 hitSKnockback* 平行；命中柱状/木桩仍走下面的 critKnockbackForce）
+    bindSlider('inp-crit-kd',  'val-crit-kd',  'critKnockbackDistance',   true);
+    bindSlider('inp-crit-kv0', 'val-crit-kv0', 'critKnockbackStartSpeed', true);
+    bindSlider('inp-crit-kv1', 'val-crit-kv1', 'critKnockbackEndSpeed',   true);
+    bindSlider('inp-crit-kc',  'val-crit-kc',  'critKnockbackCurve',      true);
+    // 暴击命中柱状/木桩时的冲量（不参与位移，仅做弯曲形变换算）
     bindSlider('inp-crit-kb',  'val-crit-kb',  'critKnockbackForce',  true);
     // 暴击粒子（复用回收命中爆体）
     bindSlider('inp-crit-bs',  'val-crit-bs',  'critBurstScale',      true);

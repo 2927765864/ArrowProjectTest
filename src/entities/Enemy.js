@@ -19,13 +19,36 @@ const SHARED_EAR_GEO  = new THREE.ConeGeometry(0.12, 0.22, 8); // 16 → 8
 const _scratchDir = new THREE.Vector3();
 const _ZERO_VEC = new THREE.Vector3(0, 0, 0); // lerp 目标用
 const _scratchKnockback = new THREE.Vector3();
+// 击退积分 scratch：每帧计算"剩余位移"和"本帧位移增量"用
+const _scratchKbStep = new THREE.Vector3();
 
 export class Enemy {
-    constructor(spawnPosition = null, isDummy = false) {
+    constructor(spawnPosition = null, isDummy = false, options = {}) {
         this.isDummy = isDummy;
+        // stationary = 站桩史莱姆：外观与普通史莱姆完全一致，但永远不追玩家、HP 无限。
+        // 注意：与 isDummy 区别在于不改变颜色、不改变击退/眩晕参数组（仍走 hitS*），
+        // 只关闭"主动 AI 朝玩家移动"这一项；其它（受击形变、击退、bounce）保持普通史莱姆行为。
+        this.stationary = !!options.stationary;
         this.mesh = new THREE.Group(); 
         this.mesh.position.y = 0.4; 
-        this.knockbackVelocity = new THREE.Vector3(0, 0, 0); 
+        // ===== 击退状态（新模型：位移 + 速度曲线）=====
+        // 旧模型用 knockbackVelocity（冲量+指数衰减），存在"力小则始终低速"的弊端。
+        // 新模型用一组明确状态描述击退过程，详见 config.js 中 hitSKnockback* 的注释。
+        //   · _kbDir       : 方向（单位向量）
+        //   · _kbDistance  : 本次击退要走的总位移（米）
+        //   · _kbStart/End : 初/末速度
+        //   · _kbCurve     : 进度重映射指数 p (t' = t^p)
+        //   · _kbDuration  : 由 2*Distance/(Start+End) 反推的持续时间
+        //   · _kbElapsed   : 已经过的时间
+        //   · _kbActive    : 当前是否处于击退过程
+        this._kbDir = new THREE.Vector3();
+        this._kbDistance = 0;
+        this._kbStart = 0;
+        this._kbEnd = 0;
+        this._kbCurve = 1;
+        this._kbDuration = 0;
+        this._kbElapsed = 0;
+        this._kbActive = false;
         this.stunTimer = 0; 
         
         let bodyColor = 0x5e55a2;
@@ -52,7 +75,8 @@ export class Enemy {
         });
 
         // 受击反馈（闪白 + 弹性形变），先创建实例，attach 留到知道 childPivot 后调用
-        this.hitReaction = new HitReaction();
+        // 史莱姆使用独立的一组 hitS* CONFIG 字段（与柱状敌人的 hit* 完全隔离）
+        this.hitReaction = new HitReaction({ configKey: 'hitS' });
 
         // 主身体：childPivot = (0,0,0)，因为 bodyMesh 自身的顶点就在 deformTarget 局部空间
         this.bodyMesh = new THREE.Mesh(SHARED_BODY_GEO, bodyMat);
@@ -86,7 +110,7 @@ export class Enemy {
             this.mesh.position.z = spawnPosition.z;
         }
         
-        this.hp = this.isDummy
+        this.hp = (this.isDummy || this.stationary)
             ? Infinity
             : ((typeof CONFIG.enemyHP === 'number') ? CONFIG.enemyHP : 160); 
         // speedBias: [0,1)，每个敌人固定的随机偏向；实际速度 = base + bias * random幅度（每帧从 CONFIG 读）
@@ -102,7 +126,8 @@ export class Enemy {
         this.isPendingDeath = false;
         this._pendingDeathTimer = 0;
         this._pendingDeathDir = null;
-        this.mesh.scale.setScalar(CONFIG.enemyScale);
+        // 史莱姆视觉大小 = enemyScale × slimeScaleMul（slimeScaleMul 仅这一类生效）
+        this.mesh.scale.setScalar(CONFIG.enemyScale * (CONFIG.slimeScaleMul ?? 1));
 
         // 绑定 hitReaction 参考坐标系：命中位置转换基于 this.mesh（根 Group），形变应用在 bodyMesh 上
         this.hitReaction.setTargets(this.mesh, this.bodyMesh);
@@ -134,11 +159,15 @@ export class Enemy {
             _scratchDir.y = 0;
             const lenSq = _scratchDir.lengthSq();
             if (lenSq > 1e-8) {
-                _scratchDir.multiplyScalar(1 / Math.sqrt(lenSq));
-                const baseSpd = (typeof CONFIG.enemyMoveSpeedBase === 'number') ? CONFIG.enemyMoveSpeedBase : 2.5;
-                const randSpd = (typeof CONFIG.enemyMoveSpeedRandom === 'number') ? CONFIG.enemyMoveSpeedRandom : 1.5;
-                const curSpeed = Math.max(0, baseSpd + this.speedBias * randSpd);
-                this.mesh.position.addScaledVector(_scratchDir, curSpeed * delta);
+                // stationary = 站桩史莱姆：跳过位移这一步，但仍保留下方"朝玩家转身"，
+                // 让视觉与普通史莱姆一致（眼睛/耳朵朝向玩家），只是身体不前进。
+                if (!this.stationary) {
+                    _scratchDir.multiplyScalar(1 / Math.sqrt(lenSq));
+                    const baseSpd = (typeof CONFIG.enemyMoveSpeedBase === 'number') ? CONFIG.enemyMoveSpeedBase : 2.5;
+                    const randSpd = (typeof CONFIG.enemyMoveSpeedRandom === 'number') ? CONFIG.enemyMoveSpeedRandom : 1.5;
+                    const curSpeed = Math.max(0, baseSpd + this.speedBias * randSpd);
+                    this.mesh.position.addScaledVector(_scratchDir, curSpeed * delta);
+                }
             }
             // 用 atan2 替代 lookAt：敌人只需要 Y 轴旋转，避免 lookAt 内部矩阵分解开销
             const dx = playerPos.x - this.mesh.position.x;
@@ -150,15 +179,34 @@ export class Enemy {
         this.bodyMesh.position.y = bounce * 0.15;
         this.bodyMesh.scale.set(1.15 - bounce * 0.1, 0.9 + bounce * 0.15, 1.1 - bounce * 0.1);
         
-        // 仅在确实有击退时才 lerp，避免对零向量做无意义的 lerp(new Vector3())
-        if (this.knockbackVelocity.lengthSq() > 0.01) {
-            this.mesh.position.addScaledVector(this.knockbackVelocity, delta);
-            this.knockbackVelocity.lerp(_ZERO_VEC, delta * 10);
+        // ===== 击退积分（新模型：位移 + 速度曲线）=====
+        // 模型说明见 applyKnockback() 及 config.js 的 hitSKnockback* 注释。
+        // 每帧根据进度 t∈[0,1] 计算瞬时速度 v(t) = lerp(start, end, t^curve)，
+        // 然后位移增量 = v(t) * delta。当 _kbElapsed ≥ _kbDuration 时结束。
+        if (this._kbActive) {
+            this._kbElapsed += delta;
+            const T = this._kbDuration;
+            // 计算本帧使用的"中点进度"——用 t = (_kbElapsed - delta/2) / T 比首/尾点采样更准
+            // （梯形积分思想），尤其在 curve 偏离 1 时能让总位移更接近设定 Distance。
+            let tMid = (this._kbElapsed - delta * 0.5) / T;
+            if (tMid < 0) tMid = 0;
+            if (tMid > 1) tMid = 1;
+            const remap = (this._kbCurve === 1) ? tMid : Math.pow(tMid, this._kbCurve);
+            const v = this._kbStart + (this._kbEnd - this._kbStart) * remap;
+            // 本帧位移 = v * dt（注意收尾帧不要走超时间）
+            const dt = Math.min(delta, T - (this._kbElapsed - delta));
+            if (dt > 0 && v > 0) {
+                this.mesh.position.addScaledVector(this._kbDir, v * dt);
+            }
+            if (this._kbElapsed >= T) {
+                this._kbActive = false;
+                this._kbDistance = 0;
+            }
         }
 
         // 把敌人 clamp 在"玩家可移动范围"内：连续被击退会把敌人推出玩家走不到的区域，
-        // 这里做边界约束。撞到边界后还要把"指向墙外"的速度分量清零，否则击退向量会
-        // 持续顶在墙上、让 hitReaction 的弯曲形变和位置插值长时间停在边界上。
+        // 这里做边界约束。撞到边界后还要把"指向墙外"的位移方向分量清零，否则击退
+        // 会持续顶在墙上、让 hitReaction 的弯曲形变和位置插值长时间停在边界上。
         // 注意：玩家可达区域 = visibleGroundBounds 缩进 (0.6*playerScale, 0.8*playerScale)，
         // 见 main.js 中玩家位置 clamp。这里和玩家用同一套 margin，再额外加敌人自身半径
         // 让敌人身体也不会越出玩家可达范围。
@@ -176,17 +224,17 @@ export class Enemy {
             const maxZ = bounds.maxZ - marginZ;
             if (px < minX) {
                 this.mesh.position.x = minX;
-                if (this.knockbackVelocity.x < 0) this.knockbackVelocity.x = 0;
+                if (this._kbDir.x < 0) this._kbDir.x = 0;
             } else if (px > maxX) {
                 this.mesh.position.x = maxX;
-                if (this.knockbackVelocity.x > 0) this.knockbackVelocity.x = 0;
+                if (this._kbDir.x > 0) this._kbDir.x = 0;
             }
             if (pz < minZ) {
                 this.mesh.position.z = minZ;
-                if (this.knockbackVelocity.z < 0) this.knockbackVelocity.z = 0;
+                if (this._kbDir.z < 0) this._kbDir.z = 0;
             } else if (pz > maxZ) {
                 this.mesh.position.z = maxZ;
-                if (this.knockbackVelocity.z > 0) this.knockbackVelocity.z = 0;
+                if (this._kbDir.z > 0) this._kbDir.z = 0;
             }
         }
 
@@ -194,16 +242,96 @@ export class Enemy {
         if (this.hitReaction) this.hitReaction.update(delta);
     }
     
-    applyKnockback(direction, force) { 
-        if (!this.isDummy) {
-            // 复用 scratch 避免 direction.clone()
-            _scratchKnockback.copy(direction).multiplyScalar(force);
-            this.knockbackVelocity.add(_scratchKnockback);
-            // 触发"被推弯曲"形变（与 takeDamage 的 squash 通道独立运行；
-            // squash 是命中瞬间的对称压扁，bend 是被推的方向性弯曲，两者叠加更有冲击感）
+    /**
+     * 新模型击退：4 参数（总位移 / 初速度 / 末速度 / 速度曲线指数）。
+     *
+     * @param {THREE.Vector3} direction 击退方向（不必归一化，本方法会自动归一）
+     * @param {object} [params] 可选；不传时使用 CONFIG.hitSKnockback* 默认值
+     * @param {number} [params.distance]   总位移（米）
+     * @param {number} [params.startSpeed] 初速度（米/秒）
+     * @param {number} [params.endSpeed]   末速度（米/秒）
+     * @param {number} [params.curve]      速度曲线指数 p（t' = t^p；<1 前快后慢，>1 前慢后快）
+     *
+     * 叠加规则（已在击退过程中再次命中）：
+     *   - 进度被重置为 0
+     *   - 新方向 = 上次"剩余位移向量" + "新位移向量"，再归一化
+     *   - 新 distance = 该合成向量的长度
+     *   - StartSpeed/EndSpeed/Curve 取本次的新值（让每次命中都能感受到完整的"初速度爆发"）
+     *
+     * 同时触发 HitReaction 的 bend 形变；force 参数用 distance 作为"等效冲量"传给它
+     * （bend 内部按 force 大小注入弹簧初值，distance 越大形变越夸张，符合直觉）。
+     */
+    applyKnockback(direction, params) {
+        if (this.isDummy) return;
+
+        // 从 CONFIG 读默认值；params 中提供的字段覆盖默认
+        const distance = (params && typeof params.distance === 'number')
+            ? params.distance
+            : (typeof CONFIG.hitSKnockbackDistance === 'number' ? CONFIG.hitSKnockbackDistance : 1.0);
+        const startSpeed = (params && typeof params.startSpeed === 'number')
+            ? params.startSpeed
+            : (typeof CONFIG.hitSKnockbackStartSpeed === 'number' ? CONFIG.hitSKnockbackStartSpeed : 12.0);
+        const endSpeed = (params && typeof params.endSpeed === 'number')
+            ? params.endSpeed
+            : (typeof CONFIG.hitSKnockbackEndSpeed === 'number' ? CONFIG.hitSKnockbackEndSpeed : 2.0);
+        const curve = (params && typeof params.curve === 'number')
+            ? params.curve
+            : (typeof CONFIG.hitSKnockbackCurve === 'number' ? CONFIG.hitSKnockbackCurve : 1.0);
+
+        // 退化情况：距离为 0 或两个速度都为 0 → 仅触发 bend 形变，不做位移
+        const avgSpeed = (startSpeed + endSpeed) * 0.5;
+        if (distance <= 1e-6 || avgSpeed <= 1e-6) {
             if (this.hitReaction) {
-                this.hitReaction.triggerBend(direction, force);
+                this.hitReaction.triggerBend(direction, distance);
             }
+            return;
+        }
+
+        // 归一化方向（容错：零向量直接跳过）
+        _scratchKnockback.copy(direction);
+        _scratchKnockback.y = 0; // 击退只发生在水平面，避免任何 Y 分量把敌人顶上天
+        const dirLenSq = _scratchKnockback.lengthSq();
+        if (dirLenSq < 1e-8) return;
+        _scratchKnockback.multiplyScalar(1 / Math.sqrt(dirLenSq));
+
+        // ===== 叠加：方向合成 =====
+        // 若上一次击退还在进行中，把"剩余位移向量"和"新位移向量"合成。
+        let combinedDist = distance;
+        if (this._kbActive) {
+            // 用 (1 - 进度) 估算剩余位移占比；这里用 elapsed/duration 作为时间进度的近似
+            // （严格来说应该按 ∫v(t)dt 算剩余位移，但对手感影响很小，简化处理）
+            const tProg = Math.min(1, this._kbElapsed / Math.max(this._kbDuration, 1e-6));
+            const remainFrac = 1 - tProg;
+            const remainDist = this._kbDistance * remainFrac;
+
+            // 剩余位移向量 + 新位移向量
+            _scratchKbStep.copy(this._kbDir).multiplyScalar(remainDist);
+            _scratchKbStep.addScaledVector(_scratchKnockback, distance);
+
+            const combLenSq = _scratchKbStep.lengthSq();
+            if (combLenSq > 1e-8) {
+                combinedDist = Math.sqrt(combLenSq);
+                _scratchKnockback.copy(_scratchKbStep).multiplyScalar(1 / combinedDist);
+            }
+        }
+
+        // 写入击退状态，进度重置为 0
+        this._kbDir.copy(_scratchKnockback);
+        this._kbDistance = combinedDist;
+        this._kbStart = Math.max(0, startSpeed);
+        this._kbEnd = Math.max(0, endSpeed);
+        this._kbCurve = Math.max(0.01, curve);
+        // 持续时间：T = 2 * Distance / (Start + End)（梯形面积反推匀加/减速时长）
+        // 注意：曲线指数 ≠ 1 时实际积分位移 ≈ Distance 而非严格等于，差异通常 <5%。
+        this._kbDuration = (2 * combinedDist) / (this._kbStart + this._kbEnd);
+        this._kbElapsed = 0;
+        this._kbActive = true;
+
+        // 触发"被推弯曲"形变（与 takeDamage 的 squash 通道独立运行；
+        // squash 是命中瞬间的对称压扁，bend 是被推的方向性弯曲，两者叠加更有冲击感）
+        // 这里用 distance 作为传给 bend 的"等效冲量大小"——distance 越大，弯曲越强。
+        if (this.hitReaction) {
+            this.hitReaction.triggerBend(direction, distance);
         }
     }
     
@@ -222,7 +350,7 @@ export class Enemy {
 
         this.hp -= amount;
 
-        // 受击反馈：闪白 + 弹性凹陷形变（参数来自 CONFIG.hitFlash* / hitDeform*）
+        // 受击反馈：闪白 + 弹性凹陷形变（史莱姆专用参数 CONFIG.hitSFlash* / hitSDeform*）
         if (this.hitReaction) {
             this.hitReaction.trigger(hitPointWorld || null, direction || null);
         }

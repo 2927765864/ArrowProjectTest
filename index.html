@@ -280,10 +280,14 @@
                     <div class="panel-row-header"><span>敌人移动速度·随机幅度</span><span id="val-emsr">1.50</span></div>
                     <input type="range" id="inp-emsr" min="0" max="10" step="0.1" value="1.5">
                 </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>史莱姆尺寸倍率 (× 敌人尺寸倍率)</span><span id="val-ssm">1.00</span></div>
+                    <input type="range" id="inp-ssm" min="0.2" max="3.0" step="0.05" value="1.0">
+                </div>
             </details>
 
             <details class="panel-group">
-                <summary>💥 敌人受击反馈（统一影响所有敌人，包括木桩）</summary>
+                <summary>💥 敌人受击反馈（柱状敌人）</summary>
                 <div class="panel-row" style="padding-top: 6px;">
                     <div class="panel-row-header"><span>闪白·持续时间 (秒)</span><span id="val-hfd">0.12</span></div>
                     <input type="range" id="inp-hfd" min="0" max="0.6" step="0.01" value="0.12">
@@ -327,7 +331,7 @@
                     <input type="range" id="inp-hdtp" min="0" max="0.95" step="0.01" value="0.3">
                 </div>
 
-                <!-- ===== 局部凹陷（仅球形/柱状 shader 顶点细节，叠加在整体缩放之上）===== -->
+                <!-- ===== 局部凹陷（柱状 shader 顶点细节，叠加在整体缩放之上）===== -->
                 <div class="panel-row">
                     <div class="panel-row-header"><span>局部凹陷·深度 (打击点细节)</span><span id="val-hddd">0.18</span></div>
                     <input type="range" id="inp-hddd" min="0" max="1.0" step="0.01" value="0.18">
@@ -389,6 +393,83 @@
                 <div class="panel-row">
                     <div class="panel-row-header"><span>击退弯曲·命中轴归一化半长</span><span id="val-hbal">0.50</span></div>
                     <input type="range" id="inp-hbal" min="0.05" max="3.0" step="0.01" value="0.5">
+                </div>
+            </details>
+
+            <!-- ===== 史莱姆敌人受击反馈（hitS*）—— 简化版 =====
+                 与上方"柱状敌人"完全独立的另一组参数，仅作用于 Enemy（史莱姆）。
+                 相比柱状组的 22 个细分参数，史莱姆组合并为 9 个总控项：闪白 + 形变(节奏/Q弹/总幅度)
+                 + 击退/眩晕 + 弯曲(节奏/Q弹/总幅度)。多个细分形状参数（SquashAxis/Bulge、
+                 StretchAxis/Pinch、DentDepth、BendBulge/Shear/PushIn 等）被合并到两个"总幅度"参数，
+                 内部按固定比例分配（见 src/effects/HitReaction.js 的 SLIME_DEFORM_BASE / SLIME_BEND_BASE）。
+                 控件 id 前缀 inpS-/valS- 与柱状组的 inp-/val- 区分。 -->
+            <details class="panel-group">
+                <summary>🟣 敌人受击反馈（史莱姆）</summary>
+                <div class="panel-row" style="padding-top: 6px;">
+                    <div class="panel-row-header"><span>闪白·持续时间 (秒)</span><span id="valS-hfd">0.12</span></div>
+                    <input type="range" id="inpS-hfd" min="0" max="0.6" step="0.01" value="0.12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>闪白·强度</span><span id="valS-hfi">1.00</span></div>
+                    <input type="range" id="inpS-hfi" min="0" max="1" step="0.01" value="1.0">
+                </div>
+
+                <!-- ===== 弹性形变（Squash & Stretch + 局部凹陷）：3 个总控项 ===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·节奏 (回弹刚度)</span><span id="valS-hds">115</span></div>
+                    <input type="range" id="inpS-hds" min="40" max="800" step="5" value="115">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·Q弹度 (阻尼, 越小越q弹)</span><span id="valS-hdm">7.8</span></div>
+                    <input type="range" id="inpS-hdm" min="0" max="40" step="0.2" value="7.8">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·总幅度 (0=关, 1=出厂)</span><span id="valS-hdi">1.00</span></div>
+                    <input type="range" id="inpS-hdi" min="0" max="2.5" step="0.01" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>形变·总时间 (秒, 兜底上限)</span><span id="valS-hdu">1.44</span></div>
+                    <input type="range" id="inpS-hdu" min="0.1" max="3.0" step="0.01" value="1.44">
+                </div>
+
+                <!-- ===== 击退（4 参数：总位移 / 初速度 / 末速度 / 速度曲线）+ 眩晕 =====
+                     详细模型见 config.js 中 hitSKnockback* 的注释。
+                     直觉：先调"总位移"决定推多远，再调"初速度"决定爆发感（值大=瞬间被打飞，
+                     值小=被推着滑），"末速度"决定收尾节奏（≈0 时硬刹车感强，与初速接近时匀速），
+                     "速度曲线"<1 = 前快后慢（最像被打飞），=1 线性，>1 前慢后快。 -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·总位移 (米)</span><span id="valS-hkd">1.00</span></div>
+                    <input type="range" id="inpS-hkd" min="0" max="6" step="0.05" value="1.0">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·初速度 (米/秒, 爆发感)</span><span id="valS-hkv0">12.00</span></div>
+                    <input type="range" id="inpS-hkv0" min="0" max="40" step="0.5" value="12">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·末速度 (米/秒, 收尾)</span><span id="valS-hkv1">2.00</span></div>
+                    <input type="range" id="inpS-hkv1" min="0" max="40" step="0.5" value="2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·速度曲线 (&lt;1前快后慢, =1线性, &gt;1前慢后快)</span><span id="valS-hkc">0.60</span></div>
+                    <input type="range" id="inpS-hkc" min="0.1" max="4" step="0.05" value="0.6">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>眩晕时长 (回收命中, 秒)</span><span id="valS-hsd">0.15</span></div>
+                    <input type="range" id="inpS-hsd" min="0" max="1.5" step="0.01" value="0.15">
+                </div>
+
+                <!-- ===== 击退弯曲 Bend：3 个总控项 ===== -->
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲·节奏 (弹簧刚度)</span><span id="valS-hbs">164</span></div>
+                    <input type="range" id="inpS-hbs" min="5" max="2000" step="1" value="164">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲·Q弹度 (阻尼)</span><span id="valS-hbm">9.00</span></div>
+                    <input type="range" id="inpS-hbm" min="0" max="100" step="0.1" value="9">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>弯曲·总幅度 (0=关, 1=出厂)</span><span id="valS-hbi">1.00</span></div>
+                    <input type="range" id="inpS-hbi" min="0" max="2.5" step="0.01" value="1.0">
                 </div>
             </details>
 
@@ -885,9 +966,9 @@
                 <summary>🪵 木桩受击反馈 (形变 + 弯曲 · 木桩独有，与敌人完全独立)</summary>
                 <!-- 木桩有两套独立的物理：
                      ① Squash & Stretch 形变（stakeDeform*）— 木桩本体的"被压扁/被拉长"，
-                        参数语义与上方敌人受击反馈的 hitDeform* 完全一致，但数值各自独立。
-                     ② pivot 弯曲（stakeBend*）— 木桩绕地面 pivot 的摇摆，球形/柱状敌人没有此物理。
-                     闪白和击退/眩晕仍与敌人共用 hit* 参数（在上方分组）。-->
+                        参数语义与"敌人受击反馈（柱状敌人）"的 hitDeform* 完全一致，但数值各自独立。
+                     ② pivot 弯曲（stakeBend*）— 木桩绕地面 pivot 的摇摆，柱状/史莱姆敌人没有此物理。
+                     闪白仍走"敌人受击反馈（柱状敌人）"的 hitFlash* 参数（视觉差异微小，不单独拆分）。-->
 
                 <!-- ===== Squash & Stretch 形变（弹簧节奏）===== -->
                 <div class="panel-row" style="padding-top: 6px;">
@@ -993,6 +1074,10 @@
                 <div class="panel-row">
                     <div class="panel-row-header"><span>四人小队中柱状敌人数量</span><span id="val-w4pc">2</span></div>
                     <input type="range" id="inp-w4pc" min="0" max="4" step="1" value="2">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>柱状敌人尺寸倍率 (× 敌人尺寸倍率)</span><span id="val-psm">1.00</span></div>
+                    <input type="range" id="inp-psm" min="0.2" max="3.0" step="0.05" value="1.0">
                 </div>
             </details>
 
@@ -2167,15 +2252,33 @@
                 </div>
 
                 <!-- ============================================================
-                     2️⃣ 击退反馈 —— 控制"暴击命中后敌人被推开多远"
+                     2️⃣ 击退反馈 —— 暴击命中后敌人被推开多远 + 多猛
+                     语义和史莱姆"敌人受击反馈"里的击退 4 参数完全一致，仅数值独立。
+                     这一组只在 命中史莱姆 时使用；命中柱状/木桩走最下面的"击退冲量"。
                      ============================================================ -->
                 <div class="panel-section-title">
                     <span class="ps-icon">💪</span>
-                    <span>2. 击退反馈</span>
-                    <span class="ps-hint">敌人被推开的力度</span>
+                    <span>2. 击退反馈（史莱姆）</span>
+                    <span class="ps-hint">总位移 / 初速度 / 末速度 / 曲线</span>
                 </div>
                 <div class="panel-row">
-                    <div class="panel-row-header"><span>击退力度 (普通=10, 越大推得越远)</span><span id="val-crit-kb">30.00</span></div>
+                    <div class="panel-row-header"><span>击退·总位移 (米)</span><span id="val-crit-kd">2.50</span></div>
+                    <input type="range" id="inp-crit-kd" min="0" max="10" step="0.05" value="2.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·初速度 (米/秒, 爆发感)</span><span id="val-crit-kv0">24.00</span></div>
+                    <input type="range" id="inp-crit-kv0" min="0" max="80" step="0.5" value="24">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·末速度 (米/秒, 收尾)</span><span id="val-crit-kv1">3.00</span></div>
+                    <input type="range" id="inp-crit-kv1" min="0" max="80" step="0.5" value="3">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退·速度曲线 (&lt;1前快后慢)</span><span id="val-crit-kc">0.50</span></div>
+                    <input type="range" id="inp-crit-kc" min="0.1" max="4" step="0.05" value="0.5">
+                </div>
+                <div class="panel-row">
+                    <div class="panel-row-header"><span>击退冲量 (命中柱状/木桩时, 不位移)</span><span id="val-crit-kb">30.00</span></div>
                     <input type="range" id="inp-crit-kb" min="0" max="100" step="0.5" value="30">
                 </div>
 

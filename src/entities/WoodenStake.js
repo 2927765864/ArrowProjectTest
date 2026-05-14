@@ -88,11 +88,12 @@ export class WoodenStake {
         this.materials = [bodyMat, darkMat, topMat, ropeMat];
         this.materials.forEach(m => { m.userData.baseColor = m.color.getHex(); });
 
-        // 受击反馈：闪白走 HitReaction，与 Enemy / PillarEnemy 共用同一组 hitFlash* 参数（统一手感）。
+        // 受击反馈：闪白走 HitReaction，默认 configKey='hit' —— 与 PillarEnemy（柱状）
+        // 共用一组 hitFlash* 参数（手感统一；木桩与史莱姆 hitS* 分组独立）。
         // 但形变完全独立——HitReaction 用 flashOnly 模式启动，不会驱动 shader 形变 uniforms；
         // 木桩自己跑一个本地弹簧（见 _applyBendImpulse + update），参数从 CONFIG.stakeDeform* 读取，
-        // 与 hitDeform* 互不干扰。这样调球形/柱状敌人形变不影响木桩，反之亦然。
-        this.hitReaction = new HitReaction({ flashOnly: true });
+        // 与 hitDeform*/hitSDeform* 互不干扰。这样调任意一组敌人参数都不影响木桩。
+        this.hitReaction = new HitReaction({ flashOnly: true, configKey: 'hit' });
         this.materials.forEach(m => this.hitReaction.attach(m));
 
         // 主立柱（底略粗、顶略细）
@@ -184,6 +185,9 @@ export class WoodenStake {
         // 形变 yaw 对齐：把 deformGroup 旋到"命中方向 = local +Z"，
         // 这样 update() 里只需对 (X, Y, Z) 做非均匀缩放即可：Z 是命中轴方向，X 是横向。
         // stakeGroup 反向旋转抵消，使 mesh 的实际世界朝向不变。
+        //
+        // 形变总开关：木桩跟随"敌人受击反馈（柱状敌人）"分组的 hitDeformEnabled。
+        // （木桩的形变数值用 stakeDeform*；这里只复用 enabled 开关，避免给木桩单独加一个）
         if (CONFIG.hitDeformEnabled ?? true) {
             const horizontalLenSq = direction.x * direction.x + direction.z * direction.z;
             if (horizontalLenSq > 1e-6) {
@@ -208,7 +212,7 @@ export class WoodenStake {
     }
 
     applyStun(_duration) {
-        // 木桩无需眩晕，留空接口（保留 hitStunDuration 由其它敌人使用）
+        // 木桩无需眩晕，留空接口（hitStunDuration / hitSStunDuration 由柱状/史莱姆敌人各自使用）
     }
 
     takeDamage(amount, type, direction, hitPointWorld, isCrit = false) {

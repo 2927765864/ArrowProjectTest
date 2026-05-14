@@ -70,7 +70,8 @@ export class PillarEnemy {
         this.materials.forEach(m => { m.userData.baseColor = m.color.getHex(); });
 
         // 受击反馈（闪白 + 弹性形变）：先 new 实例，attach 留到知道 childPivot 后逐个调用
-        this.hitReaction = new HitReaction();
+        // 柱状敌人使用 hit* 这组 CONFIG 字段（"敌人受击反馈（柱状敌人）" 面板分类）
+        this.hitReaction = new HitReaction({ configKey: 'hit' });
 
         // ---------- 底座 ----------
         // 底座视为"地基"：不参与形变（柱身被推弯时，地面这一节应该稳定不动）。
@@ -143,7 +144,8 @@ export class PillarEnemy {
         this.windupTimer = 0;
 
         // ---------- 缩放 ----------
-        this.mesh.scale.setScalar(CONFIG.enemyScale);
+        // 柱状视觉大小 = enemyScale × pillarScaleMul（pillarScaleMul 仅这一类生效）
+        this.mesh.scale.setScalar(CONFIG.enemyScale * (CONFIG.pillarScaleMul ?? 1));
 
         // 绑定 hitReaction 的参考坐标系：柱体主体 pillar 作为形变目标
         this.hitReaction.setTargets(this.mesh, this.pillar);

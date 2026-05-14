@@ -588,11 +588,31 @@ export class Feather {
                         // 主动攻击 · 飞行穿刺（前三根普通 / 第4根特殊各自独立）
                         triggerHaptic('hit');
                         Globals.audioManager?.playHit('low');
-                        // 暴击使用独立的击退力度；普通主动攻击保持 hitKnockbackForce
-                        const knockForce = isCrit
-                            ? (CONFIG.critKnockbackForce ?? 30)
-                            : (CONFIG.hitKnockbackForce ?? 10);
-                        enemy.applyKnockback(currentDir, knockForce);
+                        // ===== 击退 =====
+                        // 史莱姆敌人才会真的"位移"，走新的 4 参数模型（距离/初速度/末速度/曲线）：
+                        //   · 普通命中 → applyKnockback(dir)，敌人内部读 CONFIG.hitSKnockback*
+                        //   · 暴击命中 → applyKnockback(dir, { 用 critKnockback* 覆盖 })
+                        // 柱状/木桩不真的位移，applyKnockback 走"力/冲量"语义，仍传旧的 force 数值：
+                        //   · 柱状 → 内部只换算 bend 形变强度
+                        //   · 木桩 → 内部按 stakeKnockbackBendScale 换算成弯曲冲量
+                        if (enemy.isPillar || enemy.isDummy) {
+                            const knockForce = isCrit
+                                ? (CONFIG.critKnockbackForce ?? 30)
+                                : (CONFIG.hitKnockbackForce ?? 10);
+                            enemy.applyKnockback(currentDir, knockForce);
+                        } else {
+                            // 史莱姆：暴击时用 critKnockback* 一组参数覆盖，否则用默认 hitSKnockback*
+                            if (isCrit) {
+                                enemy.applyKnockback(currentDir, {
+                                    distance:   CONFIG.critKnockbackDistance,
+                                    startSpeed: CONFIG.critKnockbackStartSpeed,
+                                    endSpeed:   CONFIG.critKnockbackEndSpeed,
+                                    curve:      CONFIG.critKnockbackCurve,
+                                });
+                            } else {
+                                enemy.applyKnockback(currentDir);
+                            }
+                        }
                         this.hitStopTimer = this.isSpecial
                             ? (CONFIG.attackHitVisualPauseSpecial ?? 0.03)
                             : (CONFIG.attackHitVisualPause ?? 0.02);
@@ -632,7 +652,12 @@ export class Feather {
                         else triggerHaptic('recall_hit');
                         Globals.audioManager?.playHit(isSpec ? 'special' : 'high');
                         this.hitStopTimer = isSpec ? 0.18 : 0.06;
-                        enemy.applyStun(CONFIG.hitStunDuration ?? 0.15);
+                        // 眩晕时长：按敌人类型选用 hit*/hitS* 对应字段
+                        //   柱状/木桩 → hitStunDuration；史莱姆 → hitSStunDuration
+                        const stunDur = enemy.isPillar || enemy.isDummy
+                            ? (CONFIG.hitStunDuration ?? 0.15)
+                            : (CONFIG.hitSStunDuration ?? 0.15);
+                        enemy.applyStun(stunDur);
                         if (isSpec) triggerShake(CONFIG.shakeIntensityFinal, CONFIG.shakeDurationFinal);
                         else triggerShake(CONFIG.shakeIntensityRecall, CONFIG.shakeDurationRecall);
                         // 回收命中 · 爆体粒子特效（两层：低位密集 + 高位稀疏）

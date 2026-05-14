@@ -316,6 +316,11 @@ export const DEFAULT_CONFIG = {
     indicatorMaxRange: 0.6,
     indicatorMaxInput: 1.8,
     enemyScale: 2.0,
+    // 史莱姆敌人额外尺寸倍率：实际渲染缩放 = enemyScale * slimeScaleMul
+    // 仅作用于 Enemy（球形/史莱姆）这一类，不影响柱状敌人。
+    // 注意：玩家可达区域的 marginX/Z、刀光长度等派生计算仍基于 enemyScale，
+    // 此处仅做"视觉大小微调"，避免牵动碰撞/AI 半径相关的全局假设。
+    slimeScaleMul: 1.0,
     // 普通敌人血量（isDummy=true 的训练假人会忽略此值固定为 Infinity）
     enemyHP: 160,
     // 敌人移动速度：实际速度 = enemyMoveSpeedBase + random(0,1) * enemyMoveSpeedRandom
@@ -323,6 +328,10 @@ export const DEFAULT_CONFIG = {
     enemyMoveSpeedRandom: 1.5,
     // ===== 柱状敌人（PillarEnemy）=====
     // 生成后静止不动，周期性向玩家吐出缓慢移动的球形子弹
+    // 柱状敌人额外尺寸倍率：实际渲染缩放 = enemyScale * pillarScaleMul
+    // 仅作用于 PillarEnemy 这一类视觉大小；出球点高度/AI 节奏等仍以 enemyScale 为准
+    // （PillarEnemy.js 内的注释里"enemyScale = 2.0 下世界高度约 1.0"的假设仍成立）。
+    pillarScaleMul: 1.0,
     pillarEnemyHP: 160,             // 柱状敌人血量
     pillarEnemyFireInitDelay: 1.2,  // 生成后首次开火延迟（秒）
     pillarEnemyFireInterval: 1.8,   // 两次开火的间隔（秒）
@@ -334,22 +343,31 @@ export const DEFAULT_CONFIG = {
     wave4PillarCount: 2,
 
     // =====================================================================
-    // 敌人受击反馈（统一：球形敌人 / 柱状敌人 / 木桩 共用同一组参数）
+    // 敌人受击反馈 · 第一组：柱状敌人 (hit*)
     // =====================================================================
-    // 设计原则：所有敌人共享同一组手感参数，调一次面板，三类敌人同时生效。
-    //   · 闪白              → 三类共用（颜色混合，shader/直接染色统一时长 + 强度）
-    //   · 弹性形变           → 三类共用（球形/柱状走 shader 顶点凹陷；木桩走 group 缩放，
-    //                                    但参数语义对齐：Depth/Stiffness/Damping/Duration/Squash 同名）
-    //   · 击退/眩晕          → 三类共用（木桩、柱状不会真的位移，但弯曲/反应强度会按击退力换算）
-    //   · 木桩 pivot 弯曲     → 木桩独有（球形敌人无此物理特性），单独一组 stakeBend*
+    // 面板分类名："敌人受击反馈（柱状敌人）"。
+    //
+    // 这一组 hit* 仅作用于 柱状敌人 (PillarEnemy)，与下方 hitS* 史莱姆组完全独立。
+    //
+    // 历史背景：原本是"球形/柱状/木桩 三类共用"的统一组。
+    //   2026.05 重构后：
+    //     · 史莱姆敌人 (Enemy)   → 拆出独立的一组 hitS*  （见下方"第二组"）
+    //     · 柱状敌人  (PillarEnemy) → 继续使用本组 hit*   （保持当前手感）
+    //     · 木桩      (WoodenStake) → 只 flashOnly 模式读 hitFlash*（仍跟随柱状组）
+    //
+    // 设计原则：
+    //   · 闪白              → 柱状用，木桩闪白也复用这两个字段（视觉差异微小，不单独拆）
+    //   · 弹性形变           → 柱状走 shader 顶点凹陷（局部凹陷参数 hitDeformDent* 仅柱状用到）
+    //   · 击退/眩晕          → 柱状不会真的位移，但弯曲强度会按 hitKnockbackForce 换算
+    //   · 木桩 pivot 弯曲     → 木桩独有（柱状无此物理特性），单独一组 stakeBend*
 
-    // ----- 闪白（所有敌人）-----
+    // ----- 闪白（柱状敌人；木桩闪白也读此字段）-----
     // 闪白以"颜色混合"方式叠加在基础色上。intensity=1 时完全白色覆盖，0 时无效果。
     // 实现上每帧从峰值线性衰减到 0，持续时间为 duration 秒。
     hitFlashDuration: 0.12,       // 闪白从峰值衰减到 0 的总时长（秒）
     hitFlashIntensity: 1.0,       // 闪白峰值强度（0~1）。1 = 纯白覆盖；0.5 = 半白半原色
 
-    // ----- 弹性形变 · "Squash & Stretch" 模型（所有敌人共用）-----
+    // ----- 弹性形变 · "Squash & Stretch" 模型（柱状敌人）-----
     // 设计思路（迪士尼经典动画"挤压与拉伸"）：
     //   命中瞬间，敌人沿命中方向被"压扁"（squash），同时垂直方向"鼓起"；
     //   弹簧过冲到反向时，敌人沿命中方向"拉长"（stretch），同时垂直方向"收缩"；
@@ -359,8 +377,9 @@ export const DEFAULT_CONFIG = {
     //   通过欠阻尼比 ζ ≈ 0.18 让弹簧自然过冲一次明显，再衰减 1~2 次轻微余振。
     //
     // 形变实现：
-    //   球形/柱状敌人：shader vertex 里做"沿命中轴非均匀缩放 + 局部凹陷"（不与 bodyMesh.scale 的 bounce 动画冲突）
+    //   柱状敌人：shader vertex 里做"沿命中轴非均匀缩放 + 局部凹陷"（不与 bodyMesh.scale 的 bounce 动画冲突）
     //   木桩：deformGroup.scale 整体缩放（与 shader 等效，因为木桩是多 mesh 组）
+    //   史莱姆走另一组 hitS*（见下方），与本组完全独立。
     //
     // 数值稳定性：
     //   stiffness=220, damping=14 时，自然频率 ω=√220≈14.8, 阻尼比 ζ=14/(2*14.8)≈0.47——临界欠阻尼，过冲较弱。
@@ -385,21 +404,20 @@ export const DEFAULT_CONFIG = {
     // 垂直命中轴的"收缩"比例。0.3 表示过冲峰值时垂直方向缩到 70%
     hitDeformStretchPinch: 0.3,
 
-    // —— 局部凹陷（仅球形/柱状 shader，叠加在整体缩放之上）——
+    // —— 局部凹陷（柱状 shader，叠加在整体缩放之上）——
     // 在命中点附近做一个高斯衰减的局部凹陷，增加"打击感"细节。
     // 设为 0 可完全关闭，只保留整体 squash & stretch。
     hitDeformDentDepth: 0.18,     // 局部凹陷深度（相对身体半径比例）
     hitDeformDentRadius: 0.7,     // 凹陷影响半径（局部空间单位）
 
-    // ----- 击退 & 眩晕（所有敌人，木桩柱状会被各自实现忽略位移）-----
+    // ----- 击退 & 眩晕（柱状敌人；史莱姆见下方 hitS* 组的对应字段）-----
     // 命中时由 Feather 调用 enemy.applyKnockback / applyStun。
-    //   · 球形敌人：knockback 真实位移 + stun 期间停止 AI
-    //   · 柱状敌人：忽略 knockback；stun 期间停火
+    //   · 柱状敌人：忽略 knockback 位移；stun 期间停火；triggerBend 弯曲按 force 换算
     //   · 木桩：knockback 转化为弯曲冲量（按 stakeKnockbackBendScale 换算），无 stun
-    hitKnockbackForce: 10,        // 主动攻击命中时的击退力（球形敌人冲量倍数）
-    hitStunDuration: 0.15,        // 回收命中时的眩晕时长（秒）
+    hitKnockbackForce: 10,        // 主动攻击命中柱状的击退力（仅用于 triggerBend 换算）
+    hitStunDuration: 0.15,        // 回收命中柱状的眩晕时长（秒）
 
-    // ----- "随击退弯曲"形变（Bend / Follow-Through，球形&柱状敌人，shader 顶点偏移）-----
+    // ----- "随击退弯曲"形变（Bend / Follow-Through，柱状敌人，shader 顶点偏移）-----
     // 设计动机：
     //   纯 Squash & Stretch 是沿命中轴对称的"压扁/拉长"，不带方向性。
     //   但游戏里命中是"主动推开敌人"——身体应该呈现"中间被推、两端因惯性滞后"的弯曲。
@@ -444,6 +462,102 @@ export const DEFAULT_CONFIG = {
     hitBendPushIn: 0.18,          // 命中处反凹幅度（与 bulge 反号叠加，让中间凸出更克制；想纯凸调到 0）
     hitBendAxisLength: 0.5,       // 沿命中轴的归一化半长（用于把 dot(p,axis) 归一到 t ∈ [-1,1]，
                                   //   球体半径 ≈0.38，所以 0.5 让大部分顶点 t 在 [-0.76, 0.76] 区间）
+
+    // =====================================================================
+    // 敌人受击反馈 · 第二组：史莱姆敌人 (hitS*) —— 简化版（2026.05 第二次重构）
+    // =====================================================================
+    // 面板分类名："敌人受击反馈（史莱姆）"。
+    //
+    // 这一组 hitS* 仅作用于 史莱姆敌人 (Enemy)，与上方 hit* 柱状组完全独立。
+    //
+    // 设计思路（相比第一版的简化）：
+    //   柱状组 (hit*) 暴露 22 个细分参数（SquashAxis/Bulge、StretchAxis/Pinch、DentDepth、
+    //   BendBulge/Curvature/Shear/PushIn/AxisLength、ForceRef、ImpulseMax、Duration 等），
+    //   美术调参时多数细项语义重叠且很难调出明显手感差异。史莱姆组采用「单一总幅度 + 比例
+    //   分配」的简化模型，把这些细项合并到 2 个"总幅度"参数，让用户只调"节奏 / Q 弹 / 强度"。
+    //
+    // 简化后的参数清单（闪白 2 + 形变 3 + 击退 4 + 眩晕 1 + 弯曲 3）：
+    //   1) hitSFlashDuration       闪白持续时间
+    //   2) hitSFlashIntensity      闪白强度
+    //   3) hitSDeformStiffness     形变·节奏（弹簧刚度，决定回弹快慢）
+    //   4) hitSDeformDamping       形变·Q 弹度（阻尼，越小越 q 弹）
+    //   5) hitSDeformIntensity     形变·总幅度（统一控制压扁/拉长/凹陷的整体强度）
+    //   6) hitSKnockbackDistance   击退·总位移（米，严格保证敌人被推开的距离）
+    //   7) hitSKnockbackStartSpeed 击退·初速度（米/秒，撞击瞬间的爆发速率）
+    //   8) hitSKnockbackEndSpeed   击退·末速度（米/秒，到达终点前的剩余速率，常 ≤ 初速度）
+    //   9) hitSKnockbackCurve      击退·速度曲线指数（进度重映射 t→t^p；p<1 前快后慢，p=1 线性，p>1 前慢后快）
+    //  10) hitSStunDuration        眩晕时长
+    //  11) hitSBendStiffness       弯曲·节奏
+    //  12) hitSBendDamping         弯曲·Q 弹度
+    //  13) hitSBendIntensity       弯曲·总幅度（统一控制凸出/剪切/反凹的整体强度）
+    //
+    // 删除/内化的参数（不再在面板暴露，使用固定常量见 HitReaction.js 中的
+    //   SLIME_DEFORM_BASE / SLIME_BEND_BASE）：
+    //   · Squash/Stretch/Dent 的 5 个细分（Axis/Bulge/Axis/Pinch/Depth） → 由 Intensity 统一驱动
+    //   · DentRadius、Duration、AxisLength、ForceRef、ImpulseMax       → 用固定常量
+    //   · BendCurvature                                              → 游戏中无侧击场景，固定为 0
+    //   · DeformEnabled / BendEnabled                                → Intensity=0 即可关闭
+    //
+    // 兼容性：旧 preset / localStorage 里若有第一版的细分字段（hitSDeformSquashAxis 等），
+    //   migrateDamageTextConfig() 会把它们丢弃并按新模型恢复默认 Intensity=1.0。
+
+    // ----- 闪白（史莱姆敌人）-----
+    hitSFlashDuration: 0.12,
+    hitSFlashIntensity: 1.0,
+
+    // ----- 弹性形变 · Squash & Stretch（史莱姆敌人，简化为 3 个参数）-----
+    // 弹簧位移 s(t)：受击瞬间 s=+1 → 过冲到 s<0 → 衰减回 0。
+    //   s>0 (squash 阶段)  →  沿命中轴被压扁 / 垂直方向鼓起 / 命中点局部凹陷
+    //   s<0 (stretch 阶段) →  沿命中轴被拉长 / 垂直方向收缩
+    // 各细分幅度 = Intensity * 固定基准值（见 HitReaction.js SLIME_DEFORM_BASE）。
+    // Intensity = 0 时完全无形变（等于关闭开关）；1.0 = 出厂基准手感；>1 更夸张。
+    hitSDeformStiffness: 115,     // 弹簧刚度，越大回弹越快（ω=√k）
+    hitSDeformDamping: 7.8,       // 阻尼，越小过冲越明显（ζ = c/(2ω)）；建议 5~10 看 q 弹
+    hitSDeformIntensity: 1.0,     // 形变总幅度。0 = 关闭；1 = 出厂手感；2 = 夸张
+    hitSDeformDuration: 1.44,     // 形变总时间（秒，兜底）。弹簧自然衰减至阈值后会被强制收敛归零，
+                                  //   此参数即"超过该时长仍未收敛则强制结束"的兜底上限。
+                                  //   实际肉眼可见时长仍主要由 Stiffness/Damping 决定，此值只在阻尼极低
+                                  //   或过冲幅度过大时起到"截断尾巴"的作用。
+
+    // ----- 击退 & 眩晕（史莱姆敌人）-----
+    // 史莱姆是真正会"位移"的敌人。
+    //
+    // 击退实现（2026.05 重构，从"单一力 + 指数衰减"改为"位移 + 速度曲线"）：
+    //   旧模型的问题：力小 → 整个位移过程都是低速，没有"被打飞"那一下的爆发感。
+    //   新模型：以 4 参数描述位移过程，距离严格保证，速度独立控制。
+    //
+    //   参数：
+    //     hitSKnockbackDistance   敌人本次击退要走的"总位移"（米）
+    //     hitSKnockbackStartSpeed 起步瞬间的速度（米/秒）—— 这一项决定"爆发感"
+    //     hitSKnockbackEndSpeed   接近终点时的速度（米/秒）—— 通常 ≤ StartSpeed，让位移自然收尾
+    //     hitSKnockbackCurve      进度重映射指数 p：实际速度按 t' = t^p 的进度从 Start 线性插值到 End
+    //                              · p = 1   ：线性匀变速（速度均匀从 Start 过渡到 End）
+    //                              · p < 1   ：t' 前快后慢 → 速度更快"早降到末速"，前段冲得猛后段慢
+    //                              · p > 1   ：t' 前慢后快 → 大段时间维持高速，最后一小段才减下来
+    //
+    //   持续时间 T 由距离与平均速度反推：T = 2 * Distance / (StartSpeed + EndSpeed)
+    //   —— 这保证 ∫₀ᵀ v(t)dt ≈ Distance（曲线指数仅"重排"速度变化节奏，不改变总位移）。
+    //
+    //   叠加规则（玩家连续命中同一史莱姆）：
+    //     新击退覆盖进度为 0；新方向 = 上次剩余位移向量 + 新位移向量（保留方向合成，给每次命中"完整爆发"）。
+    //
+    // stun 期间停止 AI。
+    hitSKnockbackDistance: 1.0,    // 总位移（米）
+    hitSKnockbackStartSpeed: 12.0, // 初速度（米/秒）—— 调小 Distance 不会让起步变慢
+    hitSKnockbackEndSpeed: 2.0,    // 末速度（米/秒）
+    hitSKnockbackCurve: 0.6,       // 速度曲线指数：<1 前快后慢（推荐 0.4~0.7，有"被打飞"感）
+    hitSStunDuration: 0.15,
+
+    // ----- 击退弯曲 Bend（史莱姆敌人，简化为 3 个参数）-----
+    // 由 applyKnockback(force) 触发，独立于 squash 弹簧。
+    // 顶点沿"被推方向"额外位移：
+    //   bulge   分量：钟形 (1-t²) ——"中间凸出、两端因惯性滞后"（正面命中主导）
+    //   shear   分量：线性 t     ——"整体被推一下"的副分量
+    //   pushIn  分量：钟形负向    —— 命中那一面反凹，配合 bulge 让突出更克制
+    // 各分量幅度 = BendIntensity * 固定基准值（见 HitReaction.js SLIME_BEND_BASE）。
+    hitSBendStiffness: 164,       // 弯曲弹簧刚度
+    hitSBendDamping: 9.0,         // 弯曲弹簧阻尼
+    hitSBendIntensity: 1.0,       // 弯曲总幅度。0 = 关闭；1 = 出厂手感
 
     // ----- 木桩独有：Squash & Stretch 形变（与 hitDeform* 完全独立，木桩自己一组）-----
     // 设计理由：木桩是直立圆柱，与球形/柱状敌人的几何形态/视觉重量差异较大，
@@ -493,7 +607,11 @@ export const DEFAULT_CONFIG = {
     //   2) 数字本身的动效走独立的 dmgCritAtk* 参数组（与 dmgAtk* 完全平行，
     //      由 utils.js 的 dmgPrefix('critAtk') 路由），颜色复用现有 .text-crit
     //      （亮黄、26px 基础字号）
-    //   3) 击退力度替换为 critKnockbackForce（默认 30，普通主动攻击为 10）
+    //   3) 击退效果：
+    //      · 命中"史莱姆"时 → 走暴击专属的 4 参数 (critKnockbackDistance / StartSpeed / EndSpeed / Curve)，
+    //        与 hitSKnockback* 完全平行、独立调参（典型用法：距离更长、初速度更高）
+    //      · 命中"柱状/木桩"时 → 仍然走 critKnockbackForce（这是冲量语义，给弯曲形变换算用，
+    //        柱状不会真的位移、木桩转化为弯曲冲量）
     //   4) 在敌人身上额外生成一个"回收命中爆体"粒子特效（EnemyHitBurstEffect）
     //      —— 完全复用 1 把武器普通回收命中那一档表现：scale=1.0, mergeCount=1，
     //      不与回收命中的合并状态共用，单次独立爆发。
@@ -501,7 +619,16 @@ export const DEFAULT_CONFIG = {
     critEnabled: true,                    // 暴击总开关；关闭后所有主动攻击都按普攻处理
     critChance: 0.30,                     // 暴击触发概率 (0~1)
     critDamage: 480,                      // 暴击固定伤害值（同时作为伤害数字显示值，不走 playerAttackDamage*倍率）
-    critKnockbackForce: 30,               // 暴击命中时替换 hitKnockbackForce 的击退冲量
+
+    // ----- 暴击击退（史莱姆专用 4 参数；语义与 hitSKnockback* 一致，仅数值独立）-----
+    // 命中柱状/木桩时这 4 项不参与，那条路径仍走 critKnockbackForce (见下方)。
+    critKnockbackDistance: 2.5,           // 暴击位移：默认是普通的 ~2.5 倍
+    critKnockbackStartSpeed: 24.0,        // 暴击初速度：默认是普通的 2 倍（爆发更猛）
+    critKnockbackEndSpeed: 3.0,           // 暴击末速度
+    critKnockbackCurve: 0.5,              // 暴击速度曲线：略偏前段爆发
+
+    // 暴击命中"柱状/木桩"时的冲量（这两类不会真的位移，纯做弯曲形变换算）
+    critKnockbackForce: 30,               // 替换 hitKnockbackForce 的冲量值
 
     // 暴击粒子特效：复用回收命中的 EnemyHitBurstEffect。下面两个参数控制
     // "复用 1 情况下的效果"，默认 scale=1.0、mergeCount=1（即与普通回收单次命中完全一致）。
@@ -1144,6 +1271,75 @@ export function migrateDamageTextConfig(targetConfig) {
         if (targetConfig[k] !== undefined && targetConfig[atMaxKey] === undefined) {
             targetConfig[atMaxKey] = targetConfig[k];
         }
+    }
+
+    // ---- 第五代：受击反馈拆分（2026.05）— hit* 作为"柱状敌人"组，独立的 hitS* "史莱姆"组 ----
+    //   · 柱状敌人 (PillarEnemy) 使用 hit*
+    //   · 史莱姆敌人 (Enemy)     使用新独立的 hitS*（简化版，仅 10 个字段）
+    //   · 木桩 (WoodenStake)     形变走 stakeDeform*/stakeBend*，闪白仍读 hit*
+    //
+    // 兼容性策略：
+    //   1) 老 preset/localStorage 通常只有 hit*。把对应字段 fallback 到 hit*。
+    //   2) 第一版 hitS* 有 22 个细分字段（hitSDeformSquashAxis 等）；第二版简化后只剩
+    //      "Intensity 总幅度"形式。迁移时丢弃旧细分字段，并按"是否存在旧细分字段"反推 Intensity：
+    //      若旧 SquashAxis ≈ 0.5（出厂基准），则 Intensity=1.0；按比例换算。
+    const hitToHitSPairs = [
+        ['hitFlashDuration',     'hitSFlashDuration'],
+        ['hitFlashIntensity',    'hitSFlashIntensity'],
+        ['hitDeformStiffness',   'hitSDeformStiffness'],
+        ['hitDeformDamping',     'hitSDeformDamping'],
+        ['hitStunDuration',      'hitSStunDuration'],
+        ['hitBendStiffness',     'hitSBendStiffness'],
+        ['hitBendDamping',       'hitSBendDamping'],
+    ];
+    for (const [oldKey, newKey] of hitToHitSPairs) {
+        if (targetConfig[newKey] === undefined && targetConfig[oldKey] !== undefined) {
+            targetConfig[newKey] = targetConfig[oldKey];
+        }
+    }
+
+    // hitSKnockbackForce / critKnockbackForce(对史莱姆) → 旧"力"模型已废弃，
+    // 新模型用 Distance/StartSpeed/EndSpeed/Curve 四参数。旧字段直接丢弃，
+    // 新字段由 DEFAULT_CONFIG 提供默认值（在出厂值合并阶段已经写入）。
+    // 注：critKnockbackForce 字段仍然保留（用于"暴击命中柱状/木桩"的冲量换算），
+    // 这里只丢弃 hitSKnockbackForce。
+    if ('hitSKnockbackForce' in targetConfig) {
+        delete targetConfig.hitSKnockbackForce;
+    }
+
+    // hitSDeformIntensity：若不存在，尝试从已有的旧细分字段反推。
+    //   基准 SLIME_DEFORM_BASE.SquashAxis = 0.62（即 Intensity=1.0 时该分量的值）。
+    //   按 SquashAxis 相对基准的比例反推 Intensity。
+    if (targetConfig.hitSDeformIntensity === undefined) {
+        if (targetConfig.hitSDeformSquashAxis !== undefined) {
+            targetConfig.hitSDeformIntensity = Math.max(0, targetConfig.hitSDeformSquashAxis) / 0.62;
+        } else {
+            targetConfig.hitSDeformIntensity = 1.0;
+        }
+    }
+    // hitSBendIntensity：若不存在，从旧 BendBulge 相对基准 1.39 反推。
+    if (targetConfig.hitSBendIntensity === undefined) {
+        if (targetConfig.hitSBendBulge !== undefined) {
+            targetConfig.hitSBendIntensity = Math.max(0, targetConfig.hitSBendBulge) / 1.39;
+        } else {
+            targetConfig.hitSBendIntensity = 1.0;
+        }
+    }
+
+    // 丢弃第一版 hitS* 的所有旧细分字段（已被新 Intensity 模型替代）。
+    const obsoleteHitSKeys = [
+        'hitSDeformEnabled',
+        // 注：hitSDeformDuration 在 2026.05 重新作为"形变总时间(兜底)"暴露，已不再 obsolete。
+        'hitSDeformSquashAxis', 'hitSDeformSquashBulge',
+        'hitSDeformStretchAxis', 'hitSDeformStretchPinch',
+        'hitSDeformDentDepth', 'hitSDeformDentRadius',
+        'hitSBendEnabled', 'hitSBendDuration',
+        'hitSBendForceRef', 'hitSBendImpulseMax',
+        'hitSBendBulge', 'hitSBendCurvature', 'hitSBendShear',
+        'hitSBendPushIn', 'hitSBendAxisLength',
+    ];
+    for (const k of obsoleteHitSKeys) {
+        if (k in targetConfig) delete targetConfig[k];
     }
 
     // ---- 第四代：ShakeAmp 由两点（Start/End）扩展为三点（Start/Mid/End）----

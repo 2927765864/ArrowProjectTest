@@ -898,11 +898,13 @@ function init() {
 }
 
 // --- 右上角场景模式切换按钮 ---
-// 三种模式循环：obstacles → dummy → wave4 → obstacles
+// 四种模式循环：obstacles → dummy → slimeDummy → wave4 → obstacles
+// slimeDummy = 站桩史莱姆：外观与普通史莱姆一致，但不会朝玩家移动且 HP 无限
 const MODE_SWITCH_MAP = {
-    obstacles: { next: 'dummy',     label: '进入木桩模式' },
-    dummy:     { next: 'wave4',     label: '进入战斗关卡' },
-    wave4:     { next: 'obstacles', label: '进入障碍模式' },
+    obstacles:  { next: 'dummy',      label: '进入木桩模式' },
+    dummy:      { next: 'slimeDummy', label: '进入史莱姆木桩' },
+    slimeDummy: { next: 'wave4',      label: '进入战斗关卡' },
+    wave4:      { next: 'obstacles',  label: '进入障碍模式' },
 };
 
 function setupModeSwitchButton() {
@@ -952,12 +954,13 @@ function syncScenePanelUI() {
     const btnScm = document.getElementById('btn-scm');
     if (!valScm || !btnScm) return;
     switch (CONFIG.sceneMode) {
-        case 'empty':     valScm.innerText = '空旷';     btnScm.innerText = '切换为无尽'; break;
-        case 'obstacles': valScm.innerText = '障碍测试'; btnScm.innerText = '切换为木桩'; break;
-        case 'dummy':     valScm.innerText = '木桩';     btnScm.innerText = '切换为四人小队'; break;
-        case 'wave4':     valScm.innerText = '四人小队'; btnScm.innerText = '切换为空旷'; break;
+        case 'empty':      valScm.innerText = '空旷';       btnScm.innerText = '切换为无尽'; break;
+        case 'obstacles':  valScm.innerText = '障碍测试';   btnScm.innerText = '切换为木桩'; break;
+        case 'dummy':      valScm.innerText = '木桩';       btnScm.innerText = '切换为史莱姆木桩'; break;
+        case 'slimeDummy': valScm.innerText = '史莱姆木桩'; btnScm.innerText = '切换为四人小队'; break;
+        case 'wave4':      valScm.innerText = '四人小队';   btnScm.innerText = '切换为空旷'; break;
         case 'endless':
-        default:          valScm.innerText = '无尽';     btnScm.innerText = '切换为障碍测试'; break;
+        default:           valScm.innerText = '无尽';       btnScm.innerText = '切换为障碍测试'; break;
     }
 }
 
@@ -1381,12 +1384,23 @@ export function refreshBoundaryVisual() {
     updateCameraFollow();
     setupObstacles();
     setupDummy();
+    setupSlimeDummy();
 }
 
 function setupDummy() {
     if (CONFIG.sceneMode === 'dummy') {
         const dummyPos = new THREE.Vector3(0, 0, -4);
         new WoodenStake(dummyPos);
+    }
+}
+
+// 史莱姆木桩模式：spawn 一只站桩史莱姆（外观与普通史莱姆一致，但不追玩家，HP 无限）。
+// 与 dummy 模式（WoodenStake）的区别：这是 Enemy 实体，受击形变/击退/眩晕/bounce 都走
+// 普通史莱姆的 hitS* 参数，因此击中手感与战斗中的普通史莱姆完全一致。
+function setupSlimeDummy() {
+    if (CONFIG.sceneMode === 'slimeDummy') {
+        const pos = new THREE.Vector3(0, 0, -4);
+        new Enemy(pos, false, { stationary: true });
     }
 }
 
@@ -1975,15 +1989,27 @@ function _handleAttackTrigger(wasMoving) {
     } else if (wasStopped && !stopped) {
         // Started moving again. The player's design contract:
         //   * recover (backswing) can always be cancelled by movement
-        //   * windup can also be visually cancelled
-        //   * and during the post-windup spawn-delay window (weapon hasn't
+        //   * windup (前摇) is ALSO fully cancelled by movement — both
+        //     visually AND logically. No feather is ever spawned for an
+        //     attack whose windup got interrupted, no matter how briefly.
+        //   * during the post-windup spawn-delay window (weapon hasn't
         //     materialized yet), movement is still a plain cancel — no
-        //     feather is ever spawned for this attack.
+        //     feather is ever spawned for this attack either.
         // Either way we want a HARD cut from attack pose to running pose,
         // with zero blended "running while winding up" frames. So we snap
         // every attack-driven joint back to neutral right now; the running
         // branch will take over on the next animation tick from a clean
         // T-pose.
+        //
+        // Historical bug: previously this branch only cleared the spawn-
+        // delay timer, NOT the windup timer. That meant a rapid tap during
+        // windup would visually reset the attack pose but leave windupTimer
+        // ticking down silently in updatePlayerMovement(). By the time it
+        // hit zero, isMoving was usually false again (taps are short), so
+        // executeThrow() would fire a feather anyway — i.e. fast taps
+        // produced ghost throws faster than shootCooldown allowed. Clearing
+        // pending throw state unconditionally here fixes that: ANY input
+        // edge during the entire pre-spawn window kills the attack.
         const p = Globals.player;
         if (p.isAttacking || p.attackFacingAngle !== null) {
             // Only arm the attack-break facing turn if we actually had an
@@ -1991,7 +2017,7 @@ function _handleAttackTrigger(wasMoving) {
             // because snapOutOfAttackPose() clears attackFacingAngle.
             attackBreakTurnActive = true;
         }
-        if (isThrowSpawnDelayActive) {
+        if (isWindupActive || isThrowSpawnDelayActive) {
             _clearPendingThrowState();
         }
         p.snapOutOfAttackPose();
@@ -2001,10 +2027,9 @@ function _handleAttackTrigger(wasMoving) {
     // No "still moving" branch needed: snapOutOfAttackPose() above already
     // cleared isAttacking on the wasStopped→!stopped edge, so _updateAnimation_main
     // will never re-enter the attack branch to advance attackTimer into a
-    // recover phase. The post-windup throw-spawn delay is also cleared on
-    // the movement-start edge above; the original windup-timer behavior
-    // stays unchanged and is still resolved by the timer path in
-    // updatePlayerMovement().
+    // recover phase. Both the windup timer and the post-windup throw-spawn
+    // delay are cleared on the movement-start edge above, so no pending
+    // throw can survive a movement interruption.
 }
 
 // Update the player's world-space facing. Upper and lower body share one
