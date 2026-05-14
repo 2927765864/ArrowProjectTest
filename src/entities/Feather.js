@@ -111,17 +111,18 @@ export class Feather {
             opacity: isSpecial ? CONFIG.deployRingOpacitySpecial : CONFIG.deployRingOpacityNormal,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            // 关闭深度测试 + 高 renderOrder，让指示器始终绘制在地上"小猫黑影"
-            // （回收特效里的 mound / hole / dirtClumps，颜色 0x0e0b1c）之上，
-            // 不会再被它们遮挡。与 Player.moveIndicator 的层级处理保持一致。
-            depthTest: false,
+            // 开启深度测试 + 较低的 renderOrder，让敌人建模等立体几何
+            // 能够正常遮挡落点指示器，避免圆环穿透显示在角色身上。
+            // 小猫回收特效的黑色土地（mound Y=0.01 / hole Y=0.012 / dirtClumps 顶部≈0.065）
+            // 都比圆环 Y=0.08 低，深度测试天然让圆环绘制在它们之上，无需额外 renderOrder。
+            depthTest: true,
             side: THREE.DoubleSide,
             toneMapped: false
         });
         
         const ringMesh = new THREE.Mesh(ringGeo, this.deploymentRingMaterial);
         ringMesh.rotation.x = -Math.PI / 2;
-        ringMesh.renderOrder = 999;
+        ringMesh.renderOrder = 1;
         this.deploymentRing.add(ringMesh);
 
         this.arrowContainer = new THREE.Group();
@@ -140,8 +141,8 @@ export class Feather {
             opacity: CONFIG.deployArrowOpacity,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
-            // 同 ring：关闭深度测试，绘制顺序拔高，避免被小猫地面阴影/土堆遮挡
-            depthTest: false,
+            // 同 ring：开启深度测试，让敌人/角色等立体物体能正常遮挡指示器
+            depthTest: true,
             side: THREE.DoubleSide,
             toneMapped: false
         });
@@ -149,7 +150,7 @@ export class Feather {
         this.arrowMesh.rotation.x = -Math.PI / 2;
         this.arrowMesh.position.z = radius; // Place on the edge of the ring
         this.arrowMesh.scale.set(CONFIG.deployArrowScale, CONFIG.deployArrowScale * CONFIG.deployArrowLength, 1);
-        this.arrowMesh.renderOrder = 1000; // 略高于 ring，保证箭头压在 ring 上而不是被 ring 自身遮
+        this.arrowMesh.renderOrder = 2; // 略高于 ring（renderOrder=1），保证箭头压在 ring 上不被自身遮挡
         
         this.arrowContainer.add(this.arrowMesh);
         this.deploymentRing.add(this.arrowContainer);

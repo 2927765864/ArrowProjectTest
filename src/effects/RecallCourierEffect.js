@@ -81,8 +81,14 @@ export class RecallCourierEffect {
 
         this.materials = [];
 
-        const dirtMat = new THREE.MeshBasicMaterial({ color: 0x0e0b1c });
-        const dirtDarkMat = new THREE.MeshBasicMaterial({ color: 0x050410 });
+        // 小猫回收特效的"黑色土地"部分（mound/hole/ridge/dirtClumps）
+        // 必须保证图层低于落点指示器圆环（Feather.js 中 ringMesh.renderOrder=1）。
+        // 关键点：
+        //   1) renderOrder = 0（默认）即可，确保比圆环（=1）先绘制
+        //   2) depthWrite = false：不写入深度缓冲，避免土堆 ridge（Y≈0.145）
+        //      因为深度更近而把圆环（Y=0.08）遮挡掉
+        const dirtMat = new THREE.MeshBasicMaterial({ color: 0x0e0b1c, depthWrite: false });
+        const dirtDarkMat = new THREE.MeshBasicMaterial({ color: 0x050410, depthWrite: false });
         const furMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
         const furBackMat = new THREE.MeshBasicMaterial({ color: 0xe0d2bf });
         const eyeMat = new THREE.MeshBasicMaterial({ color: 0x362c28 });
@@ -92,17 +98,20 @@ export class RecallCourierEffect {
         const mound = new THREE.Mesh(new THREE.CircleGeometry(0.55, 32), dirtMat);
         mound.rotation.x = -Math.PI / 2;
         mound.position.y = 0.01;
+        mound.renderOrder = 0;
         this.group.add(mound);
 
         const hole = new THREE.Mesh(new THREE.RingGeometry(0.13, 0.25, 24), dirtDarkMat);
         hole.rotation.x = -Math.PI / 2;
         hole.position.y = 0.012;
+        hole.renderOrder = 0;
         this.group.add(hole);
         this.hole = hole;
 
         const ridge = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), dirtMat.clone());
         ridge.scale.set(1.7, 0.34, 1.25);
         ridge.position.set(0, 0.06, 0.02);
+        ridge.renderOrder = 0;
         this.group.add(ridge);
         this.materials.push(ridge.material);
 
@@ -113,6 +122,7 @@ export class RecallCourierEffect {
             const radius = 0.23 + Math.random() * 0.14;
             clump.position.set(Math.cos(angle) * radius, 0.03, Math.sin(angle) * radius);
             clump.scale.y = 0.5;
+            clump.renderOrder = 0;
             this.group.add(clump);
             this.materials.push(clump.material);
             this.dirtClumps.push({ mesh: clump, angle, radius });
