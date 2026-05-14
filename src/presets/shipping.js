@@ -1,7 +1,7 @@
 // =====================================================================
 // 出厂参数 (SHIPPING PRESET) — 自动生成，请勿手动编辑
 // ---------------------------------------------------------------------
-// 生成时间: 2026-05-11T05:22:52.320Z
+// 生成时间: 2026-05-14T05:12:24.084Z
 //
 // 这个文件由控制面板里的「导出当前参数为包体默认」按钮自动生成。
 // 它定义了"打包发布版本"启动时应用的默认游戏参数。
@@ -26,7 +26,7 @@
 //   4. 重新打包 APK
 // =====================================================================
 
-export const SHIPPING_PRESET_VERSION = 1778476972;
+export const SHIPPING_PRESET_VERSION = 1778735544;
 
 export const SHIPPING_PRESET = {
     shootCooldown: 0.7,
@@ -159,7 +159,7 @@ export const SHIPPING_PRESET = {
     recallCourierWeaponBaseRotZ: 0,
     recallCourierWeaponWindupRotX: 86,
     recallCourierWeaponThrowRotX: 57,
-    sceneMode: "obstacles",
+    sceneMode: "dummy",
     wave4Count: 4,
     wave4RespawnDelay: 0.6,
     floorStyle: "solid",
@@ -252,7 +252,7 @@ export const SHIPPING_PRESET = {
     critChance: 0.5,
     critDamage: 480,
     critKnockbackForce: 10,
-    critBurstScale: 1,
+    critBurstScale: 0.8,
     critBurstMergeCount: 1,
     dmgCritAtkMoveTimeRatio: 0.4,
     dmgCritAtkHoldRatio: 0,
@@ -318,7 +318,7 @@ export const SHIPPING_PRESET = {
     recallHitBurstMergeWindow: 0.05,
     recallHitBurstCountForMax: 6,
     recallHitBurstCountCurve: 0,
-    recallHitBurstUseCurves: true,
+    recallHitBurstUseCurves: false,
     recallHitBurstCurves: {
         density: {
             enabled: true,
@@ -360,8 +360,8 @@ export const SHIPPING_PRESET = {
             },
         },
     },
-    recallHitBurstLowCount: 25,
-    recallHitBurstLowCountAtMax: 60,
+    recallHitBurstLowCount: 15,
+    recallHitBurstLowCountAtMax: 25,
     recallHitBurstLowSpeedMin: 3,
     recallHitBurstLowSpeedMinAtMax: 5,
     recallHitBurstLowSpeedMax: 8,
@@ -370,21 +370,21 @@ export const SHIPPING_PRESET = {
     recallHitBurstLowUpBiasAtMax: 0.31,
     recallHitBurstLowGravity: 18,
     recallHitBurstLowGravityAtMax: 18,
-    recallHitBurstLowLifeMin: 0.45,
-    recallHitBurstLowLifeMinAtMax: 0.6,
-    recallHitBurstLowLifeMax: 0.85,
-    recallHitBurstLowLifeMaxAtMax: 1.1,
-    recallHitBurstLowSizeMin: 0.15,
-    recallHitBurstLowSizeMinAtMax: 0.25,
-    recallHitBurstLowSizeMax: 0.19,
-    recallHitBurstLowSizeMaxAtMax: 0.305,
+    recallHitBurstLowLifeMin: 0.15,
+    recallHitBurstLowLifeMinAtMax: 0.18,
+    recallHitBurstLowLifeMax: 0.22,
+    recallHitBurstLowLifeMaxAtMax: 0.49,
+    recallHitBurstLowSizeMin: 0.25,
+    recallHitBurstLowSizeMinAtMax: 0.355,
+    recallHitBurstLowSizeMax: 0.3,
+    recallHitBurstLowSizeMaxAtMax: 0.445,
     recallHitBurstLowOpacity: 0.7,
     recallHitBurstLowOpacityAtMax: 0.7,
     recallHitBurstLowColorJitter: 0.35,
     recallHitBurstLowColorJitterAtMax: 0.5,
     recallHitBurstLowSpin: 8,
     recallHitBurstLowSpinAtMax: 12,
-    recallHitBurstLowDrag: 1.2,
+    recallHitBurstLowDrag: 0.65,
     recallHitBurstLowDragAtMax: 1,
     recallHitBurstHighCount: 8,
     recallHitBurstHighCountAtMax: 12,
@@ -396,14 +396,14 @@ export const SHIPPING_PRESET = {
     recallHitBurstHighUpBiasAtMax: 0.85,
     recallHitBurstHighGravity: 26.5,
     recallHitBurstHighGravityAtMax: 27.5,
-    recallHitBurstHighLifeMin: 0.7,
-    recallHitBurstHighLifeMinAtMax: 0.9,
-    recallHitBurstHighLifeMax: 1.2,
-    recallHitBurstHighLifeMaxAtMax: 1.6,
-    recallHitBurstHighSizeMin: 0.1,
-    recallHitBurstHighSizeMinAtMax: 0.135,
-    recallHitBurstHighSizeMax: 0.185,
-    recallHitBurstHighSizeMaxAtMax: 0.23,
+    recallHitBurstHighLifeMin: 0.21,
+    recallHitBurstHighLifeMinAtMax: 0.38,
+    recallHitBurstHighLifeMax: 0.26,
+    recallHitBurstHighLifeMaxAtMax: 0.53,
+    recallHitBurstHighSizeMin: 0.195,
+    recallHitBurstHighSizeMinAtMax: 0.22,
+    recallHitBurstHighSizeMax: 0.24,
+    recallHitBurstHighSizeMaxAtMax: 0.27,
     recallHitBurstHighOpacity: 0.73,
     recallHitBurstHighOpacityAtMax: 0.75,
     recallHitBurstHighColorJitter: 0.45,
@@ -423,7 +423,7 @@ export const SHIPPING_PRESET = {
     slashFlashCoreOpacity: 1,
     slashFlashRevealRatio: 0.18,
     slashFlashFadeStart: 0.32,
-    damageTextScale: 0.8,
+    damageTextScale: 0.6,
     dmgShadowAlphaTight: 0.35,
     dmgShadowAlphaGlow: 0.2,
     dmgShadowAlphaDrop: 0.1,
@@ -482,9 +482,9 @@ export const SHIPPING_PRESET = {
     dmgAtkShakeAmpEnd: -13.5,
     dmgAtkShakeAppearCurve: 3,
     dmgAtkShakeEndCurve: 1,
-    dmgAtkScaleStart: 3,
-    dmgAtkScalePunch: 3.5,
-    dmgAtkScaleHold: 3.5,
+    dmgAtkScaleStart: 4,
+    dmgAtkScalePunch: 4.3,
+    dmgAtkScaleHold: 4.3,
     dmgAtkScaleEnd: 0,
     dmgAtkDirJitterDeg: 0,
     dmgAtkCharStaggerEnabled: 1,
