@@ -24,3 +24,10 @@ test_lerp.js
 test_three.js
 temp_group.html
 tune_arm_full_hierarchy.py
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
